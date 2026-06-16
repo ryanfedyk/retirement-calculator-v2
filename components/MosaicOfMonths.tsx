@@ -3,7 +3,7 @@ import { useState, useCallback } from "react";
 import { Check } from "lucide-react";
 import { C } from "@/config/colors";
 import { buildMosaicCells, getLifeEvents } from "@/lib/horizonUtils";
-import { HORIZON_CONFIG } from "@/config/horizonConfig";
+import { HORIZON_CONFIG, useHorizonProfile } from "@/config/horizonConfig";
 import { useRetirementDate } from "@/hooks/useRetirementDate";
 import type { MonthCell, AdventureBlueprint, WhenToStart, LifeEvent } from "@/types/horizon";
 
@@ -90,6 +90,7 @@ function RichTooltip({ cell, adventures, offsetFromNow, lifeEventsForCell }: {
   lifeEventsForCell: LifeEvent[];
 }) {
   const { retirementDate: ret } = useRetirementDate();
+  const { children } = useHorizonProfile();
   const monthsToRetirement = Math.max(0,
     (ret.getFullYear() - cell.year) * 12 + (ret.getMonth() - cell.month)
   );
@@ -130,7 +131,7 @@ function RichTooltip({ cell, adventures, offsetFromNow, lifeEventsForCell }: {
         <div className="px-4 py-3" style={{ background: C.tealWash, borderBottom: `1px solid ${C.borderSoft}` }}>
           <p style={{ color: C.tealDark }} className="text-[9px] uppercase tracking-widest mb-2">Life snapshot</p>
           <div className="space-y-1">
-            {HORIZON_CONFIG.children.map(child => {
+            {children.map(child => {
               const age = getChildAgeAt(new Date(child.birthDate), cell.year, cell.month);
               return (
                 <div key={child.name} className="flex items-center justify-between">
@@ -209,8 +210,9 @@ interface Props { pinnedAdventures: AdventureBlueprint[]; }
 
 export default function MosaicOfMonths({ pinnedAdventures }: Props) {
   const { retirementDate } = useRetirementDate();
-  const cells      = buildMosaicCells(retirementDate);
-  const lifeEvents = getLifeEvents(retirementDate);
+  const { children } = useHorizonProfile();
+  const cells      = buildMosaicCells(retirementDate, children);
+  const lifeEvents = getLifeEvents(retirementDate, children);
 
   const [hovered,   setHovered]   = useState<MonthCell | null>(null);
   const [completed, setCompleted] = useState<Set<string>>(new Set());

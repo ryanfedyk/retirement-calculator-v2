@@ -17,3 +17,25 @@ env:
     secret: GEMINI_API_KEY
     availability:
       - RUNTIME
+
+  # Firebase web-app config. Public values — inlined into the client bundle at
+  # build time, so they must be available at BUILD. Set them with:
+  #   firebase apphosting:secrets:set <NAME>  (or plain values in the console)
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    value: "AIzaSyCKsuTwORWPDQkpYTKCJzXpooY7tjMNYxM"
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: "retirement-calc-v2.firebaseapp.com"
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: "retirement-calc-v2"
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    value: "retirement-calc-v2.firebasestorage.app"
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    value: "1085666695529"
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    value: "1:1085666695529:web:cf9444a621cb70a47285f8"
+    availability: [BUILD, RUNTIME]

@@ -12,10 +12,10 @@
  */
 import { useMemo } from "react";
 import { useFinancialStore } from "@/store/useFinancialStore";
-import { PERSONAL } from "@/config/sharedConfig";
 
 export function useRetirementDate() {
   const cp = useFinancialStore(s => s.config.career_path);
+  const retirementMonth = useFinancialStore(s => s.profile.retirementMonth);
 
   // True full-retirement year = exit + any post-Google phases
   let trueYear = cp.exit_year;
@@ -27,12 +27,12 @@ export function useRetirementDate() {
   // across renders. Without this, every render produces fresh Date instances,
   // which breaks downstream useMemo/useEffect dependency checks (infinite loop).
   const googleExitDate = useMemo(
-    () => new Date(cp.exit_year, PERSONAL.retirementMonth, 1),
-    [cp.exit_year]
+    () => new Date(cp.exit_year, retirementMonth, 1),
+    [cp.exit_year, retirementMonth]
   );
   const trueRetirementDate = useMemo(
-    () => new Date(trueYear, PERSONAL.retirementMonth, 1),
-    [trueYear]
+    () => new Date(trueYear, retirementMonth, 1),
+    [trueYear, retirementMonth]
   );
 
   return {

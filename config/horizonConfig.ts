@@ -1,21 +1,13 @@
 // Core configuration for the Horizon dashboard.
-// Dates and personal data are sourced from sharedConfig so both views stay in sync.
-import { PERSONAL } from "./sharedConfig";
+//
+// The STATIC parts (work cadence, phase journey, mantras) are the same for every
+// user and live in HORIZON_CONFIG. The per-user parts (name, retirement date,
+// children) now come from the Zustand profile via useHorizonProfile().
+"use client";
+import { useMemo } from "react";
+import { useFinancialStore } from "@/store/useFinancialStore";
 
 export const HORIZON_CONFIG = {
-  user: {
-    name: PERSONAL.name,
-    currentRole: "Corporate Leader",
-    retirementDate: new Date(PERSONAL.retirementYear, PERSONAL.retirementMonth, 1),
-    startDate: new Date("2024-01-01"),
-    corporateStartDate: new Date(PERSONAL.corporateStartYear, 0, 1),
-  },
-
-  children: PERSONAL.children.map(c => ({
-    name: c.name,
-    birthDate: new Date(c.birthYear, c.birthMonth, 1),
-  })),
-
   work: {
     avgHoursPerWeek: 55,
     corporateTheaterHoursPerWeek: 12, // meetings, performative work, admin theater
@@ -80,6 +72,50 @@ export const HORIZON_CONFIG = {
   ],
 } as const;
 
+// ── Per-user, profile-derived config ─────────────────────────────────────────
+
+export interface HorizonChild {
+  name: string;
+  birthDate: Date;
+}
+
+export interface HorizonProfile {
+  user: {
+    name: string;
+    currentRole: string;
+    retirementDate: Date;
+    startDate: Date;
+    corporateStartDate: Date;
+  };
+  children: HorizonChild[];
+}
+
+/**
+ * Live view of the current user's personal Horizon data, derived from the
+ * Zustand profile. Use this in client components instead of the old static
+ * HORIZON_CONFIG.user / .children.
+ */
+export function useHorizonProfile(): HorizonProfile {
+  const profile = useFinancialStore((s) => s.profile);
+
+  return useMemo(
+    () => ({
+      user: {
+        name: profile.name,
+        currentRole: "Corporate Leader",
+        retirementDate: new Date(profile.retirementYear, profile.retirementMonth, 1),
+        startDate: new Date("2024-01-01"),
+        corporateStartDate: new Date(profile.corporateStartYear, 0, 1),
+      },
+      children: profile.children.map((c) => ({
+        name: c.name,
+        birthDate: new Date(c.birthYear, c.birthMonth, 1),
+      })),
+    }),
+    [profile]
+  );
+}
+
 // Design token constants matching the Tailwind config
 export const DESIGN_TOKENS = {
   colors: {
@@ -97,4 +133,3 @@ export const DESIGN_TOKENS = {
 } as const;
 
 export type HorizonPhase = typeof HORIZON_CONFIG.phases[number];
-export type HorizonChild = typeof HORIZON_CONFIG.children[number];

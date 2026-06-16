@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { AuthProvider } from "@/lib/auth/AuthProvider";
+import { CloudSyncProvider } from "@/lib/cloud/CloudSyncProvider";
 
 export const metadata: Metadata = {
   title: "Horizon — The Elegant Taper",
@@ -10,7 +12,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className="h-full">
       <body className="min-h-full flex flex-col" style={{ background: "#ecf3ef", color: "#1a2e25" }}>
-        {children}
+        <AuthProvider>
+          <CloudSyncProvider>{children}</CloudSyncProvider>
+        </AuthProvider>
       </body>
     </html>
   );

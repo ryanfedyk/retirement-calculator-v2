@@ -115,6 +115,9 @@ export interface SimulationConfiguration {
     year: number;
     cost: number;
   }>;
+  // Children, projected from the user profile — used to count kids still on the
+  // family health plan. Optional so existing configs without it still type-check.
+  children?: Array<{ birthYear: number }>;
 }
 
 export interface TrajectoryPoint {
@@ -148,7 +151,6 @@ export interface TrajectoryPoint {
 }
 
 import { calculateTax } from './tax_engine';
-import { PERSONAL } from '@/config/sharedConfig';
 
 // Age at which a child is assumed to leave the family health plan (post-college).
 const CHILD_OFF_PLAN_AGE = 22;
@@ -509,7 +511,7 @@ export const runSimulation = (
       // children age off at ~22 (post-college).
       const baseFamilySize = Math.max(1, opt?.aca_family_size ?? 4);
       const perCapita      = config.spending.healthcare_premium / baseFamilySize;
-      const coveredKids    = PERSONAL.children.filter(
+      const coveredKids    = (config.children ?? []).filter(
         c => currentYear - c.birthYear < CHILD_OFF_PLAN_AGE
       ).length;
       selfPaidHealthcare = perCapita * (adults + coveredKids) * inflationMultiplier;

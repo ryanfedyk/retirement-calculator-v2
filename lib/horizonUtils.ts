@@ -1,10 +1,11 @@
-import { HORIZON_CONFIG } from "@/config/horizonConfig";
+import { HORIZON_CONFIG, type HorizonChild } from "@/config/horizonConfig";
 import type { MonthCell, ChildMilestone, LifeEvent } from "@/types/horizon";
 
-// Default retirement date (static fallback). Call sites in the Forecasting tab
-// pass the DYNAMIC date from useRetirementDate() so everything reacts to the
-// retirement model configured on the Financial tab.
-const DEFAULT_RET = HORIZON_CONFIG.user.retirementDate;
+// Default retirement date (static fallback, 10y out). Call sites in the
+// Forecasting tab pass the DYNAMIC date from useRetirementDate(), and child-aware
+// helpers receive the current profile's children, so everything reacts to the
+// per-user model configured on the Financial tab.
+const DEFAULT_RET = new Date(new Date().getFullYear() + 10, 0, 1);
 
 export function getMonthsRemaining(ret: Date = DEFAULT_RET): number {
   const now = new Date();
@@ -14,8 +15,10 @@ export function getMonthsRemaining(ret: Date = DEFAULT_RET): number {
   );
 }
 
-export function getCareerProgress(ret: Date = DEFAULT_RET): number {
-  const start = HORIZON_CONFIG.user.corporateStartDate;
+export function getCareerProgress(
+  ret: Date = DEFAULT_RET,
+  start: Date = new Date(new Date().getFullYear() - 15, 0, 1),
+): number {
   const now   = new Date();
   const elapsed =
     (now.getFullYear() - start.getFullYear()) * 12 +
@@ -47,7 +50,7 @@ export function getCurrentPhase(ret: Date = DEFAULT_RET) {
 
 /** Builds ALL cells from the phase start date through retirement.
  *  Includes past, current, and future months for full mosaic context. */
-export function buildMosaicCells(ret: Date = DEFAULT_RET): MonthCell[] {
+export function buildMosaicCells(ret: Date = DEFAULT_RET, children: HorizonChild[] = []): MonthCell[] {
   const now   = new Date();
 
   // Start from the beginning of the first phase (Jan of corporateStartDate year or a fixed anchor).
@@ -75,7 +78,7 @@ export function buildMosaicCells(ret: Date = DEFAULT_RET): MonthCell[] {
       label: cellDate.toLocaleDateString("en-US", { month: "short", year: "2-digit" }),
       status: isPast ? "past" : isCurrent ? "current" : "future",
       phaseId: getPhaseForMonthOffset(Math.max(0, offsetFromNow)),
-      childMilestones: getChildMilestonesForMonth(cellDate),
+      childMilestones: getChildMilestonesForMonth(cellDate, children),
     });
 
     month++;
@@ -86,7 +89,7 @@ export function buildMosaicCells(ret: Date = DEFAULT_RET): MonthCell[] {
 }
 
 /** Returns only the future milestone months for the Milestones Panel. */
-export function getUpcomingMilestones(ret: Date = DEFAULT_RET): (ChildMilestone & { date: Date; monthsAway: number; gridRow: number })[] {
+export function getUpcomingMilestones(ret: Date = DEFAULT_RET, children: HorizonChild[] = []): (ChildMilestone & { date: Date; monthsAway: number; gridRow: number })[] {
   const now    = new Date();
   const result: (ChildMilestone & { date: Date; monthsAway: number; gridRow: number })[] = [];
 
@@ -96,7 +99,7 @@ export function getUpcomingMilestones(ret: Date = DEFAULT_RET): (ChildMilestone 
 
   while (year < ret.getFullYear() || (year === ret.getFullYear() && month <= ret.getMonth())) {
     const cellDate   = new Date(year, month, 1);
-    const milestones = getChildMilestonesForMonth(cellDate);
+    const milestones = getChildMilestonesForMonth(cellDate, children);
     for (const m of milestones) {
       result.push({ ...m, date: cellDate, monthsAway: offset, gridRow: Math.floor(offset / 12) + 1 });
     }
@@ -107,9 +110,9 @@ export function getUpcomingMilestones(ret: Date = DEFAULT_RET): (ChildMilestone 
   return result.sort((a, b) => a.monthsAway - b.monthsAway);
 }
 
-function getChildMilestonesForMonth(date: Date): ChildMilestone[] {
+function getChildMilestonesForMonth(date: Date, children: HorizonChild[] = []): ChildMilestone[] {
   const milestones: ChildMilestone[] = [];
-  for (const child of HORIZON_CONFIG.children) {
+  for (const child of children) {
     const birth = new Date(child.birthDate);
     // Use UTC month to avoid timezone offset shifting the date back one month
     if (date.getMonth() === birth.getUTCMonth() && date.getFullYear() > birth.getUTCFullYear()) {
@@ -202,11 +205,11 @@ const LIFE_MILESTONES: Array<{
   },
 ];
 
-export function getLifeEvents(ret: Date = DEFAULT_RET): LifeEvent[] {
+export function getLifeEvents(ret: Date = DEFAULT_RET, children: HorizonChild[] = []): LifeEvent[] {
   const now = new Date();
   const events: LifeEvent[] = [];
 
-  for (const child of HORIZON_CONFIG.children) {
+  for (const child of children) {
     const birth      = new Date(child.birthDate);
     const birthYear  = birth.getUTCFullYear();
     const birthMonth = birth.getUTCMonth();

@@ -1,94 +1,43 @@
 "use client";
-import { useState } from "react";
-import { Anchor, Wind, Clock, Compass } from "lucide-react";
-import { HORIZON_CONFIG } from "@/config/horizonConfig";
 import { C } from "@/config/colors";
-import Header, { type AppView } from "@/components/Header";
-import CountdownStrip        from "@/components/CountdownStrip";
-import { useIsMobile }       from "@/hooks/useIsMobile";
-import MobileApp             from "@/components/mobile/MobileApp";
-import { useRetirementDate } from "@/hooks/useRetirementDate";
-import FlightMap             from "@/components/FlightMap";
-import MacroSeasonsTimeline  from "@/components/MacroSeasonsTimeline";
-import ReclaimedTimeCalculator from "@/components/ReclaimedTimeCalculator";
-import AdventureGenerator    from "@/components/AdventureGenerator";
-import DailyDeflationWidget  from "@/components/DailyDeflationWidget";
-import FinancialDashboard    from "@/components/finance/FinancialDashboard";
-import type { AdventureBlueprint } from "@/types/horizon";
+import { useAuth } from "@/lib/auth/AuthProvider";
+import { useCloudSync } from "@/lib/cloud/CloudSyncProvider";
+import { useFinancialStore } from "@/store/useFinancialStore";
+import SignInScreen from "@/components/auth/SignInScreen";
+import OnboardingFlow from "@/components/onboarding/OnboardingFlow";
+import DashboardShell from "@/components/DashboardShell";
 
-const NAV = [
-  { id: "seasons",   label: "Seasons",   icon: Anchor },
-  { id: "reclaim",   label: "Reclaim",   icon: Wind },
-  { id: "adventure", label: "Adventure", icon: Compass },
-  { id: "deflate",   label: "Deflate",   icon: Clock },
-] as const;
-type NavId = typeof NAV[number]["id"];
-
-export default function HorizonDashboard() {
-  const [appView, setAppView] = useState<AppView>("financial");
-  const [tab,   setTab]   = useState<NavId>("seasons");
-  const [saved, setSaved] = useState<AdventureBlueprint[]>([]);
-  const { retirementDate } = useRetirementDate();
-  const isMobile = useIsMobile();
-
-  if (isMobile) return <MobileApp />;
-
+function Loading() {
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: C.bg }}>
-
-      <Header view={appView} onViewChange={setAppView} />
-
-      {/* Countdown — shown across both views */}
-      <CountdownStrip />
-
-      {/* ── Financial View ── */}
-      {appView === "financial" && (
-        <div className="flex-1">
-          <FinancialDashboard />
-        </div>
-      )}
-
-      {/* ── Forecasting View ── */}
-      {appView === "forecasting" && (
-        <>
-          <FlightMap pinnedAdventures={saved} />
-
-          {/* Nav */}
-          <nav style={{ background: C.bgCard, borderBottom: `1px solid ${C.border}` }} className="px-8">
-            <div className="max-w-7xl mx-auto flex">
-              {NAV.map(({ id, label, icon: Icon }) => (
-                <button key={id} onClick={() => setTab(id)}
-                        className="flex items-center gap-2 px-5 py-3.5 text-xs font-medium border-b-2 transition-all duration-200 cursor-pointer tracking-wide uppercase"
-                        style={{
-                          borderColor: tab === id ? C.teal : "transparent",
-                          color:       tab === id ? C.tealDark : C.inkSoft,
-                        }}>
-                  <Icon size={12} /> {label}
-                </button>
-              ))}
-            </div>
-          </nav>
-
-          {/* Main */}
-          <main className="flex-1 px-8 py-12">
-            <div className="max-w-7xl mx-auto">
-              {tab === "seasons"   && <MacroSeasonsTimeline />}
-              {tab === "reclaim"   && <ReclaimedTimeCalculator />}
-              {tab === "adventure" && <AdventureGenerator saved={saved} setSaved={setSaved} />}
-              {tab === "deflate"   && <DailyDeflationWidget />}
-            </div>
-          </main>
-
-          <footer style={{ borderTop: `1px solid ${C.border}`, background: C.bgHeader }} className="px-8 py-4">
-            <div className="max-w-7xl mx-auto flex justify-between items-center">
-              <p style={{ color: C.inkFaint }} className="text-[10px] tracking-widest uppercase">Horizon — The Elegant Taper</p>
-              <p style={{ color: C.inkFaint }} className="text-[10px]">
-                {HORIZON_CONFIG.user.name} · Retiring {retirementDate.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" })}
-              </p>
-            </div>
-          </footer>
-        </>
-      )}
+    <div className="min-h-screen flex items-center justify-center" style={{ background: C.bg }}>
+      <div
+        style={{
+          width: 28, height: 28, borderRadius: "50%",
+          border: `3px solid ${C.border}`, borderTopColor: C.teal,
+          animation: "horizon-spin 0.7s linear infinite",
+        }}
+      />
+      <style>{`@keyframes horizon-spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
+}
+
+export default function HorizonPage() {
+  const { user, loading, configured } = useAuth();
+  const { ready } = useCloudSync();
+  const onboarded = useFinancialStore((s) => s.profile.onboarded);
+
+  // No Firebase configured → land on the sign-in screen (it explains how to set up).
+  if (!configured) return <SignInScreen />;
+
+  // Resolving auth or loading the cloud profile.
+  if (loading || (user && !ready)) return <Loading />;
+
+  // Not signed in.
+  if (!user) return <SignInScreen />;
+
+  // Signed in but hasn't completed onboarding.
+  if (!onboarded) return <OnboardingFlow />;
+
+  return <DashboardShell />;
 }

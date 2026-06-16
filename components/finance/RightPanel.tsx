@@ -14,6 +14,7 @@ import { C } from "@/config/colors";
 import LifeCalendar from "./LifeCalendar";
 import type { LivePrices } from "./FinancialDashboard";
 import { getLifeEvents } from "@/lib/horizonUtils";
+import { useHorizonProfile } from "@/config/horizonConfig";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -137,6 +138,7 @@ interface Props {
 
 export default function RightPanel({ livePrices, pricesUpdatedAt, pricesFetching, onRefreshPrices }: Props) {
   const { snapshot, config } = useFinancialStore();
+  const { children } = useHorizonProfile();
   const [chartView, setChartView] = useState<ChartView>("wealth");
   const [insightTab, setInsightTab] = useState<"today" | "scenarios" | "ai">("today");
 
@@ -256,7 +258,7 @@ export default function RightPanel({ livePrices, pricesUpdatedAt, pricesFetching
     }
     // Pre-retirement kids' milestones — same source the forecasting tab uses,
     // so both views stay in sync for the pre-2030 window.
-    for (const ev of getLifeEvents()) {
+    for (const ev of getLifeEvents(undefined, children)) {
       const x = findDate(p => p.date.includes(String(ev.year)));
       if (x) m.push({ x, stroke: C.tealLight, label: `${ev.icon} ${ev.childName}`, primary: false });
     }

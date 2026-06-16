@@ -6,6 +6,7 @@ import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { runSimulation, findIndependencePoint } from "@/engine/calculator";
 import { getLifeEvents } from "@/lib/horizonUtils";
+import { useHorizonProfile } from "@/config/horizonConfig";
 import { TodaysDelta, MomentumTurnstile, WhatIfChips } from "@/components/finance/MotivationWidgets";
 import AiAnalysis from "@/components/finance/AiAnalysis";
 import type { LivePrices } from "@/components/finance/FinancialDashboard";
@@ -29,6 +30,7 @@ interface Props {
 
 export default function MobileFinancial({ livePrices, pricesFetching, onRefreshPrices, onOpenConfig }: Props) {
   const { config, snapshot } = useFinancialStore();
+  const { children } = useHorizonProfile();
   const [view, setView] = useState<View>("wealth");
   const [insightTab, setInsightTab] = useState<"today" | "scenarios" | "ai">("today");
 
@@ -109,7 +111,7 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
   if (config.social_security) addMile(findDate(p => p.date.includes(String(by + config.social_security.start_age))), "Social Security starts", C.warm);
   if (config.medicare)        addMile(findDate(p => p.date.includes(String(by + config.medicare.start_age))),        "Medicare starts", "#9bbdb4");
   for (const ev of config.life_events ?? []) addMile(findDate(p => p.date.includes(String(ev.year))), ev.name, "#b9895e");
-  for (const ev of getLifeEvents()) addMile(findDate(p => p.date.includes(String(ev.year))), `${ev.icon} ${ev.childName}: ${ev.shortLabel}`, C.tealDark);
+  for (const ev of getLifeEvents(undefined, children)) addMile(findDate(p => p.date.includes(String(ev.year))), `${ev.icon} ${ev.childName}: ${ev.shortLabel}`, C.tealDark);
 
   // KEY milestones also get a light marker on the chart itself (the rest stay
   // flyout-only). Snapped + short-labelled to avoid clutter.

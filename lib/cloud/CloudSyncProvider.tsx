@@ -94,8 +94,9 @@ export function CloudSyncProvider({ children }: { children: ReactNode }) {
             config: DEFAULT_SIM_CONFIG,
           });
         }
-      } catch {
+      } catch (e) {
         // Offline or rules issue — fall back to whatever localStorage holds.
+        console.error("[cloud] load failed", e);
       } finally {
         if (!cancelled) setReady(true);
       }
@@ -138,7 +139,8 @@ export function CloudSyncProvider({ children }: { children: ReactNode }) {
             updatedAt: serverTimestamp(),
           });
           setStatus("saved");
-        } catch {
+        } catch (e) {
+          console.error("[cloud] save failed", e);
           setStatus("error");
         }
       }, SAVE_DEBOUNCE_MS);

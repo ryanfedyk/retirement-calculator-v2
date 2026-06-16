@@ -16,6 +16,10 @@ function friendlyError(code: string): string {
     case "auth/wrong-password":
     case "auth/user-not-found":         return "Email or password is incorrect.";
     case "auth/popup-closed-by-user":   return "Sign-in was cancelled.";
+    case "auth/operation-not-allowed":
+    case "auth/configuration-not-found":
+      return "This sign-in method isn’t enabled yet in Firebase.";
+    case "auth/network-request-failed": return "Network error. Check your connection.";
     default:                            return "Something went wrong. Please try again.";
   }
 }
@@ -36,6 +40,7 @@ export default function SignInScreen() {
       await fn();
     } catch (e) {
       const code = (e as { code?: string })?.code ?? "";
+      console.error("[auth]", code, e);
       setError(friendlyError(code));
     } finally {
       setBusy(false);

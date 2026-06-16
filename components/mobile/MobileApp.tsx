@@ -1,0 +1,99 @@
+"use client";
+import { useState, useEffect, useCallback } from "react";
+import { LineChart, Compass, SlidersHorizontal } from "lucide-react";
+import { C } from "@/config/colors";
+import { useFinancialStore } from "@/store/useFinancialStore";
+import type { LivePrices } from "@/components/finance/FinancialDashboard";
+import MobileFinancial from "./MobileFinancial";
+import MobileForecasting from "./MobileForecasting";
+import ConfigSheet from "./ConfigSheet";
+
+type View = "financial" | "forecasting";
+
+export default function MobileApp() {
+  const { snapshot } = useFinancialStore();
+  const [view, setView] = useState<View>("financial");
+  const [configOpen, setConfigOpen] = useState(false);
+
+  // ── Live prices (shared with the chart) ─────────────────────────────────────
+  const [livePrices, setLivePrices]         = useState<LivePrices>({});
+  const [pricesUpdatedAt, setPricesUpdatedAt] = useState<Date | null>(null);
+  const [pricesFetching, setPricesFetching]   = useState(false);
+
+  const fetchAllPrices = useCallback(async () => {
+    const symbols = [...new Set((snapshot.other_investments ?? []).map(i => i.symbol.toUpperCase()))];
+    if (!symbols.length) return;
+    setPricesFetching(true);
+    try {
+      const res = await fetch(`/api/quotes?symbols=${symbols.join(",")}`);
+      const data = await res.json() as { prices: LivePrices };
+      setLivePrices(data.prices ?? {});
+      setPricesUpdatedAt(new Date());
+    } catch { /* keep stale */ } finally { setPricesFetching(false); }
+  }, [snapshot.other_investments]);
+
+  useEffect(() => { fetchAllPrices(); }, [fetchAllPrices]);
+
+  const tabs: { id: View; label: string; icon: typeof LineChart }[] = [
+    { id: "financial",   label: "Financial",   icon: LineChart },
+    { id: "forecasting", label: "Forecasting", icon: Compass },
+  ];
+
+  return (
+    <div style={{ minHeight: "100dvh", background: C.bg, display: "flex", flexDirection: "column", overflowX: "hidden" }}>
+
+      {/* Header */}
+      <header style={{
+        position: "sticky", top: 0, zIndex: 30,
+        background: `${C.bgHeader}f2`, backdropFilter: "blur(10px)",
+        borderBottom: `1px solid ${C.border}`,
+        padding: "calc(10px + env(safe-area-inset-top)) 18px 10px",
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+      }}>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: "0.18em", color: C.ink }}>HORIZON</div>
+          <div style={{ fontSize: 9, letterSpacing: "0.22em", color: C.inkFaint, textTransform: "uppercase" }}>The Elegant Taper</div>
+        </div>
+        {view === "financial" && (
+          <button onClick={() => setConfigOpen(true)} aria-label="Adjust plan" style={{
+            width: 40, height: 40, borderRadius: "50%", border: `1px solid ${C.border}`,
+            background: C.bgCard, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
+          }}>
+            <SlidersHorizontal size={18} color={C.teal} />
+          </button>
+        )}
+      </header>
+
+      {/* Active view — bottom padding clears the fixed tab bar */}
+      <main style={{ flex: 1, paddingBottom: "calc(84px + env(safe-area-inset-bottom))" }}>
+        {view === "financial"
+          ? <MobileFinancial livePrices={livePrices} pricesUpdatedAt={pricesUpdatedAt} pricesFetching={pricesFetching} onRefreshPrices={fetchAllPrices} onOpenConfig={() => setConfigOpen(true)} />
+          : <MobileForecasting />}
+      </main>
+
+      <ConfigSheet open={configOpen} onClose={() => setConfigOpen(false)} />
+
+      {/* Bottom tab bar */}
+      <nav style={{
+        position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 50,
+        display: "flex", background: `${C.bgCard}f5`, backdropFilter: "blur(12px)",
+        borderTop: `1px solid ${C.border}`,
+        padding: "8px 12px calc(8px + env(safe-area-inset-bottom))",
+      }}>
+        {tabs.map(({ id, label, icon: Icon }) => {
+          const active = view === id;
+          return (
+            <button key={id} onClick={() => setView(id)} style={{
+              flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+              padding: "6px 0", border: "none", background: "transparent", cursor: "pointer",
+              color: active ? C.teal : C.inkFaint, transition: "color 0.18s",
+            }}>
+              <Icon size={22} strokeWidth={active ? 2.4 : 1.8} />
+              <span style={{ fontSize: 10, fontWeight: active ? 700 : 500, letterSpacing: "0.04em" }}>{label}</span>
+            </button>
+          );
+        })}
+      </nav>
+    </div>
+  );
+}

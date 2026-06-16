@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+body {
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "kern" 1, "liga" 1;
+  letter-spacing: -0.01em;
+}
+
+@keyframes calm-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.65; }
+}
+.pulse-calm { animation: calm-pulse 4s ease-in-out infinite; }
+
+@keyframes breathe {
+  0%, 100% { transform: scale(1);    opacity: 0.85; }
+  50%       { transform: scale(1.04); opacity: 1;   }
+}
+.breathe { animation: breathe 5s ease-in-out infinite; }
+
+@keyframes mosaic-in {
+  from { opacity: 0; transform: scale(0.88); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.mosaic-cell { animation: mosaic-in 0.28s ease both; }
+
+@keyframes lens-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.lens-in { animation: lens-in 0.3s ease both; }

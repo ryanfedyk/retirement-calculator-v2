@@ -1,0 +1,19 @@
+# Firebase App Hosting configuration
+# https://firebase.google.com/docs/app-hosting/configure
+
+runConfig:
+  # Scale to zero when idle to minimize cost; bump maxInstances if you get traffic.
+  minInstances: 0
+  maxInstances: 2
+  concurrency: 80
+  cpu: 1
+  memoryMiB: 512
+
+env:
+  # Gemini API key for the AI Plan Analysis route (/api/analyze).
+  # Stored in Cloud Secret Manager — see deploy steps to create it:
+  #   firebase apphosting:secrets:set GEMINI_API_KEY
+  - variable: GEMINI_API_KEY
+    secret: GEMINI_API_KEY
+    availability:
+      - RUNTIME

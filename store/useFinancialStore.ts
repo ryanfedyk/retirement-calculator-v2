@@ -2,12 +2,25 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import type { FinancialSnapshot, SimulationConfiguration } from "@/engine/calculator";
-import { DEFAULT_SNAPSHOT, DEFAULT_SIM_CONFIG } from "@/config/sharedConfig";
+import {
+  DEFAULT_SNAPSHOT,
+  DEFAULT_SIM_CONFIG,
+  DEFAULT_PROFILE,
+  type UserProfile,
+} from "@/config/sharedConfig";
 
-interface FinancialStore {
-  snapshot:  FinancialSnapshot;
-  config:    SimulationConfiguration;
+/** The persisted, cloud-syncable slice of state. */
+export interface HorizonState {
+  profile:  UserProfile;
+  snapshot: FinancialSnapshot;
+  config:   SimulationConfiguration;
+}
+
+interface FinancialStore extends HorizonState {
   livePrice: number;
+
+  // Profile
+  updateProfile: (updates: Partial<UserProfile>) => void;
 
   // Top-level
   updateSnapshot: (updates: Partial<FinancialSnapshot>) => void;
@@ -31,14 +44,33 @@ interface FinancialStore {
 
   setLivePrice:    (price: number) => void;
   resetToDefaults: () => void;
+
+  /** Bulk-replace the persisted slice — used by cloud sync on login. */
+  hydrate: (state: Partial<HorizonState>) => void;
+}
+
+/** Keep config.children (consumed by the engine) in sync with profile.children. */
+function projectChildren(profile: UserProfile): SimulationConfiguration["children"] {
+  return profile.children.map((c) => ({ birthYear: c.birthYear }));
 }
 
 export const useFinancialStore = create<FinancialStore>()(
   persist(
     (set) => ({
+      profile:   DEFAULT_PROFILE,
       snapshot:  DEFAULT_SNAPSHOT,
       config:    DEFAULT_SIM_CONFIG,
       livePrice: 0,
+
+      updateProfile: (updates) =>
+        set((s) => {
+          const profile = { ...s.profile, ...updates };
+          return {
+            profile,
+            // mirror children into the sim config so the engine sees them
+            config: { ...s.config, children: projectChildren(profile) },
+          };
+        }),
 
       updateSnapshot: (updates) =>
         set((s) => ({ snapshot: { ...s.snapshot, ...updates } })),
@@ -85,11 +117,26 @@ export const useFinancialStore = create<FinancialStore>()(
 
       setLivePrice: (price) => set({ livePrice: price }),
 
-      resetToDefaults: () => set({ snapshot: DEFAULT_SNAPSHOT, config: DEFAULT_SIM_CONFIG }),
+      resetToDefaults: () =>
+        set({ profile: DEFAULT_PROFILE, snapshot: DEFAULT_SNAPSHOT, config: DEFAULT_SIM_CONFIG }),
+
+      hydrate: (state) =>
+        set((s) => {
+          const profile = state.profile ?? s.profile;
+          const config  = state.config ?? s.config;
+          return {
+            profile,
+            snapshot: state.snapshot ?? s.snapshot,
+            // ensure children projection is consistent after a cloud load
+            config: { ...config, children: projectChildren(profile) },
+          };
+        }),
     }),
     {
-      name:    "horizon-financial-v7",
+      name:    "horizon-financial-v8",
       storage: createJSONStorage(() => localStorage),
+      // Persist only the cloud-syncable slice; livePrice is transient.
+      partialize: (s) => ({ profile: s.profile, snapshot: s.snapshot, config: s.config }),
     }
   )
 );

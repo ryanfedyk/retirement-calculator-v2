@@ -1,6 +1,6 @@
 "use client";
 import { useRef, useEffect, useState, useMemo, useCallback, Fragment } from "react";
-import { HORIZON_CONFIG } from "@/config/horizonConfig";
+import { HORIZON_CONFIG, useHorizonProfile, type HorizonChild } from "@/config/horizonConfig";
 import { C } from "@/config/colors";
 import { getLifeEvents } from "@/lib/horizonUtils";
 import MosaicOfMonths from "@/components/MosaicOfMonths";
@@ -60,7 +60,7 @@ interface Waypoint {
   color: string; important: boolean; above: boolean;
 }
 
-function buildWaypoints(mapEnd: Date, xOf: (d: Date) => number): Waypoint[] {
+function buildWaypoints(mapEnd: Date, xOf: (d: Date) => number, children: HorizonChild[]): Waypoint[] {
   const now = new Date();
   const wps: Waypoint[] = [];
   let toggle = true;
@@ -91,7 +91,7 @@ function buildWaypoints(mapEnd: Date, xOf: (d: Date) => number): Waypoint[] {
   }
 
   // Kids' birthdays
-  for (const child of HORIZON_CONFIG.children) {
+  for (const child of children) {
     const birth = new Date(child.birthDate);
     for (let yr = now.getFullYear(); yr <= mapEnd.getFullYear(); yr++) {
       const d = new Date(yr, birth.getUTCMonth(), 1);
@@ -101,7 +101,7 @@ function buildWaypoints(mapEnd: Date, xOf: (d: Date) => number): Waypoint[] {
   }
 
   // Kids' life events
-  for (const ev of getLifeEvents(mapEnd)) {
+  for (const ev of getLifeEvents(mapEnd, children)) {
     const d = new Date(ev.year, ev.month, 1);
     if (d > now && d <= mapEnd)
       add({ x: xOf(d), label: `${ev.icon} ${ev.childName}`, type: "life", color: C.warm, important: true });
@@ -159,7 +159,8 @@ export default function FlightMap({ pinnedAdventures = [] }: Props) {
   const terrainPts  = useMemo(() => buildTerrainPts(mapEnd, xOf),  [mapEnd, xOf]);
   const terrainFill = useMemo(() => ptsToPath(terrainPts, H),       [terrainPts]);
   const terrainEdge = useMemo(() => ptsToPath(terrainPts),          [terrainPts]);
-  const waypoints   = useMemo(() => buildWaypoints(mapEnd, xOf),    [mapEnd, xOf]);
+  const { children } = useHorizonProfile();
+  const waypoints   = useMemo(() => buildWaypoints(mapEnd, xOf, children), [mapEnd, xOf, children]);
   const phaseBands  = useMemo(() => buildPhaseBands(mapEnd, xOf),   [mapEnd, xOf]);
 
   // nowX is client-only to avoid SSR hydration mismatch

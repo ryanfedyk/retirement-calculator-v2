@@ -17,3 +17,25 @@ env:
     secret: GEMINI_API_KEY
     availability:
       - RUNTIME
+
+  # Firebase web-app config. Public values — inlined into the client bundle at
+  # build time, so they must be available at BUILD. Set them with:
+  #   firebase apphosting:secrets:set <NAME>  (or plain values in the console)
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    value: ""
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: ""
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: ""
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    value: ""
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    value: ""
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    value: ""
+    availability: [BUILD, RUNTIME]

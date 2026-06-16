@@ -1,122 +1,123 @@
 /**
  * sharedConfig.ts
- * Single source of truth for all personal data.
- * Both the Horizon forecasting view and the financial modelling view
- * derive their defaults from this file.
+ * Generic defaults for a brand-new Horizon user.
+ *
+ * Personal data is no longer hardcoded here — it lives per-user in the Zustand
+ * store (see store/useFinancialStore.ts) and round-trips to Firestore. These
+ * exports are only the blank-slate starting point a new account is seeded with;
+ * onboarding and the config panels fill in the real numbers.
  */
 
 import type { SimulationConfiguration, FinancialSnapshot } from "@/engine/calculator";
 
-// ── Personal ────────────────────────────────────────────────────────────────
-export const PERSONAL = {
-  name:           "Ryan",
-  birthYear:      1980,
-  retirementYear: 2030,
-  retirementMonth: 2,          // 0-indexed (March)
-  corporateStartYear: 2000,
-  children: [
-    { name: "Oona", birthYear: 2015, birthMonth: 8 }, // 0-indexed (Sept)
-    { name: "Veda", birthYear: 2017, birthMonth: 6 }, // 0-indexed (July)
-  ],
-  /** Approximate college start ages and cost per year */
-  collegeAgeStart:   18,
-  collegeYearlyCost: 50_000, // per child, per year
-} as const;
+const CURRENT_YEAR = new Date().getFullYear();
 
-// ── Default Financial Snapshot ───────────────────────────────────────────────
+// ── User Profile ─────────────────────────────────────────────────────────────
+export interface UserProfile {
+  name: string;
+  birthYear: number;
+  retirementYear: number;
+  retirementMonth: number; // 0-indexed (0 = January)
+  children: { name: string; birthYear: number; birthMonth: number }[];
+  corporateStartYear: number;
+  onboarded: boolean;
+}
+
+export const DEFAULT_PROFILE: UserProfile = {
+  name: "",
+  birthYear: CURRENT_YEAR - 40,
+  retirementYear: CURRENT_YEAR + 10,
+  retirementMonth: 0,
+  children: [],
+  corporateStartYear: CURRENT_YEAR - 15,
+  onboarded: false,
+};
+
+// ── Default Financial Snapshot (blank slate) ─────────────────────────────────
 export const DEFAULT_SNAPSHOT: FinancialSnapshot = {
   snapshot_date: new Date().toISOString(),
   last_updated:  Date.now(),
   share_counts: {
-    google_shares:   0,
-    cost_basis:      0,
+    google_shares:    0,
+    cost_basis:       0,
     live_stock_price: 0,
   },
   liquid_assets: {
-    vanguard_bridge:    0,
-    cash_savings:       33_000,
+    vanguard_bridge:     0,
+    cash_savings:        0,
     google_equity_value: 0,
   },
   retirement_assets: {
-    k401:         617_361.90,
-    roth_ira:     0,
+    k401:            0,
+    roth_ira:        0,
     traditional_ira: 0,
   },
   education_assets: {
-    total_529: 91_362.42,
-    accounts: [
-      { id: "529-1", name: "529 — Oona", balance: 43_920.42 },
-      { id: "529-2", name: "529 — Veda", balance: 47_442 },
-    ],
+    total_529: 0,
+    accounts:  [],
   },
   liabilities: {
-    mortgage_balance:      1_430_301.40,
-    mortgage_interest_rate: 3.5,
-    consumer_debt:         0,
+    mortgage_balance:       0,
+    mortgage_interest_rate: 0,
+    consumer_debt:          0,
     upcoming_capital_calls: 0,
   },
-  other_investments: [
-    { id: "vti",     name: "VTI",     symbol: "VTI",   shares: 70.302,   cost_basis: 0, current_price: 270, expected_return: 7   },
-    { id: "vfiax-1", name: "VFIAX",   symbol: "VFIAX", shares: 105.997,  cost_basis: 0, current_price: 520, expected_return: 7   },
-    { id: "vfiax-2", name: "VFIAX",   symbol: "VFIAX", shares: 18.289,   cost_basis: 0, current_price: 520, expected_return: 7   },
-    { id: "vfiax-3", name: "VFIAX",   symbol: "VFIAX", shares: 19.084,   cost_basis: 0, current_price: 520, expected_return: 7   },
-    { id: "vghcx",   name: "VGHCX",   symbol: "VGHCX", shares: 188.384,  cost_basis: 0, current_price: 95,  expected_return: 7   },
-    { id: "vseqx",   name: "VSEQX",   symbol: "VSEQX", shares: 524.753,  cost_basis: 0, current_price: 48,  expected_return: 7   },
-    { id: "vtivx",   name: "VTIVX",   symbol: "VTIVX", shares: 418.306,  cost_basis: 0, current_price: 38,  expected_return: 7   },
-    { id: "goog",    name: "GOOG",    symbol: "GOOG",  shares: 1_149.52, cost_basis: 0, current_price: 180, expected_return: 11.5 },
-  ],
+  other_investments: [],
 };
 
-// ── Life Events auto-derived from PERSONAL ───────────────────────────────────
-function buildLifeEvents(): SimulationConfiguration["life_events"] {
+// ── Life Events derived from a profile's children ────────────────────────────
+/** Builds college-cost life events for a set of children. Returns [] for none. */
+export function buildLifeEvents(
+  children: UserProfile["children"],
+  collegeAgeStart = 18,
+  collegeYearlyCost = 50_000,
+): SimulationConfiguration["life_events"] {
   const events: SimulationConfiguration["life_events"] = [];
-  for (const child of PERSONAL.children) {
-    const collegeStart = child.birthYear + PERSONAL.collegeAgeStart;
+  for (const child of children) {
+    const collegeStart = child.birthYear + collegeAgeStart;
     for (let yr = collegeStart; yr < collegeStart + 4; yr++) {
       events.push({
         name: `${child.name} — College Year ${yr - collegeStart + 1}`,
         year: yr,
-        cost: PERSONAL.collegeYearlyCost,
+        cost: collegeYearlyCost,
       });
     }
   }
-  // One-time renovation in year 1
-  events.push({ name: "Home renovation", year: 2026, cost: 100_000 });
   return events;
 }
 
-// ── Default Simulation Config ─────────────────────────────────────────────────
+// ── Default Simulation Config (generic assumptions) ──────────────────────────
 export const DEFAULT_SIM_CONFIG: SimulationConfiguration = {
   career_path: {
-    exit_year:          PERSONAL.retirementYear,
-    use_jump:           false,
-    jump_duration:      2,
-    use_sabbatical:     false,
+    exit_year:           DEFAULT_PROFILE.retirementYear,
+    use_jump:            false,
+    jump_duration:       2,
+    use_sabbatical:      false,
     sabbatical_duration: 6,
-    use_bridge:         false,
-    bridge_duration:    2,
+    use_bridge:          false,
+    bridge_duration:     2,
   },
   income_profile: {
-    gross_annual_salary:    303_524,
-    google_net_monthly:     14_000,
-    initial_unvested_shares: 4_137,
-    vesting_years:          4,
-    jump_gross_annual:      200_000,
-    jump_bonus_rate:        15,
-    jump_grant_monthly:     5_000,
-    bridge_gross_annual:    150_000,
+    gross_annual_salary:     120_000,
+    google_net_monthly:      0,
+    initial_unvested_shares: 0,
+    vesting_years:           4,
+    jump_gross_annual:       0,
+    jump_bonus_rate:         15,
+    jump_grant_monthly:      0,
+    bridge_gross_annual:     0,
     bridge_has_health_insurance: false,
-    income_growth_rate:     3,
-    target_bonus_rate:      25,
-    annual_equity_grant:    300_000,
-    monthly_rental_income:  5_000,
-    annual_401k_contribution: 23_500,   // IRS 2025 max; auto-bumped to $31k at age 50+
-    annual_backdoor_roth:     7_000,    // Backdoor Roth IRA (non-deductible → immediate conversion)
-    use_partner_income:     false,
-    partner_gross_annual_salary: 0,
-    partner_employment_start_year: 2025,
-    partner_has_health_insurance: false,
-    partner_retirement_year: PERSONAL.retirementYear,
+    income_growth_rate:      3,
+    target_bonus_rate:       10,
+    annual_equity_grant:     0,
+    monthly_rental_income:   0,
+    annual_401k_contribution: 23_500,   // IRS 2025 max; auto-bumped at age 50+
+    annual_backdoor_roth:     7_000,
+    use_partner_income:      false,
+    partner_gross_annual_salary:   0,
+    partner_employment_start_year: CURRENT_YEAR,
+    partner_has_health_insurance:  false,
+    partner_retirement_year:       DEFAULT_PROFILE.retirementYear,
   },
   market_assumptions: {
     goog_growth_rate:   11.5,
@@ -125,36 +126,37 @@ export const DEFAULT_SIM_CONFIG: SimulationConfiguration = {
     volatility_drag:    1.5,
   },
   tax_assumptions: {
-    filing_status:      "married_joint",
-    state_of_residence: "NY",
+    filing_status:      "single",
+    state_of_residence: "NONE",
   },
   divestment_strategy: {
     type:       "progressive",
-    start_year: 2027,
-    end_year:   2030,
+    start_year: CURRENT_YEAR,
+    end_year:   DEFAULT_PROFILE.retirementYear,
   },
   spending: {
-    monthly_lifestyle:         9_500,
-    empty_nest_year:           2039,
-    empty_nest_monthly_spend:  8_000,
-    healthcare_premium:        2_500,
-    mortgage_payment:          7_435.67,
+    monthly_lifestyle:        5_000,
+    empty_nest_year:          DEFAULT_PROFILE.retirementYear + 9,
+    empty_nest_monthly_spend: 4_500,
+    healthcare_premium:       1_000,
+    mortgage_payment:         0,
   },
-  birth_year: PERSONAL.birthYear,
+  birth_year: DEFAULT_PROFILE.birthYear,
   social_security: {
-    start_age:     67,
-    monthly_amount: 3_500,
+    start_age:      67,
+    monthly_amount: 2_000,
   },
   medicare: {
-    start_age:      65,
-    monthly_premium: 250,   // per-person all-in (Part B + Part D + modest Medigap); ×2 adults ≈ $500/mo
+    start_age:       65,
+    monthly_premium: 250,
   },
   tax_optimization: {
     enable_aca_optimization:       true,
-    aca_family_size:               4,       // Ryan + spouse + 2 kids
-    aca_benchmark_monthly_premium: 2_500,   // Silver benchmark in NYC area
-    enable_roth_conversion:        true,    // Convert trad 401k during sabbatical
-    roth_conversion_target_bracket: 206_700, // Top of 22% bracket for MFJ 2025
+    aca_family_size:               1,
+    aca_benchmark_monthly_premium: 800,
+    enable_roth_conversion:        false,
+    roth_conversion_target_bracket: 100_525, // Top of 22% bracket, single 2025
   },
-  life_events: buildLifeEvents(),
+  children:    [],
+  life_events: [],
 };

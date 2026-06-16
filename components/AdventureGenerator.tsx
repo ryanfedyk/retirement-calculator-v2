@@ -2,7 +2,6 @@
 import React, { useState, useCallback, useMemo } from "react";
 import { Shuffle, Pin, Trash2, Sparkles } from "lucide-react";
 import { C } from "@/config/colors";
-import { HORIZON_CONFIG } from "@/config/horizonConfig";
 import { ADVENTURE_SEEDS } from "@/data/adventureSeeds";
 import { getCurrentPhase } from "@/lib/horizonUtils";
 import { useRetirementDate } from "@/hooks/useRetirementDate";

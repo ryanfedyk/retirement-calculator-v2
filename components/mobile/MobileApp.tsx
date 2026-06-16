@@ -1,8 +1,9 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
-import { LineChart, Compass, SlidersHorizontal } from "lucide-react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { LineChart, Compass, SlidersHorizontal, LogOut } from "lucide-react";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
+import { useAuth } from "@/lib/auth/AuthProvider";
 import type { LivePrices } from "@/components/finance/FinancialDashboard";
 import MobileFinancial from "./MobileFinancial";
 import MobileForecasting from "./MobileForecasting";
@@ -54,14 +55,17 @@ export default function MobileApp() {
           <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: "0.18em", color: C.ink }}>HORIZON</div>
           <div style={{ fontSize: 9, letterSpacing: "0.22em", color: C.inkFaint, textTransform: "uppercase" }}>The Elegant Taper</div>
         </div>
-        {view === "financial" && (
-          <button onClick={() => setConfigOpen(true)} aria-label="Adjust plan" style={{
-            width: 40, height: 40, borderRadius: "50%", border: `1px solid ${C.border}`,
-            background: C.bgCard, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
-          }}>
-            <SlidersHorizontal size={18} color={C.teal} />
-          </button>
-        )}
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {view === "financial" && (
+            <button onClick={() => setConfigOpen(true)} aria-label="Adjust plan" style={{
+              width: 40, height: 40, borderRadius: "50%", border: `1px solid ${C.border}`,
+              background: C.bgCard, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
+            }}>
+              <SlidersHorizontal size={18} color={C.teal} />
+            </button>
+          )}
+          <MobileAccountMenu />
+        </div>
       </header>
 
       {/* Active view — bottom padding clears the fixed tab bar */}
@@ -94,6 +98,53 @@ export default function MobileApp() {
           );
         })}
       </nav>
+    </div>
+  );
+}
+
+function MobileAccountMenu() {
+  const { user, signOutUser } = useAuth();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, []);
+
+  if (!user) return null;
+  const initial = (user.displayName || user.email || "?").charAt(0).toUpperCase();
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button onClick={() => setOpen(o => !o)} aria-label="Account" style={{
+        width: 40, height: 40, borderRadius: "50%", border: `1px solid ${C.border}`,
+        background: C.tealWash, color: C.tealDark, fontSize: 15, fontWeight: 600,
+        display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
+      }}>
+        {initial}
+      </button>
+      {open && (
+        <div style={{
+          position: "absolute", right: 0, top: "calc(100% + 8px)", minWidth: 200, zIndex: 100,
+          background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 12,
+          boxShadow: `0 6px 20px ${C.border}`, padding: 8,
+        }}>
+          <div style={{ padding: "6px 10px 10px", borderBottom: `1px solid ${C.borderSoft}`, fontSize: 12, color: C.inkSoft, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {user.displayName || user.email}
+          </div>
+          <button onClick={() => { setOpen(false); signOutUser(); }} style={{
+            width: "100%", display: "flex", alignItems: "center", gap: 8, marginTop: 6,
+            padding: "10px", background: "transparent", border: "none", borderRadius: 8,
+            color: C.inkMid, fontSize: 14, cursor: "pointer", textAlign: "left",
+          }}>
+            <LogOut size={15} /> Sign out
+          </button>
+        </div>
+      )}
     </div>
   );
 }

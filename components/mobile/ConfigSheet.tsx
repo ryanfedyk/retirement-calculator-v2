@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { X, ChevronDown, Trash2, Plus, RotateCcw } from "lucide-react";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
+import TickerAutocomplete from "@/components/finance/TickerAutocomplete";
 
 const money = (n: number) => `$${Math.round(n).toLocaleString()}`;
 
@@ -84,7 +85,7 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
   const { config, snapshot, updateNestedConfig, updateNestedSnapshot, updateConfig, resetToDefaults } = useFinancialStore();
   const [openId, setOpenId] = useState<string | null>("quick");
   const [newEvent, setNewEvent] = useState({ name: "", year: 2030, cost: 50_000 });
-  const [newInv, setNewInv] = useState({ symbol: "", shares: "", ret: "" });
+  const [newInv, setNewInv] = useState({ symbol: "", name: "", shares: "", ret: "" });
 
   useEffect(() => {
     if (open) {
@@ -218,11 +219,16 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
               <Field label="Vesting (yrs)"><Num value={ip.vesting_years ?? 4} onChange={v => updateNestedConfig("income_profile", { vesting_years: v })} /></Field>
             </Two>
             <Field label="Annual Equity Refresher"><Num prefix="$" step={1000} value={ip.annual_equity_grant ?? 0} onChange={v => updateNestedConfig("income_profile", { annual_equity_grant: v })} /></Field>
-            <Field label="Monthly Rental Income"><Num prefix="$" step={100} value={ip.monthly_rental_income ?? 0} onChange={v => updateNestedConfig("income_profile", { monthly_rental_income: v })} /></Field>
             <Two>
               <Field label="401(k) Contribution / yr"><Num prefix="$" step={500} value={ip.annual_401k_contribution ?? 0} onChange={v => updateNestedConfig("income_profile", { annual_401k_contribution: v })} /></Field>
               <Field label="Backdoor Roth / yr"><Num prefix="$" step={500} value={ip.annual_backdoor_roth ?? 0} onChange={v => updateNestedConfig("income_profile", { annual_backdoor_roth: v })} /></Field>
             </Two>
+          </Section>
+
+          {/* ── Supplemental Income ── */}
+          <Section title="Supplemental Income" accent="#4aab92" {...sec("supplemental")}>
+            <Field label="Monthly Rental Income"><Num prefix="$" step={100} value={ip.monthly_rental_income ?? 0} onChange={v => updateNestedConfig("income_profile", { monthly_rental_income: v })} /></Field>
+            <Field label="Monthly Part-Time Work Income"><Num prefix="$" step={100} value={ip.monthly_parttime_income ?? 0} onChange={v => updateNestedConfig("income_profile", { monthly_parttime_income: v })} /></Field>
             <Toggle label="Include Partner Income" on={ip.use_partner_income || false} onChange={v => updateNestedConfig("income_profile", { use_partner_income: v })} />
             {ip.use_partner_income && (
               <>
@@ -336,17 +342,21 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
                   style={{ background: "none", border: "none", cursor: "pointer", color: C.inkFaint }}><Trash2 size={16} /></button>
               </div>
             ))}
-            <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 0.8fr", gap: 8, marginTop: 4 }}>
-              <TextInput placeholder="Ticker" value={newInv.symbol} onChange={v => setNewInv({ ...newInv, symbol: v.toUpperCase() })} />
+            <div style={{ marginTop: 4 }}>
+              <TickerAutocomplete placeholder="Search ticker or company" value={newInv.symbol} inputStyle={inputStyle}
+                onChange={v => setNewInv(prev => ({ ...prev, symbol: v }))}
+                onSelect={r => setNewInv(prev => ({ ...prev, symbol: r.symbol, name: r.name }))} />
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 8 }}>
               <input type="number" inputMode="decimal" placeholder="Shares" value={newInv.shares} onChange={e => setNewInv({ ...newInv, shares: e.target.value })} style={inputStyle} />
               <input type="number" inputMode="decimal" placeholder="Ret%" value={newInv.ret} onChange={e => setNewInv({ ...newInv, ret: e.target.value })} style={inputStyle} />
             </div>
             <button onClick={() => {
               const sh = parseFloat(newInv.shares);
               if (newInv.symbol && sh) {
-                const inv = { id: Date.now().toString(), name: newInv.symbol, symbol: newInv.symbol, shares: sh, cost_basis: 0, current_price: 0, expected_return: newInv.ret ? parseFloat(newInv.ret) : undefined };
+                const inv = { id: Date.now().toString(), name: newInv.name || newInv.symbol, symbol: newInv.symbol, shares: sh, cost_basis: 0, current_price: 0, expected_return: newInv.ret ? parseFloat(newInv.ret) : undefined };
                 updateNestedSnapshot("other_investments", [...(snapshot.other_investments || []), inv] as any);
-                setNewInv({ symbol: "", shares: "", ret: "" });
+                setNewInv({ symbol: "", name: "", shares: "", ret: "" });
               }
             }} style={{ marginTop: 10, width: "100%", padding: "12px", borderRadius: 10, border: `1px solid ${C.warmLight}`, background: C.warmWash, color: C.warm, fontSize: 14, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
               <Plus size={15} /> Add Holding

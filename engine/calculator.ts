@@ -64,6 +64,7 @@ export interface SimulationConfiguration {
     target_bonus_rate: number;
     annual_equity_grant: number;
     monthly_rental_income: number;
+    monthly_parttime_income?: number;   // Supplemental earned income (part-time work)
     annual_401k_contribution?: number;  // Pre-tax 401k (default IRS max)
     annual_backdoor_roth?: number;      // Backdoor Roth IRA per year (default $7k)
     use_partner_income?: boolean;
@@ -321,6 +322,11 @@ export const runSimulation = (
       * Math.pow(1 + RENTAL_GROWTH_RATE, Math.floor(yearsPassed));
     const annualRentalGross = rentalIncome * 12;
 
+    // ── Part-time work income (earned → W2/FICA, ordinary income tax) ──────
+    // Supplemental earned income the user expects to keep regardless of phase
+    // (e.g. consulting or part-time work in early retirement). Tracks raises.
+    const annualParttimeGross = (ip.monthly_parttime_income || 0) * 12 * salaryGrowthMultiplier;
+
     // ── RSU vesting ────────────────────────────────────────────────────────
     let monthlyEquityVestUnits = 0;
     if (phase === 'GOOGLE') {
@@ -371,7 +377,7 @@ export const runSimulation = (
     // ── Tax calculation ────────────────────────────────────────────────────
     // grossIncome = W2 (FICA base — full salary before 401k)
     // preTaxDeductions = 401k (reduces income tax but not FICA)
-    const annualW2Gross = annualBaseSalary + annualTargetBonus + annualPartnerGross + annualRSUValue + annualJumpGrantValue;
+    const annualW2Gross = annualBaseSalary + annualTargetBonus + annualPartnerGross + annualParttimeGross + annualRSUValue + annualJumpGrantValue;
 
     const taxResult = calculateTax({
       filingStatus:          config.tax_assumptions.filing_status,
@@ -396,6 +402,7 @@ export const runSimulation = (
     const monthlyBonusNet  = isBonusMonth ? annualTargetBonus * (1 - ordinaryEffRate) : 0;
     const monthlyPartnerNet = (annualPartnerGross / 12) * (1 - ordinaryEffRate);
     const monthlyRentalNet  = (annualRentalGross  / 12) * (1 - ordinaryEffRate);
+    const monthlyParttimeNet = (annualParttimeGross / 12) * (1 - ordinaryEffRate);
 
     // 401k contribution goes directly to traditional retirement each month
     tradBalance += annualK401 / 12;
@@ -421,7 +428,7 @@ export const runSimulation = (
       currentJumpStockValue += jumpGrantMonthlyGross * (1 - marginalRate);
     }
 
-    const monthlyOrdinaryNet = monthlySalaryNet + monthlyBonusNet + monthlyPartnerNet + monthlyRentalNet;
+    const monthlyOrdinaryNet = monthlySalaryNet + monthlyBonusNet + monthlyPartnerNet + monthlyRentalNet + monthlyParttimeNet;
 
     // ── OPT #3: Roth conversion during sabbatical ─────────────────────────
     // Strategy: during sabbatical (low income), convert from traditional 401k to Roth
@@ -714,7 +721,7 @@ export const runSimulation = (
     const equityPart    = monthlyEquityVestUnits > 0 ? monthlyEquityVestUnits * (1 - marginalRate) * currentGoogPrice : 0;
     const jumpStockPart = jumpGrantMonthlyGross  > 0 ? jumpGrantMonthlyGross  * (1 - marginalRate) : 0;
 
-    const salaryAndEquityNet = (monthlySalaryNet + monthlyBonusNet + monthlyPartnerNet + equityPart + jumpStockPart) * 12;
+    const salaryAndEquityNet = (monthlySalaryNet + monthlyBonusNet + monthlyPartnerNet + monthlyParttimeNet + equityPart + jumpStockPart) * 12;
     const rentalIncomeNet    = monthlyRentalNet * 12;
     const socialSecurityNet  = socialSecurityIncome * 12;
     const annualizedComp     = salaryAndEquityNet + rentalIncomeNet + socialSecurityNet;

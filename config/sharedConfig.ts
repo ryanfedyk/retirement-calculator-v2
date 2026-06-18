@@ -80,6 +80,7 @@ export function buildLifeEvents(
         name: `${child.name} — College Year ${yr - collegeStart + 1}`,
         year: yr,
         cost: collegeYearlyCost,
+        auto: true,
       });
     }
   }

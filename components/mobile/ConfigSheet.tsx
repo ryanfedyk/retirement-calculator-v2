@@ -82,7 +82,8 @@ function Section({ title, accent, openId, setOpenId, id, children }: {
 }
 
 export default function ConfigSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { config, snapshot, updateNestedConfig, updateNestedSnapshot, updateConfig, resetToDefaults } = useFinancialStore();
+  const { config, snapshot, profile, updateNestedConfig, updateNestedSnapshot, updateConfig, setChildren, resetToDefaults } = useFinancialStore();
+  const kids = profile.children;
   const [openId, setOpenId] = useState<string | null>("quick");
   const [newEvent, setNewEvent] = useState({ name: "", year: 2030, cost: 50_000 });
   const [newInv, setNewInv] = useState({ symbol: "", name: "", shares: "", ret: "" });
@@ -334,6 +335,29 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
                 <Plus size={15} /> Add Event
               </button>
             </div>
+          </Section>
+
+          {/* ── Family ── */}
+          <Section title="Family" accent="#7a6da8" {...sec("family")}>
+            <div style={{ fontSize: 12, color: C.inkSoft, marginBottom: 12, lineHeight: 1.5 }}>
+              Adding kids plots their milestones, plans college costs, and sets the empty-nest phase to when your youngest turns 18.
+            </div>
+            {kids.map((child, idx) => (
+              <div key={idx} style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr auto", gap: 8, alignItems: "center", marginBottom: 8 }}>
+                <input placeholder="Child's name" value={child.name} style={inputStyle}
+                  onChange={e => setChildren(kids.map((c, i) => i === idx ? { ...c, name: e.target.value } : c))} />
+                <input type="number" inputMode="numeric" placeholder="Birth yr" value={child.birthYear} style={inputStyle}
+                  onChange={e => setChildren(kids.map((c, i) => i === idx ? { ...c, birthYear: +e.target.value || c.birthYear } : c))} />
+                <button onClick={() => setChildren(kids.filter((_, i) => i !== idx))} aria-label="Remove child"
+                  style={{ background: "none", border: "none", cursor: "pointer", color: C.inkFaint, display: "flex", alignItems: "center" }}>
+                  <Trash2 size={18} />
+                </button>
+              </div>
+            ))}
+            <button onClick={() => setChildren([...kids, { name: "", birthYear: new Date().getFullYear() - 5, birthMonth: 0 }])}
+              style={{ marginTop: 4, width: "100%", padding: "12px", borderRadius: 10, border: `1px solid ${C.tealLight}`, background: C.tealWash, color: C.tealDark, fontSize: 14, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+              <Plus size={15} /> Add Child
+            </button>
           </Section>
 
           {/* ── Portfolio Holdings ── */}

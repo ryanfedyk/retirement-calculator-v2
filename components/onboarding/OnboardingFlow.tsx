@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { Plus, Trash2 } from "lucide-react";
 import { C } from "@/config/colors";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { useFinancialStore } from "@/store/useFinancialStore";
@@ -50,16 +51,19 @@ function MoneyField({ label, value, onChange, placeholder }: {
   );
 }
 
+type KidDraft = { name: string; year: string };
+
 /**
  * Stepped onboarding. Step 1 collects the essentials needed to render a
- * meaningful dashboard; the remaining steps are optional and can be skipped —
- * anything left blank keeps its sensible default and can be refined later.
+ * meaningful dashboard; the remaining steps are optional. From any step the
+ * user can hit "Finish" to jump straight in, or "Add more" to keep refining.
+ * Anything left blank keeps a sensible default.
  */
 export default function OnboardingFlow() {
   const { user } = useAuth();
   const {
     updateProfile, updateConfig, updateCareerPath,
-    updateNestedSnapshot, updateIncomeProfile, updateSpending,
+    updateNestedSnapshot, updateIncomeProfile, updateSpending, setChildren,
   } = useFinancialStore();
 
   const [step, setStep] = useState(0);
@@ -70,12 +74,15 @@ export default function OnboardingFlow() {
   const [retYear, setRetYear] = useState<string>(String(CURRENT_YEAR + 10));
   const [retMonth, setRetMonth] = useState<number>(0);
 
-  // Step 2 — savings & accounts (optional)
+  // Step 2 — family (optional)
+  const [kids, setKids] = useState<KidDraft[]>([]);
+
+  // Step 3 — savings & accounts (optional)
   const [savings, setSavings] = useState<string>("");
   const [k401, setK401] = useState<string>("");
   const [roth, setRoth] = useState<string>("");
 
-  // Step 3 — income & spending (optional)
+  // Step 4 — income & spending (optional)
   const [salary, setSalary] = useState<string>("");
   const [monthlySpend, setMonthlySpend] = useState<string>("");
 
@@ -86,9 +93,21 @@ export default function OnboardingFlow() {
     by >= 1920 && by <= CURRENT_YEAR &&
     ry >= CURRENT_YEAR && ry <= CURRENT_YEAR + 60;
 
-  const TOTAL_STEPS = 3;
+  const STEP_META = [
+    { title: "Let’s chart your horizon", subtitle: "Just a few essentials to get you started. You can refine everything later." },
+    { title: "Do you have kids?", subtitle: "Add them to put their milestones on your timeline — we’ll also plan for college costs and an empty-nest phase. No kids? Just continue." },
+    { title: "What have you saved?", subtitle: "Optional — a rough picture sharpens your projection. Skip any you’re unsure of." },
+    { title: "Income & spending", subtitle: "Optional — helps model your runway. Leave blank to use sensible defaults." },
+  ];
+  const TOTAL_STEPS = STEP_META.length;
   const isFirst = step === 0;
   const isLast = step === TOTAL_STEPS - 1;
+
+  // ── Kid helpers ──────────────────────────────────────────────────────────
+  const addKid    = () => setKids((k) => [...k, { name: "", year: "" }]);
+  const removeKid  = (i: number) => setKids((k) => k.filter((_, idx) => idx !== i));
+  const updateKid  = (i: number, patch: Partial<KidDraft>) =>
+    setKids((k) => k.map((kid, idx) => (idx === i ? { ...kid, ...patch } : kid)));
 
   const finish = () => {
     if (!essentialsValid) { setStep(0); return; }
@@ -102,6 +121,13 @@ export default function OnboardingFlow() {
     });
     updateConfig({ birth_year: by });
     updateCareerPath({ exit_year: ry });
+
+    // Children drive milestones, the empty-nest phase, and college costs.
+    const validKids = kids
+      .map((k) => ({ name: k.name.trim() || "Child", year: Number(k.year) }))
+      .filter((k) => k.year >= 1990 && k.year <= CURRENT_YEAR + 30)
+      .map((k) => ({ name: k.name, birthYear: k.year, birthMonth: 0 }));
+    setChildren(validKids);
 
     // Optional fields — only applied when the user actually entered something.
     const cash = optNum(savings);
@@ -119,19 +145,11 @@ export default function OnboardingFlow() {
     if (spend !== undefined) updateSpending({ monthly_lifestyle: Math.max(0, spend) });
   };
 
-  const goNext = () => {
-    if (isFirst && !essentialsValid) return;
-    if (isLast) finish();
-    else setStep((s) => s + 1);
+  const addMore = () => {
+    if (!essentialsValid) return;
+    setStep((s) => Math.min(TOTAL_STEPS - 1, s + 1));
   };
-  const goSkip = () => { if (isLast) finish(); else setStep((s) => s + 1); };
   const goBack = () => setStep((s) => Math.max(0, s - 1));
-
-  const STEP_META = [
-    { title: "Let’s chart your horizon", subtitle: "Just a few essentials to get you started. You can refine everything later." },
-    { title: "What have you saved?", subtitle: "Optional — a rough picture sharpens your projection. Skip any you’re unsure of." },
-    { title: "Income & spending", subtitle: "Optional — helps model your runway. Leave blank to use sensible defaults." },
-  ];
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-6 py-12" style={{ background: C.bg }}>
@@ -191,8 +209,36 @@ export default function OnboardingFlow() {
               </>
             )}
 
-            {/* ── Step 2 — Savings & accounts ── */}
+            {/* ── Step 2 — Family ── */}
             {step === 1 && (
+              <>
+                {kids.map((kid, i) => (
+                  <div key={i} style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+                    <div style={{ flex: 1.5 }}>
+                      <label style={labelStyle}>Name</label>
+                      <input style={fieldStyle} type="text" placeholder="Child’s name" value={kid.name}
+                             onChange={(e) => updateKid(i, { name: e.target.value })} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={labelStyle}>Birth year</label>
+                      <input style={fieldStyle} type="number" inputMode="numeric" placeholder="2015" value={kid.year}
+                             onChange={(e) => updateKid(i, { year: e.target.value })} />
+                    </div>
+                    <button onClick={() => removeKid(i)} aria-label="Remove child"
+                      style={{ flexShrink: 0, height: 40, width: 40, display: "flex", alignItems: "center", justifyContent: "center", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 8, color: C.warm, cursor: "pointer" }}>
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                ))}
+                <button onClick={addKid}
+                  style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%", padding: "11px 0", background: C.tealWash, border: `1px solid ${C.tealLight}`, borderRadius: 8, color: C.tealDark, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
+                  <Plus size={15} /> {kids.length === 0 ? "Add a child" : "Add another child"}
+                </button>
+              </>
+            )}
+
+            {/* ── Step 3 — Savings & accounts ── */}
+            {step === 2 && (
               <>
                 <MoneyField label={<>Current cash savings {optionalTag}</>} value={savings} onChange={setSavings} placeholder="50,000" />
                 <MoneyField label={<>401(k) balance {optionalTag}</>} value={k401} onChange={setK401} placeholder="120,000" />
@@ -200,8 +246,8 @@ export default function OnboardingFlow() {
               </>
             )}
 
-            {/* ── Step 3 — Income & spending ── */}
-            {step === 2 && (
+            {/* ── Step 4 — Income & spending ── */}
+            {step === 3 && (
               <>
                 <MoneyField label={<>Gross annual salary {optionalTag}</>} value={salary} onChange={setSalary} placeholder="120,000" />
                 <MoneyField label={<>Monthly lifestyle spend {optionalTag}</>} value={monthlySpend} onChange={setMonthlySpend} placeholder="5,000" />
@@ -215,34 +261,38 @@ export default function OnboardingFlow() {
                   onClick={goBack}
                   style={{
                     background: "transparent", color: C.inkSoft, border: `1px solid ${C.border}`,
-                    borderRadius: 8, padding: "13px 18px", fontSize: 14, fontWeight: 600, cursor: "pointer",
+                    borderRadius: 8, padding: "13px 16px", fontSize: 14, fontWeight: 600, cursor: "pointer",
                   }}
                 >
                   ← Back
                 </button>
               )}
-              {!isFirst && (
+              <div style={{ flex: 1 }} />
+              {!isLast && (
                 <button
-                  onClick={goSkip}
+                  onClick={addMore}
+                  disabled={!essentialsValid}
                   style={{
-                    background: "transparent", color: C.inkFaint, border: "none",
-                    padding: "13px 8px", fontSize: 14, fontWeight: 600, cursor: "pointer",
+                    background: "transparent", color: essentialsValid ? C.teal : C.inkFaint,
+                    border: `1px solid ${essentialsValid ? C.tealLight : C.border}`, borderRadius: 8,
+                    padding: "13px 18px", fontSize: 14, fontWeight: 600,
+                    cursor: essentialsValid ? "pointer" : "not-allowed",
                   }}
                 >
-                  Skip
+                  Add more
                 </button>
               )}
               <button
-                onClick={goNext}
-                disabled={isFirst && !essentialsValid}
+                onClick={finish}
+                disabled={!essentialsValid}
                 style={{
-                  flex: 1, background: C.teal, color: "#fff", border: "none", borderRadius: 8,
-                  padding: "13px 0", fontSize: 14, fontWeight: 600,
-                  cursor: isFirst && !essentialsValid ? "not-allowed" : "pointer",
-                  opacity: isFirst && !essentialsValid ? 0.55 : 1,
+                  background: C.teal, color: "#fff", border: "none", borderRadius: 8,
+                  padding: "13px 22px", fontSize: 14, fontWeight: 700,
+                  cursor: essentialsValid ? "pointer" : "not-allowed", opacity: essentialsValid ? 1 : 0.55,
+                  boxShadow: essentialsValid ? `0 2px 8px ${C.tealLight}` : "none",
                 }}
               >
-                {isLast ? "Enter Horizon →" : "Continue →"}
+                Finish →
               </button>
             </div>
           </div>

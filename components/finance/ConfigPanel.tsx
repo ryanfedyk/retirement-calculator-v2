@@ -117,7 +117,7 @@ export default function ConfigPanel() {
 
       {/* Market Assumptions */}
       <Section title="Market Assumptions">
-        <NumField label="GOOG Growth Rate" value={ma.goog_growth_rate} step={0.5} suffix="%"
+        <NumField label="Employer Stock Growth" value={ma.goog_growth_rate} step={0.5} suffix="%"
           onChange={v => updateMarketAssumptions({ goog_growth_rate: v })} />
         <NumField label="Market Return" value={ma.market_return_rate} step={0.5} suffix="%"
           onChange={v => updateMarketAssumptions({ market_return_rate: v })} />

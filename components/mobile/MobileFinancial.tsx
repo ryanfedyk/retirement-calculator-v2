@@ -1,7 +1,7 @@
 "use client";
 import { useState, useMemo } from "react";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, ReferenceLine, CartesianGrid } from "recharts";
-import { RefreshCw, ChevronRight } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { runSimulation, findIndependencePoint } from "@/engine/calculator";
@@ -9,6 +9,7 @@ import { getLifeEvents } from "@/lib/horizonUtils";
 import { useHorizonProfile } from "@/config/horizonConfig";
 import { TodaysDelta, MomentumTurnstile, WhatIfChips } from "@/components/finance/MotivationWidgets";
 import AiAnalysis from "@/components/finance/AiAnalysis";
+import PriceTicker from "@/components/finance/PriceTicker";
 import type { LivePrices } from "@/components/finance/FinancialDashboard";
 
 const fmtM = (v: number) => {
@@ -36,7 +37,6 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
 
   const googInfo      = livePrices["GOOG"] ?? livePrices["GOOGL"];
   const liveGoogPrice = googInfo?.price ?? 0;
-  const isLive        = googInfo?.source === "yahoo";
 
   const enrichedSnapshot = useMemo(() => ({
     ...snapshot,
@@ -100,7 +100,7 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
     (milestoneMap[s] ||= []).push({ label, c });
   };
   const by = config.birth_year ?? 1980;
-  addMile(retireDate, "Leave Google", "#2a7a68");
+  addMile(retireDate, "Career Exit", "#2a7a68");
   if (cp.use_sabbatical) addMile(findDate(d => d.currentPhase === "SABBATICAL"), "Sabbatical begins", "#d98a3d");
   if (cp.use_jump)       addMile(findDate(d => d.currentPhase === "JUMP"),       "Career jump begins", "#2a9d7f");
   if (cp.use_bridge)     addMile(findDate(d => d.currentPhase === "BRIDGE"),     "Bridge job begins", "#3a7d9c");
@@ -150,16 +150,14 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
         </div>
       </div>
 
-      {/* GOOG ticker */}
-      <button onClick={onRefreshPrices} style={{
-        display: "flex", alignItems: "center", gap: 10, alignSelf: "flex-start",
-        background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 999, padding: "7px 14px", cursor: "pointer",
-      }}>
-        <span style={{ width: 7, height: 7, borderRadius: "50%", background: isLive ? C.teal : C.warm, boxShadow: isLive ? `0 0 6px ${C.teal}` : "none" }} />
-        <span style={{ fontSize: 11, fontWeight: 700, color: C.inkMid }}>GOOG</span>
-        <span style={{ fontSize: 13, color: C.ink, fontVariantNumeric: "tabular-nums" }}>{liveGoogPrice > 0 ? `$${liveGoogPrice.toFixed(2)}` : "–"}</span>
-        <RefreshCw size={12} color={C.inkSoft} style={{ animation: pricesFetching ? "spin 0.8s linear infinite" : "none" }} />
-      </button>
+      {/* Portfolio price ticker (from the user's holdings) */}
+      <PriceTicker
+        holdings={snapshot.other_investments}
+        livePrices={livePrices}
+        pricesFetching={pricesFetching}
+        onRefreshPrices={onRefreshPrices}
+        align="start"
+      />
 
       {/* Chart card — touchAction pan-y so dragging the chart never scrolls the page sideways */}
       <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 20, padding: "16px 12px 12px", touchAction: "pan-y" }}>
@@ -231,7 +229,7 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
 
       {insightTab === "today" && (
         <>
-          <TodaysDelta trajectory={traj} snapshot={enrichedSnapshot} googPrice={liveGoogPrice} />
+          <TodaysDelta trajectory={traj} snapshot={enrichedSnapshot} symbol={config.concentrated_symbol} price={livePrices[(config.concentrated_symbol ?? "").toUpperCase()]?.price ?? 0} />
           {today && <MomentumTurnstile point={today} config={config} />}
         </>
       )}

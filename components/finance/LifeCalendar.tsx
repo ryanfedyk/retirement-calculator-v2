@@ -18,7 +18,7 @@ const PHASE_COLORS: Record<string, string> = {
 };
 
 const PHASE_LABELS: Record<string, string> = {
-  GOOGLE: "Google", SABBATICAL: "Sab.", JUMP: "Jump",
+  GOOGLE: "Career", SABBATICAL: "Sab.", JUMP: "Jump",
   BRIDGE: "Bridge", RETIRED: "Ret.",
 };
 
@@ -198,7 +198,7 @@ export default function LifeCalendar({ data, config }: Props) {
                 {[
                   ["Liquid",      hoveredPoint.liquidCash],
                   ["Retirement",  hoveredPoint.retirement],
-                  ["GOOG Value",  hoveredPoint.googValue],
+                  ["Employer Stock", hoveredPoint.googValue],
                   ["Target NW",   hoveredPoint.swrTarget],
                 ].map(([label, val]) => (
                   <div key={label as string}>

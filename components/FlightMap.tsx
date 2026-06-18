@@ -5,6 +5,7 @@ import { C } from "@/config/colors";
 import { getLifeEvents } from "@/lib/horizonUtils";
 import MosaicOfMonths from "@/components/MosaicOfMonths";
 import { useRetirementDate } from "@/hooks/useRetirementDate";
+import { useFinancialStore } from "@/store/useFinancialStore";
 import type { AdventureBlueprint } from "@/types/horizon";
 
 /* ── fixed geometry ──────────────────────────────────────────────────────── */
@@ -60,7 +61,12 @@ interface Waypoint {
   color: string; important: boolean; above: boolean;
 }
 
-function buildWaypoints(mapEnd: Date, xOf: (d: Date) => number, children: HorizonChild[]): Waypoint[] {
+function buildWaypoints(
+  mapEnd: Date,
+  xOf: (d: Date) => number,
+  children: HorizonChild[],
+  customEvents: { name: string; year: number; cost: number }[] = [],
+): Waypoint[] {
   const now = new Date();
   const wps: Waypoint[] = [];
   let toggle = true;
@@ -105,6 +111,13 @@ function buildWaypoints(mapEnd: Date, xOf: (d: Date) => number, children: Horizo
     const d = new Date(ev.year, ev.month, 1);
     if (d > now && d <= mapEnd)
       add({ x: xOf(d), label: `${ev.icon} ${ev.childName}`, type: "life", color: C.warm, important: true });
+  }
+
+  // User-entered life events (year only → placed mid-year)
+  for (const ev of customEvents) {
+    const d = new Date(ev.year, 5, 1);
+    if (d > now && d <= mapEnd)
+      add({ x: xOf(d), label: `📌 ${ev.name}`, type: "life", color: C.warm, important: true });
   }
 
   // Finish flag
@@ -160,7 +173,8 @@ export default function FlightMap({ pinnedAdventures = [] }: Props) {
   const terrainFill = useMemo(() => ptsToPath(terrainPts, H),       [terrainPts]);
   const terrainEdge = useMemo(() => ptsToPath(terrainPts),          [terrainPts]);
   const { children } = useHorizonProfile();
-  const waypoints   = useMemo(() => buildWaypoints(mapEnd, xOf, children), [mapEnd, xOf, children]);
+  const lifeEvents  = useFinancialStore(s => s.config.life_events);
+  const waypoints   = useMemo(() => buildWaypoints(mapEnd, xOf, children, lifeEvents), [mapEnd, xOf, children, lifeEvents]);
   const phaseBands  = useMemo(() => buildPhaseBands(mapEnd, xOf),   [mapEnd, xOf]);
 
   // nowX is client-only to avoid SSR hydration mismatch

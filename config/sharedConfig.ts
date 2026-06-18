@@ -157,6 +157,7 @@ export const DEFAULT_SIM_CONFIG: SimulationConfiguration = {
     enable_roth_conversion:        false,
     roth_conversion_target_bracket: 100_525, // Top of 22% bracket, single 2025
   },
+  concentrated_symbol: "",
   children:    [],
   life_events: [],
 };

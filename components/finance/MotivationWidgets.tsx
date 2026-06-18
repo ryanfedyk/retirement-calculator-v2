@@ -19,42 +19,44 @@ const fmtDate = (d: Date) => d.toLocaleString("default", { month: "short", year:
 // ── 1. Today's Delta ──────────────────────────────────────────────────────────
 // Compares against a baseline snapshot persisted in localStorage; the baseline
 // rolls forward when it's >1h old, so "since last visit" stays meaningful.
-interface Baseline { ts: number; fiMonth: number | null; netWorth: number; googPrice: number; }
+interface Baseline { ts: number; fiMonth: number | null; netWorth: number; price: number; }
 
-export function TodaysDelta({ trajectory, snapshot, googPrice }: {
-  trajectory: TrajectoryPoint[]; snapshot: FinancialSnapshot; googPrice: number;
+export function TodaysDelta({ trajectory, snapshot, symbol = "", price }: {
+  trajectory: TrajectoryPoint[]; snapshot: FinancialSnapshot; symbol?: string; price: number;
 }) {
+  const sym = symbol.toUpperCase();
   const netWorth = trajectory[0]?.totalNetWorth ?? 0;
   const fiMonth  = useMemo(() => continuousFiMonth(trajectory) ?? null, [trajectory]);
-  const googShares = useMemo(() =>
+  const concShares = useMemo(() =>
+    sym === "" ? 0 :
     (snapshot.other_investments ?? [])
-      .filter(i => i.symbol === "GOOG" || i.symbol === "GOOGL")
-      .reduce((s, i) => s + i.shares, 0) + (snapshot.share_counts?.google_shares ?? 0),
-  [snapshot]);
+      .filter(i => i.symbol?.toUpperCase() === sym)
+      .reduce((s, i) => s + i.shares, 0) + (sym === "GOOG" ? (snapshot.share_counts?.google_shares ?? 0) : 0),
+  [snapshot, sym]);
 
-  const [delta, setDelta] = useState<{ nw: number; goog: number; googImpact: number; fiDays: number | null } | null>(null);
+  const [delta, setDelta] = useState<{ nw: number; move: number; impact: number; fiDays: number | null } | null>(null);
 
   useEffect(() => {
-    if (!googPrice || !trajectory.length) return;
+    if (!netWorth || !trajectory.length) return;
     const KEY = "horizon-delta-baseline";
     let base: Baseline | null = null;
     try { base = JSON.parse(localStorage.getItem(KEY) || "null"); } catch { /* ignore */ }
 
-    if (base && base.googPrice > 0) {
+    if (base && base.netWorth > 0) {
       const fiDays = base.fiMonth != null && fiMonth != null ? (base.fiMonth - fiMonth) * 30.44 : null;
       setDelta({
         nw: netWorth - base.netWorth,
-        goog: googPrice - base.googPrice,
-        googImpact: googShares * (googPrice - base.googPrice),
+        move: price - (base.price ?? price),
+        impact: concShares * (price - (base.price ?? price)),
         fiDays,
       });
     }
     // Roll the baseline forward once it's stale (or on first run).
     if (!base || Date.now() - base.ts > 3_600_000) {
-      const next: Baseline = { ts: Date.now(), fiMonth, netWorth, googPrice };
+      const next: Baseline = { ts: Date.now(), fiMonth, netWorth, price };
       localStorage.setItem(KEY, JSON.stringify(next));
     }
-  }, [googPrice, netWorth, fiMonth, googShares, trajectory.length]);
+  }, [price, netWorth, fiMonth, concShares, trajectory.length]);
 
   const up = (delta?.nw ?? 0) >= 0;
   return (
@@ -83,13 +85,15 @@ export function TodaysDelta({ trajectory, snapshot, googPrice }: {
 
       {delta && (
         <div style={{ display: "flex", gap: 22, flexWrap: "wrap" }}>
+          {sym && concShares > 0 && (
           <div>
-            <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: C.inkFaint }}>GOOG</div>
+            <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: C.inkFaint }}>{sym}</div>
             <div style={{ fontSize: 14, fontWeight: 600, color: C.ink, fontVariantNumeric: "tabular-nums" }}>
-              {delta.goog >= 0 ? "▲" : "▼"} ${Math.abs(delta.goog).toFixed(2)}
+              {delta.move >= 0 ? "▲" : "▼"} ${Math.abs(delta.move).toFixed(2)}
             </div>
-            <div style={{ fontSize: 10, color: C.inkSoft }}>{delta.googImpact >= 0 ? "+" : "−"}{fmtM(Math.abs(delta.googImpact))} to you</div>
+            <div style={{ fontSize: 10, color: C.inkSoft }}>{delta.impact >= 0 ? "+" : "−"}{fmtM(Math.abs(delta.impact))} to you</div>
           </div>
+          )}
           {delta.fiDays != null && Math.abs(delta.fiDays) >= 1 && (
             <div>
               <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: C.inkFaint }}>FI Date</div>

@@ -4,7 +4,7 @@ import {
   ResponsiveContainer, AreaChart, Area, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine,
 } from "recharts";
-import { Flag, CheckCircle, TrendingUp, CalendarDays, RefreshCw, Sparkles } from "lucide-react";
+import { Flag, CheckCircle, TrendingUp, CalendarDays, Sparkles } from "lucide-react";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { runSimulation, findIndependencePoint } from "@/engine/calculator";
 import type { TrajectoryPoint } from "@/engine/calculator";
@@ -15,6 +15,7 @@ import LifeCalendar from "./LifeCalendar";
 import type { LivePrices } from "./FinancialDashboard";
 import { getLifeEvents } from "@/lib/horizonUtils";
 import { useHorizonProfile } from "@/config/horizonConfig";
+import PriceTicker from "./PriceTicker";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -148,9 +149,6 @@ export default function RightPanel({ livePrices, pricesUpdatedAt, pricesFetching
   // ── Derive live GOOG price and overall price status ───────────────────────
   const googInfo     = livePrices["GOOG"] ?? livePrices["GOOGL"];
   const liveGoogPrice = googInfo?.price ?? 0;
-  const priceStatus   = !googInfo
-    ? "loading"
-    : googInfo.source === "yahoo" ? "live" : "fallback";
 
   // ── Enrich snapshot with live prices for ALL holdings ────────────────────
   // This is what the simulation engine actually sees — never stale.
@@ -296,24 +294,15 @@ export default function RightPanel({ livePrices, pricesUpdatedAt, pricesFetching
   return (
     <main style={{ flex: 1, background: C.bg, padding: "20px 24px", overflowY: "auto", display: "flex", flexDirection: "column", gap: 16 }}>
 
-      {/* ── GOOG price bar ── */}
-      <div style={{ display: "flex", justifyContent: "flex-end" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 20, padding: "6px 16px" }}>
-          <div style={{ width: 7, height: 7, borderRadius: "50%", background: priceStatus === "live" ? C.teal : C.warm, boxShadow: priceStatus === "live" ? `0 0 6px ${C.teal}` : "none" }} />
-          <span style={{ fontSize: 11, fontWeight: 700, color: C.inkMid }}>GOOG</span>
-          <span style={{ fontSize: 13, fontVariantNumeric: "tabular-nums", color: C.ink }}>
-            {liveGoogPrice > 0 ? `$${liveGoogPrice.toFixed(2)}` : "–"}
-          </span>
-          {pricesUpdatedAt && (
-            <span style={{ fontSize: 9, color: C.inkFaint, letterSpacing: "0.03em" }}>
-              as of {pricesUpdatedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-            </span>
-          )}
-          <button onClick={onRefreshPrices} disabled={pricesFetching} style={{ background: "none", border: "none", cursor: "pointer", color: C.teal, display: "flex", alignItems: "center", padding: 0 }}>
-            <RefreshCw size={12} style={{ animation: pricesFetching ? "spin 1s linear infinite" : "none" }} />
-          </button>
-        </div>
-      </div>
+      {/* ── Portfolio price ticker (from the user's holdings) ── */}
+      <PriceTicker
+        holdings={snapshot.other_investments}
+        livePrices={livePrices}
+        pricesUpdatedAt={pricesUpdatedAt}
+        pricesFetching={pricesFetching}
+        onRefreshPrices={onRefreshPrices}
+        align="end"
+      />
 
       {/* ── Summary cards ── */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
@@ -484,7 +473,7 @@ export default function RightPanel({ livePrices, pricesUpdatedAt, pricesFetching
 
       {insightTab === "today" && (
         <>
-          <TodaysDelta trajectory={trajectoryData} snapshot={enrichedSnapshot} googPrice={liveGoogPrice} />
+          <TodaysDelta trajectory={trajectoryData} snapshot={enrichedSnapshot} symbol={config.concentrated_symbol} price={livePrices[(config.concentrated_symbol ?? "").toUpperCase()]?.price ?? 0} />
           {todayPoint && <MomentumTurnstile point={todayPoint} config={config} />}
         </>
       )}

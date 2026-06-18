@@ -256,7 +256,7 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
 
           <div style={{ marginBottom: 14 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-              <span style={{ fontSize: 12, color: C.inkMid }}>Google Exit Year</span>
+              <span style={{ fontSize: 12, color: C.inkMid }}>Career Exit Year</span>
               <span style={{ fontSize: 12, fontWeight: 700, fontVariantNumeric: "tabular-nums", color: C.teal, background: C.tealWash, padding: "1px 8px", borderRadius: 99 }}>
                 {cp.exit_year}
               </span>
@@ -406,12 +406,18 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
                   onChange={e => updateNestedConfig("market_assumptions", { volatility_drag: +e.target.value })} /></div>
             </Row>
             <Row>
-              <div><FieldLabel>GOOG Growth (%)</FieldLabel>
+              <div><FieldLabel>Employer Stock Ticker</FieldLabel>
+                <Input type="text" placeholder="e.g. AAPL" value={config.concentrated_symbol ?? ""}
+                  onChange={e => updateConfig({ concentrated_symbol: e.target.value.toUpperCase() })} /></div>
+              <div><FieldLabel>Employer Stock Growth (%)</FieldLabel>
                 <Input type="number" step={0.5} value={ma.goog_growth_rate}
                   onChange={e => updateNestedConfig("market_assumptions", { goog_growth_rate: +e.target.value })} /></div>
+            </Row>
+            <Row>
               <div><FieldLabel>Inflation (%)</FieldLabel>
                 <Input type="number" step={0.25} value={ma.inflation_rate}
                   onChange={e => updateNestedConfig("market_assumptions", { inflation_rate: +e.target.value })} /></div>
+              <div />
             </Row>
 
             <SectionDivider />

@@ -14,6 +14,7 @@ import ReclaimedTimeCalculator from "@/components/ReclaimedTimeCalculator";
 import AdventureGenerator    from "@/components/AdventureGenerator";
 import DailyDeflationWidget  from "@/components/DailyDeflationWidget";
 import FinancialDashboard    from "@/components/finance/FinancialDashboard";
+import LifeEventsFab         from "@/components/forecasting/LifeEventsFab";
 import type { AdventureBlueprint } from "@/types/horizon";
 
 const NAV = [
@@ -53,6 +54,7 @@ export default function DashboardShell() {
       {appView === "forecasting" && (
         <>
           <FlightMap pinnedAdventures={saved} />
+          <LifeEventsFab />
 
           {/* Nav */}
           <nav style={{ background: C.bgCard, borderBottom: `1px solid ${C.border}` }} className="px-8">

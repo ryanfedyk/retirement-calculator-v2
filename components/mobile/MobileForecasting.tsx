@@ -7,6 +7,7 @@ import MacroSeasonsTimeline from "@/components/MacroSeasonsTimeline";
 import ReclaimedTimeCalculator from "@/components/ReclaimedTimeCalculator";
 import AdventureGenerator from "@/components/AdventureGenerator";
 import DailyDeflationWidget from "@/components/DailyDeflationWidget";
+import LifeEventsFab from "@/components/forecasting/LifeEventsFab";
 import type { AdventureBlueprint } from "@/types/horizon";
 
 type Sub = "seasons" | "reclaim" | "adventure" | "deflate";
@@ -52,7 +53,7 @@ export default function MobileForecasting() {
         boxShadow: `0 10px 30px ${C.teal}40`, textAlign: "center",
       }}>
         <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", opacity: 0.85 }}>
-          Until you leave Google
+          Until your exit
         </div>
         <div style={{ fontSize: 64, fontWeight: 200, letterSpacing: "-0.03em", lineHeight: 1, margin: "8px 0 2px", fontVariantNumeric: "tabular-nums" }}>
           {days.toLocaleString()}
@@ -107,6 +108,9 @@ export default function MobileForecasting() {
         {sub === "adventure" && <AdventureGenerator saved={saved} setSaved={setSaved} />}
         {sub === "deflate"   && <DailyDeflationWidget />}
       </div>
+
+      {/* FAB to add life events — sits above the bottom tab bar */}
+      <LifeEventsFab bottomOffset={96} />
     </div>
   );
 }

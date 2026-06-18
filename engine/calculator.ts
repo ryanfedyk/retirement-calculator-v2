@@ -118,6 +118,11 @@ export interface SimulationConfiguration {
   // Children, projected from the user profile — used to count kids still on the
   // family health plan. Optional so existing configs without it still type-check.
   children?: Array<{ birthYear: number }>;
+  // Ticker of the user's concentrated/employer-equity position. When set, this
+  // holding gets its own growth rate (goog_growth_rate) and divestment strategy.
+  // Empty/undefined = no concentrated position (all holdings grow at their own
+  // expected return).
+  concentrated_symbol?: string;
 }
 
 export interface TrajectoryPoint {
@@ -202,7 +207,12 @@ export const runSimulation = (
   let rothBalance  = snapshot.retirement_assets.roth_ira;
   let tradBalance  = snapshot.retirement_assets.k401 + snapshot.retirement_assets.traditional_ira;
 
-  const googInvs          = (snapshot.other_investments ?? []).filter(i => i.symbol === 'GOOG' || i.symbol === 'GOOGL');
+  // The "concentrated position" (employer stock / RSUs) that gets its own growth
+  // rate, vesting, and divestment treatment. Configurable per user; defaults to
+  // none. Legacy data may carry GOOG holdings + share_counts.google_shares.
+  const concSym = (config.concentrated_symbol ?? '').toUpperCase();
+  const isConcentrated = (sym: string) => concSym !== '' && sym?.toUpperCase() === concSym;
+  const googInvs          = (snapshot.other_investments ?? []).filter(i => isConcentrated(i.symbol));
   const googFromPortfolio = googInvs.reduce((s, i) => s + i.shares, 0);
   let currentGoogShares   = googFromPortfolio + (snapshot.share_counts.google_shares || 0);
   const currentGoogByBasis: { shares: number; basis: number }[] = [
@@ -225,7 +235,7 @@ export const runSimulation = (
   const bridgeEndYear     = jumpEndYear       + (config.career_path.use_bridge ? config.career_path.bridge_duration : 0);
 
   const currentOtherInvestments = (snapshot.other_investments ?? [])
-    .filter(i => i.symbol !== 'GOOG' && i.symbol !== 'GOOGL')
+    .filter(i => !isConcentrated(i.symbol))
     .map(i => ({
       ...i,
       currentValue:   (i.shares * i.current_price) || 0,

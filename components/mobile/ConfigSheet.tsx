@@ -81,7 +81,7 @@ function Section({ title, accent, openId, setOpenId, id, children }: {
 }
 
 export default function ConfigSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { config, snapshot, updateNestedConfig, updateNestedSnapshot, resetToDefaults } = useFinancialStore();
+  const { config, snapshot, updateNestedConfig, updateNestedSnapshot, updateConfig, resetToDefaults } = useFinancialStore();
   const [openId, setOpenId] = useState<string | null>("quick");
   const [newEvent, setNewEvent] = useState({ name: "", year: 2030, cost: 50_000 });
   const [newInv, setNewInv] = useState({ symbol: "", shares: "", ret: "" });
@@ -138,7 +138,7 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
 
           {/* ── Quick adjust (always-open feel) ── */}
           <Section title="Quick Adjust" accent={C.teal} {...sec("quick")}>
-            <Field label={`Google Exit Year — ${cp.exit_year}`}>
+            <Field label={`Career Exit Year — ${cp.exit_year}`}>
               <input type="range" min={2024} max={2040} step={1} value={cp.exit_year}
                 style={{ width: "100%", accentColor: C.teal, height: 28 }}
                 onChange={e => {
@@ -254,13 +254,14 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
               <Field label="Volatility Drag (%)"><Num step={0.1} value={ma.volatility_drag} onChange={v => updateNestedConfig("market_assumptions", { volatility_drag: v })} /></Field>
             </Two>
             <Two>
-              <Field label="GOOG Growth (%)"><Num step={0.5} value={ma.goog_growth_rate} onChange={v => updateNestedConfig("market_assumptions", { goog_growth_rate: v })} /></Field>
-              <Field label="Inflation (%)"><Num step={0.25} value={ma.inflation_rate} onChange={v => updateNestedConfig("market_assumptions", { inflation_rate: v })} /></Field>
+              <Field label="Employer Stock Ticker"><TextInput placeholder="e.g. AAPL" value={config.concentrated_symbol ?? ""} onChange={v => updateConfig({ concentrated_symbol: v.toUpperCase() })} /></Field>
+              <Field label="Employer Stock Growth (%)"><Num step={0.5} value={ma.goog_growth_rate} onChange={v => updateNestedConfig("market_assumptions", { goog_growth_rate: v })} /></Field>
             </Two>
+            <Field label="Inflation (%)"><Num step={0.25} value={ma.inflation_rate} onChange={v => updateNestedConfig("market_assumptions", { inflation_rate: v })} /></Field>
           </Section>
 
           {/* ── Divestment ── */}
-          <Section title="GOOG Divestment" accent="#2a7a68" {...sec("divest")}>
+          <Section title="Employer Stock Divestment" accent="#2a7a68" {...sec("divest")}>
             <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
               {(["none", "progressive", "immediate"] as const).map(t => (
                 <button key={t} onClick={() => updateNestedConfig("divestment_strategy", { type: t })} style={{

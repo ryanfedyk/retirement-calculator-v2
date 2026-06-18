@@ -223,7 +223,12 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
           <Wallet size={14} color={C.teal} />
           <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: C.ink }}>Configuration</span>
         </div>
-        <button onClick={resetToDefaults} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: C.inkFaint, background: "none", border: "none", cursor: "pointer" }}>
+        <button
+          onClick={() => {
+            if (window.confirm("Reset everything to defaults?\n\nThis permanently erases your current configuration and can't be undone."))
+              resetToDefaults();
+          }}
+          style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: C.inkFaint, background: "none", border: "none", cursor: "pointer" }}>
           <RotateCcw size={11} /> Reset
         </button>
       </div>

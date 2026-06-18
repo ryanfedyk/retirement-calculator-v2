@@ -123,7 +123,7 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <h2 style={{ fontSize: 20, fontWeight: 300, color: C.ink }}>Adjust your plan</h2>
             <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={() => { if (confirm("Reset all settings to defaults?")) resetToDefaults(); }}
+              <button onClick={() => { if (confirm("Reset everything to defaults?\n\nThis permanently erases your current configuration and can't be undone.")) resetToDefaults(); }}
                 style={{ height: 34, padding: "0 12px", borderRadius: 999, border: `1px solid ${C.border}`, background: C.bgCard, display: "flex", alignItems: "center", gap: 5, cursor: "pointer", color: C.inkSoft, fontSize: 12 }}>
                 <RotateCcw size={13} /> Reset
               </button>

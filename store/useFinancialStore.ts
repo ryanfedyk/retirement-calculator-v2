@@ -6,6 +6,7 @@ import {
   DEFAULT_SNAPSHOT,
   DEFAULT_SIM_CONFIG,
   DEFAULT_PROFILE,
+  buildLifeEvents,
   type UserProfile,
 } from "@/config/sharedConfig";
 
@@ -21,6 +22,14 @@ interface FinancialStore extends HorizonState {
 
   // Profile
   updateProfile: (updates: Partial<UserProfile>) => void;
+
+  /**
+   * Set the user's children and infer the dependents-driven parts of the plan:
+   * the empty-nest spending phase (enabled + dated to when the youngest turns
+   * 18) and auto-generated college-cost life events. User-added life events and
+   * other settings are preserved.
+   */
+  setChildren: (children: UserProfile["children"]) => void;
 
   // Top-level
   updateSnapshot: (updates: Partial<FinancialSnapshot>) => void;
@@ -69,6 +78,32 @@ export const useFinancialStore = create<FinancialStore>()(
             profile,
             // mirror children into the sim config so the engine sees them
             config: { ...s.config, children: projectChildren(profile) },
+          };
+        }),
+
+      setChildren: (children) =>
+        set((s) => {
+          const profile = { ...s.profile, children };
+          const hasKids = children.length > 0;
+
+          // Empty nest = when the youngest child turns 18 (last one leaves home).
+          const youngestBirthYear = hasKids ? Math.max(...children.map((c) => c.birthYear)) : 0;
+          const emptyNest = hasKids
+            ? { use_empty_nest: true, empty_nest_year: youngestBirthYear + 18 }
+            : { use_empty_nest: false };
+
+          // Regenerate auto college-cost events; keep user-added ones untouched.
+          const manualEvents = (s.config.life_events ?? []).filter((e) => !e.auto);
+          const collegeEvents = buildLifeEvents(children);
+
+          return {
+            profile,
+            config: {
+              ...s.config,
+              children: projectChildren(profile),
+              spending: { ...s.config.spending, ...emptyNest },
+              life_events: [...manualEvents, ...collegeEvents],
+            },
           };
         }),
 

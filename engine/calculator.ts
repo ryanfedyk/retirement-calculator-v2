@@ -116,6 +116,7 @@ export interface SimulationConfiguration {
     name: string;
     year: number;
     cost: number;
+    auto?: boolean;   // Auto-generated (e.g. college costs derived from children) vs user-added
   }>;
   // Children, projected from the user profile — used to count kids still on the
   // family health plan. Optional so existing configs without it still type-check.

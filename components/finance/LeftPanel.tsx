@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Sliders, RotateCcw, Wallet, Trash2, PlusCircle, ChevronDown } from "lucide-react";
+import { Sliders, RotateCcw, Wallet, Trash2, PlusCircle, ChevronDown, Pencil } from "lucide-react";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { C } from "@/config/colors";
 import { DEFAULT_SNAPSHOT, DEFAULT_SIM_CONFIG } from "@/config/sharedConfig";
@@ -180,8 +180,14 @@ function InvestmentItem({
         </div>
       </div>
       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
-        <button onClick={() => setEditing(true)} style={{ fontSize: 10, color: C.teal, background: "none", border: "none", cursor: "pointer" }}>Edit</button>
-        <button onClick={onRemove}              style={{ fontSize: 10, color: C.warm,  background: "none", border: "none", cursor: "pointer" }}>✕</button>
+        <button onClick={() => setEditing(true)} aria-label="Edit holding" title="Edit"
+          style={{ display: "flex", alignItems: "center", color: C.teal, background: "none", border: "none", cursor: "pointer", padding: 2 }}>
+          <Pencil size={13} />
+        </button>
+        <button onClick={onRemove} aria-label="Remove holding" title="Remove"
+          style={{ display: "flex", alignItems: "center", color: C.warm, background: "none", border: "none", cursor: "pointer", padding: 2 }}>
+          <Trash2 size={13} />
+        </button>
       </div>
     </div>
   );
@@ -190,7 +196,8 @@ function InvestmentItem({
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices }) {
-  const { config, snapshot, updateNestedConfig, updateNestedSnapshot, updateConfig, resetToDefaults } = useFinancialStore();
+  const { config, snapshot, profile, updateNestedConfig, updateNestedSnapshot, updateConfig, setChildren, resetToDefaults } = useFinancialStore();
+  const kids = profile.children;
   const [newEvent, setNewEvent] = useState({ name: "", year: 2030, cost: 50_000 });
   const [newInvSym,  setNewInvSym]  = useState("");
   const [newInvName, setNewInvName] = useState("");
@@ -598,6 +605,35 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
               </button>
             </div>
           </div>
+        </AccCard>
+
+        {/* ── Family ── */}
+        <AccCard {...acc("family")} title="Family" color="#7a6da8">
+          <div style={{ fontSize: 10, color: C.inkFaint, marginBottom: 10, lineHeight: 1.5 }}>
+            Adding kids plots their milestones, plans college costs, and sets the empty-nest phase to when your youngest turns 18.
+          </div>
+          {kids.map((child, idx) => (
+            <div key={idx} style={{ display: "flex", gap: 6, alignItems: "flex-end", marginBottom: 6 }}>
+              <div style={{ flex: 1.5 }}>
+                <FieldLabel>Name</FieldLabel>
+                <Input type="text" placeholder="Child's name" value={child.name}
+                  onChange={e => setChildren(kids.map((c, i) => i === idx ? { ...c, name: e.target.value } : c))} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <FieldLabel>Birth Year</FieldLabel>
+                <Input type="number" placeholder="2015" value={child.birthYear}
+                  onChange={e => setChildren(kids.map((c, i) => i === idx ? { ...c, birthYear: +e.target.value || c.birthYear } : c))} />
+              </div>
+              <button onClick={() => setChildren(kids.filter((_, i) => i !== idx))} aria-label="Remove child"
+                style={{ flexShrink: 0, height: 30, width: 30, display: "flex", alignItems: "center", justifyContent: "center", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 5, color: C.warm, cursor: "pointer" }}>
+                <Trash2 size={13} />
+              </button>
+            </div>
+          ))}
+          <button onClick={() => setChildren([...kids, { name: "", birthYear: new Date().getFullYear() - 5, birthMonth: 0 }])}
+            style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "6px 0", background: C.tealWash, border: `1px solid ${C.tealLight}`, color: C.tealDark, borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: "pointer", marginTop: 4 }}>
+            <PlusCircle size={12} /> Add Child
+          </button>
         </AccCard>
 
         {/* ── Portfolio Holdings ── */}

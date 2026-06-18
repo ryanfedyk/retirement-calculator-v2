@@ -97,6 +97,7 @@ export interface SimulationConfiguration {
   };
   spending: {
     monthly_lifestyle: number;
+    use_empty_nest?: boolean;          // Whether to model a distinct empty-nest spending phase
     empty_nest_year?: number;
     empty_nest_monthly_spend?: number;
     healthcare_premium: number;
@@ -477,8 +478,11 @@ export const runSimulation = (
     }
 
     // ── Expenses ───────────────────────────────────────────────────────────
+    // Empty-nest phase is optional; treat a missing flag as enabled so existing
+    // saved configs keep their prior behavior.
+    const useEmptyNest  = config.spending.use_empty_nest !== false;
     const emptyNestYear = config.spending.empty_nest_year ?? 3_000;
-    const baseMonthlySpend = (currentYear >= emptyNestYear && config.spending.empty_nest_monthly_spend)
+    const baseMonthlySpend = (useEmptyNest && currentYear >= emptyNestYear && config.spending.empty_nest_monthly_spend)
       ? config.spending.empty_nest_monthly_spend
       : config.spending.monthly_lifestyle;
 

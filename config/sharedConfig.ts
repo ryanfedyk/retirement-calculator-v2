@@ -111,6 +111,7 @@ export const DEFAULT_SIM_CONFIG: SimulationConfiguration = {
     target_bonus_rate:       10,
     annual_equity_grant:     0,
     monthly_rental_income:   0,
+    monthly_parttime_income: 0,
     annual_401k_contribution: 23_500,   // IRS 2025 max; auto-bumped at age 50+
     annual_backdoor_roth:     7_000,
     use_partner_income:      false,
@@ -136,6 +137,7 @@ export const DEFAULT_SIM_CONFIG: SimulationConfiguration = {
   },
   spending: {
     monthly_lifestyle:        5_000,
+    use_empty_nest:           true,
     empty_nest_year:          DEFAULT_PROFILE.retirementYear + 9,
     empty_nest_monthly_spend: 4_500,
     healthcare_premium:       1_000,

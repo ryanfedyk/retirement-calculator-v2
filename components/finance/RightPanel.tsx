@@ -212,7 +212,7 @@ export default function RightPanel({ livePrices, pricesUpdatedAt, pricesFetching
   const ssDateStr      = config.social_security ? findDate(p => p.date.includes(String(birthYear + config.social_security!.start_age))) : null;
   const medDateStr     = config.medicare        ? findDate(p => p.date.includes(String(birthYear + config.medicare!.start_age)))        : null;
   const mortgageDateStr = findDate(p => p.date === "Jun 2051");
-  const enDateStr      = config.spending.empty_nest_year ? findDate(p => p.date.includes(String(config.spending.empty_nest_year))) : null;
+  const enDateStr      = (config.spending.use_empty_nest !== false && config.spending.empty_nest_year) ? findDate(p => p.date.includes(String(config.spending.empty_nest_year))) : null;
 
   // Compact label for a life event ("Oona — College Year 1" → "🎓 Oona Yr1")
   const lifeEventLabel = (name: string) => {

@@ -4,6 +4,7 @@ import { Sliders, RotateCcw, Wallet, Trash2, PlusCircle, ChevronDown } from "luc
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { C } from "@/config/colors";
 import { DEFAULT_SNAPSHOT, DEFAULT_SIM_CONFIG } from "@/config/sharedConfig";
+import TickerAutocomplete from "./TickerAutocomplete";
 import type { LivePrices } from "./FinancialDashboard";
 
 // ── Styled primitives ─────────────────────────────────────────────────────────
@@ -116,17 +117,20 @@ function InvestmentItem({
 }) {
   const [editing, setEditing] = useState(false);
   const [sym, setSym] = useState(inv.symbol);
+  const [name, setName] = useState(inv.name);
   const [shares, setShares] = useState(String(inv.shares));
   const [ret, setRet] = useState(String(inv.expected_return ?? ""));
 
   if (editing) return (
     <div style={{ background: C.warmWash, border: `1px solid ${C.warmLight}`, borderRadius: 7, padding: 10, marginBottom: 6 }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <Input placeholder="Ticker" value={sym} onChange={e => setSym(e.target.value.toUpperCase())} />
+        <TickerAutocomplete placeholder="Ticker" value={sym}
+          onChange={setSym}
+          onSelect={r => { setSym(r.symbol); setName(r.name); }} />
         <Input type="number" placeholder="Shares" value={shares} onChange={e => setShares(e.target.value)} />
         <Input type="number" placeholder="Expected return %" value={ret} onChange={e => setRet(e.target.value)} />
         <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-          <button onClick={() => { onUpdate({ ...inv, symbol: sym, shares: parseFloat(shares), expected_return: ret ? parseFloat(ret) : undefined }); setEditing(false); }}
+          <button onClick={() => { onUpdate({ ...inv, symbol: sym, name: name || sym, shares: parseFloat(shares), expected_return: ret ? parseFloat(ret) : undefined }); setEditing(false); }}
             style={{ flex: 1, padding: "5px 0", background: C.teal, color: "#fff", border: "none", borderRadius: 5, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
             Save
           </button>
@@ -188,9 +192,10 @@ function InvestmentItem({
 export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices }) {
   const { config, snapshot, updateNestedConfig, updateNestedSnapshot, updateConfig, resetToDefaults } = useFinancialStore();
   const [newEvent, setNewEvent] = useState({ name: "", year: 2030, cost: 50_000 });
-  const [newInvSym, setNewInvSym]   = useState("");
-  const [newInvSh,  setNewInvSh]    = useState("");
-  const [newInvRet, setNewInvRet]   = useState("");
+  const [newInvSym,  setNewInvSym]  = useState("");
+  const [newInvName, setNewInvName] = useState("");
+  const [newInvSh,   setNewInvSh]   = useState("");
+  const [newInvRet,  setNewInvRet]  = useState("");
 
   const cp = config.career_path;
   const ip = config.income_profile;
@@ -218,7 +223,12 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
           <Wallet size={14} color={C.teal} />
           <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: C.ink }}>Configuration</span>
         </div>
-        <button onClick={resetToDefaults} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: C.inkFaint, background: "none", border: "none", cursor: "pointer" }}>
+        <button
+          onClick={() => {
+            if (window.confirm("Reset everything to defaults?\n\nThis permanently erases your current configuration and can't be undone."))
+              resetToDefaults();
+          }}
+          style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: C.inkFaint, background: "none", border: "none", cursor: "pointer" }}>
           <RotateCcw size={11} /> Reset
         </button>
       </div>
@@ -362,9 +372,18 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
             <div><FieldLabel>Annual Equity Refresher ($)</FieldLabel>
               <Input type="number" step={1000} value={ip.annual_equity_grant ?? 0}
                 onChange={e => updateNestedConfig("income_profile", { annual_equity_grant: +e.target.value })} /></div>
+          </div>
+        </AccCard>
+
+        {/* ── Supplemental Income ── */}
+        <AccCard {...acc("supplemental")} title="Supplemental Income" color="#4aab92">
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <div><FieldLabel>Monthly Rental Income ($)</FieldLabel>
               <Input type="number" step={100} value={ip.monthly_rental_income ?? 0}
                 onChange={e => updateNestedConfig("income_profile", { monthly_rental_income: +e.target.value })} /></div>
+            <div><FieldLabel>Monthly Part-Time Work Income ($)</FieldLabel>
+              <Input type="number" step={100} value={ip.monthly_parttime_income ?? 0}
+                onChange={e => updateNestedConfig("income_profile", { monthly_parttime_income: +e.target.value })} /></div>
 
             <SectionDivider />
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -446,15 +465,22 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
                 onChange={e => updateNestedConfig("spending", { healthcare_premium: +e.target.value })} /></div>
 
             <SectionDivider />
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: C.inkFaint }}>Empty Nest Phase</div>
-            <Row>
-              <div><FieldLabel>Start Year</FieldLabel>
-                <Input type="number" value={sp.empty_nest_year || 2038}
-                  onChange={e => updateNestedConfig("spending", { empty_nest_year: +e.target.value })} /></div>
-              <div><FieldLabel>Monthly Spend</FieldLabel>
-                <Input type="number" step={250} value={sp.empty_nest_monthly_spend ?? 0}
-                  onChange={e => updateNestedConfig("spending", { empty_nest_monthly_spend: +e.target.value })} /></div>
-            </Row>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: C.inkFaint }}>Empty Nest Phase</span>
+              <input type="checkbox" checked={sp.use_empty_nest !== false}
+                onChange={e => updateNestedConfig("spending", { use_empty_nest: e.target.checked })}
+                style={{ accentColor: C.teal }} />
+            </div>
+            {sp.use_empty_nest !== false && (
+              <Row>
+                <div><FieldLabel>Start Year</FieldLabel>
+                  <Input type="number" value={sp.empty_nest_year || 2038}
+                    onChange={e => updateNestedConfig("spending", { empty_nest_year: +e.target.value })} /></div>
+                <div><FieldLabel>Monthly Spend</FieldLabel>
+                  <Input type="number" step={250} value={sp.empty_nest_monthly_spend ?? 0}
+                    onChange={e => updateNestedConfig("spending", { empty_nest_monthly_spend: +e.target.value })} /></div>
+              </Row>
+            )}
           </div>
         </AccCard>
 
@@ -594,18 +620,22 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
           </div>
           <div style={{ background: C.bg, borderRadius: 7, padding: "10px 12px", border: `1px solid ${C.borderSoft}` }}>
             <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: C.inkFaint, marginBottom: 8 }}>Add Holding</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, marginBottom: 6 }}>
-              <Input placeholder="Ticker" value={newInvSym} onChange={e => setNewInvSym(e.target.value.toUpperCase())} />
+            <div style={{ marginBottom: 6 }}>
+              <TickerAutocomplete placeholder="Search ticker or company" value={newInvSym}
+                onChange={setNewInvSym}
+                onSelect={r => { setNewInvSym(r.symbol); setNewInvName(r.name); }} />
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 6 }}>
               <Input type="number" placeholder="Shares" value={newInvSh} onChange={e => setNewInvSh(e.target.value)} />
               <Input type="number" placeholder="Ret %" value={newInvRet} onChange={e => setNewInvRet(e.target.value)} />
             </div>
             <button onClick={() => {
               const sh = parseFloat(newInvSh);
               if (newInvSym && sh) {
-                const inv = { id: Date.now().toString(), name: newInvSym, symbol: newInvSym, shares: sh, cost_basis: 0, current_price: 0, expected_return: newInvRet ? parseFloat(newInvRet) : undefined };
+                const inv = { id: Date.now().toString(), name: newInvName || newInvSym, symbol: newInvSym, shares: sh, cost_basis: 0, current_price: 0, expected_return: newInvRet ? parseFloat(newInvRet) : undefined };
                 const arr = [...(snapshot.other_investments || []), inv];
                 updateNestedSnapshot("other_investments", arr as any);
-                setNewInvSym(""); setNewInvSh(""); setNewInvRet("");
+                setNewInvSym(""); setNewInvName(""); setNewInvSh(""); setNewInvRet("");
               }
             }} style={{ width: "100%", padding: "6px 0", background: C.warmWash, border: `1px solid ${C.warmLight}`, color: C.warm, borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
               + Add Investment

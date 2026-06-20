@@ -4,6 +4,7 @@ import { X, ChevronDown, Trash2, Plus, RotateCcw } from "lucide-react";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import TickerAutocomplete from "@/components/finance/TickerAutocomplete";
+import { STATE_OPTIONS } from "@/engine/state_tax";
 
 const money = (n: number) => `$${Math.round(n).toLocaleString()}`;
 
@@ -319,7 +320,7 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
             </Field>
             <Field label="State of Residence">
               <Pick value={config.tax_assumptions.state_of_residence} onChange={v => updateNestedConfig("tax_assumptions", { state_of_residence: v as any })}
-                options={[["CA", "California"], ["WA", "Washington"], ["TX", "Texas"], ["NY", "New York"], ["NONE", "No State Tax"]]} />
+                options={STATE_OPTIONS} />
             </Field>
           </Section>
 

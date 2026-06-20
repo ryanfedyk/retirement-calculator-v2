@@ -81,7 +81,7 @@ export interface SimulationConfiguration {
   };
   tax_assumptions: {
     filing_status: 'single' | 'married_joint' | 'married_separate' | 'head_household';
-    state_of_residence: 'CA' | 'WA' | 'TX' | 'NY' | 'NONE';
+    state_of_residence: StateCode;
   };
   tax_optimization: {
     enable_aca_optimization: boolean;      // Model ACA subsidies during low-income phases
@@ -162,6 +162,7 @@ export interface TrajectoryPoint {
 }
 
 import { calculateTax } from './tax_engine';
+import type { StateCode } from './state_tax';
 
 // Age at which a child is assumed to leave the family health plan (post-college).
 const CHILD_OFF_PLAN_AGE = 22;

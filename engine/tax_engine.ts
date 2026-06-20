@@ -1,5 +1,7 @@
+import { calculateStateTax, type StateCode } from './state_tax';
+
 export type FilingStatus = 'single' | 'married_joint' | 'married_separate' | 'head_household';
-export type StateCode = 'CA' | 'WA' | 'TX' | 'NY' | 'NONE';
+export type { StateCode };
 
 export interface TaxInput {
   filingStatus:          FilingStatus;
@@ -221,6 +223,12 @@ const _calculateTaxRaw = (input: TaxInput): Omit<TaxOutput, 'marginalRate'> => {
       : CA_BRACKETS_2024;
     stateIncomeTax += applyBrackets(caTaxable, caBrackets);
     if (caTaxable > 1_000_000) stateIncomeTax += (caTaxable - 1_000_000) * 0.01;
+  }
+
+  // All other states (NY/CA handled above; no-tax states & NONE return 0).
+  if (input.state !== 'CA' && input.state !== 'NY') {
+    // States tax capital gains as ordinary income.
+    stateIncomeTax += calculateStateTax(input.state, filingStatus, totalOrdinaryTaxable + longTermCapitalGains);
   }
 
   // ── Totals ────────────────────────────────────────────────────────────────

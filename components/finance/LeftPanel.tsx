@@ -5,6 +5,7 @@ import { useFinancialStore } from "@/store/useFinancialStore";
 import { C } from "@/config/colors";
 import { DEFAULT_SNAPSHOT, DEFAULT_SIM_CONFIG } from "@/config/sharedConfig";
 import TickerAutocomplete from "./TickerAutocomplete";
+import { STATE_OPTIONS } from "@/engine/state_tax";
 import type { LivePrices } from "./FinancialDashboard";
 
 // ── Styled primitives ─────────────────────────────────────────────────────────
@@ -568,13 +569,11 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
               </Select>
             </div>
             <div><FieldLabel>State of Residence</FieldLabel>
-              <Select value={config.tax_assumptions?.state_of_residence ?? "NY"}
+              <Select value={config.tax_assumptions?.state_of_residence ?? "NONE"}
                 onChange={e => updateNestedConfig("tax_assumptions", { state_of_residence: e.target.value as any })}>
-                <option value="CA">California</option>
-                <option value="WA">Washington</option>
-                <option value="TX">Texas</option>
-                <option value="NY">New York</option>
-                <option value="NONE">No State Tax</option>
+                {STATE_OPTIONS.map(([code, label]) => (
+                  <option key={code} value={code}>{label}</option>
+                ))}
               </Select>
             </div>
           </div>

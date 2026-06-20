@@ -310,7 +310,7 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
 
           {/* ── Divestment (only relevant with company stock) ── */}
           {config.use_equity_comp === true && (
-          <Section title="Employer Stock Divestment" accent="#2a7a68" {...sec("divest")}>
+          <Section title="Company Stock Divestment" accent="#2a7a68" {...sec("divest")}>
             <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
               {(["none", "progressive", "immediate"] as const).map(t => (
                 <button key={t} onClick={() => updateNestedConfig("divestment_strategy", { type: t })} style={{

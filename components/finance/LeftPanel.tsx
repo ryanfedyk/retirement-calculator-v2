@@ -562,7 +562,10 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
 
         {/* ── Divestment Strategy (only relevant with company stock) ── */}
         {config.use_equity_comp === true && (
-        <AccCard {...acc("divest")} title="Divestment Strategy" color="#2a7a68">
+        <AccCard {...acc("divest")} title="Company Stock Divestment" color="#2a7a68">
+          <div style={{ fontSize: 10, color: C.inkFaint, marginBottom: 10, lineHeight: 1.5 }}>
+            How you sell down your concentrated company stock ({config.concentrated_symbol || "your ticker"}) over time to diversify.
+          </div>
           <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
             {(["none", "progressive", "immediate"] as const).map(t => (
               <button key={t} onClick={() => updateNestedConfig("divestment_strategy", { type: t })}

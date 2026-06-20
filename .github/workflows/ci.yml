@@ -1,0 +1,24 @@
+name: CI
+
+# Gate every PR (and pushes to main) on a clean typecheck + production build,
+# so broken code can't be merged. Production itself deploys from `main` via
+# Firebase App Hosting once this is green and the PR merges.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Build
+        run: npm run build

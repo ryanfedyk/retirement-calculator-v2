@@ -98,6 +98,7 @@ export interface SimulationConfiguration {
   spending: {
     monthly_lifestyle: number;
     use_empty_nest?: boolean;          // Whether to model a distinct empty-nest spending phase
+    empty_nest_linked?: boolean;       // When true (default), empty-nest spend tracks monthly_lifestyle (−15%)
     empty_nest_year?: number;
     empty_nest_monthly_spend?: number;
     healthcare_premium: number;
@@ -498,8 +499,13 @@ export const runSimulation = (
     const hasChildren   = (config.children?.length ?? 0) > 0;
     const useEmptyNest  = hasChildren && config.spending.use_empty_nest !== false;
     const emptyNestYear = config.spending.empty_nest_year ?? 3_000;
-    const baseMonthlySpend = (useEmptyNest && currentYear >= emptyNestYear && config.spending.empty_nest_monthly_spend)
-      ? config.spending.empty_nest_monthly_spend
+    // When linked (default), empty-nest spend is 15% below the monthly lifestyle
+    // spend; otherwise it uses the user's unlinked custom amount.
+    const emptyNestSpend = config.spending.empty_nest_linked !== false
+      ? config.spending.monthly_lifestyle * 0.85
+      : (config.spending.empty_nest_monthly_spend ?? config.spending.monthly_lifestyle * 0.85);
+    const baseMonthlySpend = (useEmptyNest && currentYear >= emptyNestYear && emptyNestSpend)
+      ? emptyNestSpend
       : config.spending.monthly_lifestyle;
 
     let expense = baseMonthlySpend * inflationMultiplier;

@@ -293,7 +293,7 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
                 {cp.exit_year}
               </span>
             </div>
-            <input type="range" min={2024} max={2040} step={1} value={cp.exit_year}
+            <input type="range" min={2024} max={Math.max(2040, (config.birth_year || (thisYear - age)) + 75, cp.exit_year)} step={1} value={cp.exit_year}
               style={{ width: "100%", accentColor: C.teal }}
               onChange={e => {
                 const yr = parseInt(e.target.value);
@@ -486,6 +486,7 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
                 onChange={e => updateNestedConfig("spending", { monthly_lifestyle: +e.target.value })} />
               <Input type="number" value={sp.monthly_lifestyle}
                 onChange={e => updateNestedConfig("spending", { monthly_lifestyle: +e.target.value })} />
+              <div style={{ fontSize: 9, color: C.inkFaint, marginTop: 3 }}>Everyday living costs — excludes rent/mortgage &amp; healthcare (set separately).</div>
             </div>
 
             <SectionDivider />
@@ -513,9 +514,24 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
                     <div><FieldLabel>Start Year</FieldLabel>
                       <Input type="number" value={sp.empty_nest_year || 2038}
                         onChange={e => updateNestedConfig("spending", { empty_nest_year: +e.target.value })} /></div>
-                    <div><FieldLabel>Monthly Spend</FieldLabel>
-                      <Input type="number" step={250} value={sp.empty_nest_monthly_spend ?? 0}
-                        onChange={e => updateNestedConfig("spending", { empty_nest_monthly_spend: +e.target.value })} /></div>
+                    <div>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <FieldLabel>Monthly Spend</FieldLabel>
+                        <button
+                          onClick={() => updateNestedConfig("spending", sp.empty_nest_linked !== false
+                            ? { empty_nest_linked: false, empty_nest_monthly_spend: Math.round(sp.monthly_lifestyle * 0.85) }
+                            : { empty_nest_linked: true })}
+                          style={{ fontSize: 9, color: C.teal, background: "none", border: "none", cursor: "pointer", padding: 0, marginBottom: 4 }}>
+                          {sp.empty_nest_linked !== false ? "🔗 Linked" : "Unlink ✕"}
+                        </button>
+                      </div>
+                      <Input type="number" step={250} disabled={sp.empty_nest_linked !== false}
+                        value={sp.empty_nest_linked !== false ? Math.round(sp.monthly_lifestyle * 0.85) : (sp.empty_nest_monthly_spend ?? 0)}
+                        onChange={e => updateNestedConfig("spending", { empty_nest_monthly_spend: +e.target.value, empty_nest_linked: false })} />
+                      {sp.empty_nest_linked !== false && (
+                        <div style={{ fontSize: 9, color: C.inkFaint, marginTop: 3 }}>−15% of monthly spend</div>
+                      )}
+                    </div>
                   </Row>
                 )}
               </>

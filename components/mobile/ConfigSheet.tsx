@@ -149,7 +149,7 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
           {/* ── Quick adjust (always-open feel) ── */}
           <Section title="Quick Adjust" accent={C.teal} {...sec("quick")}>
             <Field label={`Career Exit Year — ${cp.exit_year}`}>
-              <input type="range" min={2024} max={2040} step={1} value={cp.exit_year}
+              <input type="range" min={2024} max={Math.max(2040, (config.birth_year || (thisYear - age)) + 75, cp.exit_year)} step={1} value={cp.exit_year}
                 style={{ width: "100%", accentColor: C.teal, height: 28 }}
                 onChange={e => {
                   const yr = +e.target.value;
@@ -160,7 +160,7 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
                   }
                 }} />
             </Field>
-            <Field label={`Monthly Spend — ${money(sp.monthly_lifestyle)}`}>
+            <Field label={`Monthly Spend (excl. rent/mortgage) — ${money(sp.monthly_lifestyle)}`}>
               <input type="range" min={3000} max={35000} step={250} value={sp.monthly_lifestyle}
                 style={{ width: "100%", accentColor: C.warm, height: 28 }}
                 onChange={e => updateNestedConfig("spending", { monthly_lifestyle: +e.target.value })} />
@@ -259,17 +259,27 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
 
           {/* ── Spending & Lifestyle ── */}
           <Section title="Spending & Lifestyle" accent={C.warm} {...sec("spending")}>
-            <Field label="Monthly Spend"><Num prefix="$" step={250} value={sp.monthly_lifestyle} onChange={v => updateNestedConfig("spending", { monthly_lifestyle: v })} /></Field>
+            <Field label="Monthly Spend (excl. rent/mortgage & healthcare)"><Num prefix="$" step={250} value={sp.monthly_lifestyle} onChange={v => updateNestedConfig("spending", { monthly_lifestyle: v })} /></Field>
             <Field label="Monthly Mortgage / Rent Payment"><Num prefix="$" step={100} value={sp.mortgage_payment} onChange={v => updateNestedConfig("spending", { mortgage_payment: v })} /></Field>
             <Field label="Healthcare Premium ($/mo, pre-65)"><Num prefix="$" step={100} value={sp.healthcare_premium} onChange={v => updateNestedConfig("spending", { healthcare_premium: v })} /></Field>
             {kids.length > 0 && (
               <>
                 <Toggle label="Model an Empty-Nest Phase" on={sp.use_empty_nest !== false} onChange={v => updateNestedConfig("spending", { use_empty_nest: v })} />
                 {sp.use_empty_nest !== false && (
-                  <Two>
-                    <Field label="Empty-Nest Year"><Num value={sp.empty_nest_year || 2038} onChange={v => updateNestedConfig("spending", { empty_nest_year: v })} /></Field>
-                    <Field label="Empty-Nest Spend"><Num prefix="$" step={250} value={sp.empty_nest_monthly_spend ?? 0} onChange={v => updateNestedConfig("spending", { empty_nest_monthly_spend: v })} /></Field>
-                  </Two>
+                  <>
+                    <Toggle label="Link empty-nest spend to monthly (−15%)" on={sp.empty_nest_linked !== false}
+                      onChange={v => updateNestedConfig("spending", v
+                        ? { empty_nest_linked: true }
+                        : { empty_nest_linked: false, empty_nest_monthly_spend: Math.round(sp.monthly_lifestyle * 0.85) })} />
+                    <Two>
+                      <Field label="Empty-Nest Year"><Num value={sp.empty_nest_year || 2038} onChange={v => updateNestedConfig("spending", { empty_nest_year: v })} /></Field>
+                      <Field label="Empty-Nest Spend">
+                        {sp.empty_nest_linked !== false
+                          ? <div style={{ ...inputStyle, color: C.inkSoft, display: "flex", alignItems: "center" }}>{money(sp.monthly_lifestyle * 0.85)}/mo</div>
+                          : <Num prefix="$" step={250} value={sp.empty_nest_monthly_spend ?? 0} onChange={v => updateNestedConfig("spending", { empty_nest_monthly_spend: v })} />}
+                      </Field>
+                    </Two>
+                  </>
                 )}
               </>
             )}

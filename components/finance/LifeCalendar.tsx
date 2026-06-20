@@ -65,7 +65,7 @@ export default function LifeCalendar({ data, config }: Props) {
     if (pt.socialSecurityIncome > 0 && (i === 0 || data[i-1].socialSecurityIncome === 0)) {
       events.push("Social Security Starts");
     }
-    if (pt.date === "Jun 2051") events.push("Mortgage Paid Off");
+    if (pt.date === "Jun 2051" && (config.spending.mortgage_payment ?? 0) > 0) events.push("Mortgage Paid Off");
     if (events.length > 0) monthEventsMap.set(pt.monthIndex, events);
   });
 

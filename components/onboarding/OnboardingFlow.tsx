@@ -272,7 +272,7 @@ export default function OnboardingFlow() {
             {step === 3 && (
               <>
                 <MoneyField label={<>Gross annual salary {optionalTag}</>} value={salary} onChange={setSalary} placeholder="120,000" />
-                <MoneyField label={<>Monthly lifestyle spend {optionalTag}</>} value={monthlySpend} onChange={setMonthlySpend} placeholder="5,000" />
+                <MoneyField label={<>Monthly spend, excl. rent/mortgage {optionalTag}</>} value={monthlySpend} onChange={setMonthlySpend} placeholder="5,000" />
               </>
             )}
 

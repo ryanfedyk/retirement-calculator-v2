@@ -96,7 +96,7 @@ export const useFinancialStore = create<FinancialStore>()(
               ? Math.round(s.config.spending.monthly_lifestyle * 0.85)
               : s.config.spending.empty_nest_monthly_spend;
           const emptyNest = hasKids
-            ? { use_empty_nest: true, empty_nest_year: youngestBirthYear + 18, empty_nest_monthly_spend: emptyNestSpend }
+            ? { use_empty_nest: true, empty_nest_year: youngestBirthYear + 18, empty_nest_monthly_spend: emptyNestSpend, ...(hadKids ? {} : { empty_nest_linked: true }) }
             : { use_empty_nest: false };
 
           // Regenerate auto college-cost events; keep user-added ones untouched.

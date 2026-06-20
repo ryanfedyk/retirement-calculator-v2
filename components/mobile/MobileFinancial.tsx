@@ -106,7 +106,7 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
   if (cp.use_bridge)     addMile(findDate(d => d.currentPhase === "BRIDGE"),     "Bridge job begins", "#3a7d9c");
   if (fullRetireDate)    addMile(fullRetireDate, "Full retirement 🌿", "#7a6da8");
   if (children.length > 0 && config.spending.use_empty_nest !== false && config.spending.empty_nest_year) addMile(findDate(p => p.date.includes(String(config.spending.empty_nest_year))), "Empty nest", C.warm);
-  addMile(findDate(p => p.date === "Jun 2051"), "Mortgage paid off", "#9bbdb4");
+  if (snapshot.liabilities.mortgage_balance > 0) addMile(findDate(p => p.date === "Jun 2051"), "Mortgage paid off", "#9bbdb4");
   if (indep) addMile(indep.date, "Financial independence 🎉", "#80c4ae");
   if (config.social_security) addMile(findDate(p => p.date.includes(String(by + config.social_security.start_age))), "Social Security starts", C.warm);
   if (config.medicare)        addMile(findDate(p => p.date.includes(String(by + config.medicare.start_age))),        "Medicare starts", "#9bbdb4");
@@ -122,7 +122,7 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
     cp.use_bridge     && { x: snap(findDate(d => d.currentPhase === "BRIDGE")),     c: "#3a7d9c", l: "Bridge" },
     fullRetireDate    && { x: snap(fullRetireDate), c: "#7a6da8", l: "Retire" },
     children.length > 0 && config.spending.use_empty_nest !== false && config.spending.empty_nest_year && { x: snap(findDate(p => p.date.includes(String(config.spending.empty_nest_year)))), c: C.warm, l: "Nest" },
-    { x: snap(findDate(p => p.date === "Jun 2051")), c: "#9bbdb4", l: "Paid" },
+    snapshot.liabilities.mortgage_balance > 0 && { x: snap(findDate(p => p.date === "Jun 2051")), c: "#9bbdb4", l: "Paid" },
     indep && { x: snap(indep.date), c: "#80c4ae", l: "FI" },
   ].filter(Boolean) as { x?: string; c: string; l: string }[]).filter(m => m.x) as { x: string; c: string; l: string }[];
 

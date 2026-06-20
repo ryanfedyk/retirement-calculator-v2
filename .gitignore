@@ -39,7 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-.claude/
+
+# claude — commit shared project config + hooks, keep personal settings local
+.claude/settings.local.json
 
 # firebase
 firebase-debug.log

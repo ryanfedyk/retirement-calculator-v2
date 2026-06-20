@@ -81,7 +81,7 @@ export interface SimulationConfiguration {
   };
   tax_assumptions: {
     filing_status: 'single' | 'married_joint' | 'married_separate' | 'head_household';
-    state_of_residence: 'CA' | 'WA' | 'TX' | 'NY' | 'NONE';
+    state_of_residence: StateCode;
   };
   tax_optimization: {
     enable_aca_optimization: boolean;      // Model ACA subsidies during low-income phases
@@ -98,12 +98,16 @@ export interface SimulationConfiguration {
   spending: {
     monthly_lifestyle: number;
     use_empty_nest?: boolean;          // Whether to model a distinct empty-nest spending phase
+    empty_nest_linked?: boolean;       // When true (default), empty-nest spend tracks monthly_lifestyle (−15%)
     empty_nest_year?: number;
     empty_nest_monthly_spend?: number;
     healthcare_premium: number;
     mortgage_payment: number;
   };
   birth_year: number;
+  // Whether the user receives company equity (RSUs). Gates the equity-income
+  // inputs and the divestment strategy. Default off.
+  use_equity_comp?: boolean;
   social_security: {
     start_age: number;
     monthly_amount: number;
@@ -159,6 +163,7 @@ export interface TrajectoryPoint {
 }
 
 import { calculateTax } from './tax_engine';
+import type { StateCode } from './state_tax';
 
 // Age at which a child is assumed to leave the family health plan (post-college).
 const CHILD_OFF_PLAN_AGE = 22;
@@ -204,6 +209,13 @@ export const runSimulation = (
   const startYear  = new Date().getFullYear();
   const startMonth = new Date().getMonth();
 
+  // Project through age 95, so the chart's horizon (end date) shifts with the
+  // user's age: younger users see a longer runway, older users a shorter one.
+  // Clamped to a sane 15–70 year window.
+  const END_AGE          = 95;
+  const startAge         = startYear - (config.birth_year || 1980);
+  const monthsToSimulate = Math.min(840, Math.max(180, (END_AGE - startAge) * 12));
+
   // ── Initial balances ───────────────────────────────────────────────────────
   let liquidCash  = snapshot.liquid_assets.vanguard_bridge + snapshot.liquid_assets.cash_savings;
   // Split retirement into Roth (tax-free) vs traditional (taxable on withdrawal)
@@ -213,7 +225,10 @@ export const runSimulation = (
   // The "concentrated position" (employer stock / RSUs) that gets its own growth
   // rate, vesting, and divestment treatment. Configurable per user; defaults to
   // none. Legacy data may carry GOOG holdings + share_counts.google_shares.
-  const concSym = (config.concentrated_symbol ?? '').toUpperCase();
+  // Equity comp is opt-in; when off, ignore the employer ticker so there's no
+  // concentrated position, divestment, or RSU income.
+  const equityEnabled = config.use_equity_comp === true;
+  const concSym = equityEnabled ? (config.concentrated_symbol ?? '').toUpperCase() : '';
   const isConcentrated = (sym: string) => concSym !== '' && sym?.toUpperCase() === concSym;
   const googInvs          = (snapshot.other_investments ?? []).filter(i => isConcentrated(i.symbol));
   const googFromPortfolio = googInvs.reduce((s, i) => s + i.shares, 0);
@@ -257,8 +272,8 @@ export const runSimulation = (
   // effective annual yield (7%/12 monthly compounds to ~7.23%/yr).
   const monthlyRate = (annualPct: number) => Math.pow(1 + annualPct / 100, 1 / 12) - 1;
 
-  // ── Main simulation loop (360 months = 30 years) ──────────────────────────
-  for (let month = 0; month < 360; month++) {
+  // ── Main simulation loop (runs through age 95; see monthsToSimulate) ───────
+  for (let month = 0; month < monthsToSimulate; month++) {
 
     const totalMonths = startMonth + month;
     const currentYear = startYear + Math.floor(totalMonths / 12);
@@ -331,7 +346,7 @@ export const runSimulation = (
 
     // ── RSU vesting ────────────────────────────────────────────────────────
     let monthlyEquityVestUnits = 0;
-    if (phase === 'GOOGLE') {
+    if (phase === 'GOOGLE' && equityEnabled) {
       // Initial grant — linear over vesting_years
       if (yearsPassed < (ip.vesting_years || 4)) {
         monthlyEquityVestUnits += (ip.initial_unvested_shares || 0) / ((ip.vesting_years || 4) * 12);
@@ -484,8 +499,13 @@ export const runSimulation = (
     const hasChildren   = (config.children?.length ?? 0) > 0;
     const useEmptyNest  = hasChildren && config.spending.use_empty_nest !== false;
     const emptyNestYear = config.spending.empty_nest_year ?? 3_000;
-    const baseMonthlySpend = (useEmptyNest && currentYear >= emptyNestYear && config.spending.empty_nest_monthly_spend)
-      ? config.spending.empty_nest_monthly_spend
+    // When linked (default), empty-nest spend is 15% below the monthly lifestyle
+    // spend; otherwise it uses the user's unlinked custom amount.
+    const emptyNestSpend = config.spending.empty_nest_linked !== false
+      ? config.spending.monthly_lifestyle * 0.85
+      : (config.spending.empty_nest_monthly_spend ?? config.spending.monthly_lifestyle * 0.85);
+    const baseMonthlySpend = (useEmptyNest && currentYear >= emptyNestYear && emptyNestSpend)
+      ? emptyNestSpend
       : config.spending.monthly_lifestyle;
 
     let expense = baseMonthlySpend * inflationMultiplier;

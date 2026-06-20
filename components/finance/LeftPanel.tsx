@@ -5,6 +5,7 @@ import { useFinancialStore } from "@/store/useFinancialStore";
 import { C } from "@/config/colors";
 import { DEFAULT_SNAPSHOT, DEFAULT_SIM_CONFIG } from "@/config/sharedConfig";
 import TickerAutocomplete from "./TickerAutocomplete";
+import { STATE_OPTIONS } from "@/engine/state_tax";
 import type { LivePrices } from "./FinancialDashboard";
 
 // ── Styled primitives ─────────────────────────────────────────────────────────
@@ -196,8 +197,15 @@ function InvestmentItem({
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices }) {
-  const { config, snapshot, profile, updateNestedConfig, updateNestedSnapshot, updateConfig, setChildren, resetToDefaults } = useFinancialStore();
+  const { config, snapshot, profile, updateProfile, updateNestedConfig, updateNestedSnapshot, updateConfig, setChildren, resetToDefaults } = useFinancialStore();
   const kids = profile.children;
+  const thisYear = new Date().getFullYear();
+  const age = thisYear - (config.birth_year || profile.birthYear || 1985);
+  const setAge = (a: number) => {
+    const birthYear = thisYear - Math.max(0, a);
+    updateProfile({ birthYear });
+    updateConfig({ birth_year: birthYear });
+  };
   const [newEvent, setNewEvent] = useState({ name: "", year: 2030, cost: 50_000 });
   const [newInvSym,  setNewInvSym]  = useState("");
   const [newInvName, setNewInvName] = useState("");
@@ -272,13 +280,20 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
         <AccCard {...acc("career")} title="Career Trajectory" color={C.teal}>
 
           <div style={{ marginBottom: 14 }}>
+            <FieldLabel>Your Age</FieldLabel>
+            <Input type="number" min={18} max={100} value={age}
+              onChange={e => setAge(+e.target.value || 0)} />
+            <div style={{ fontSize: 9, color: C.inkFaint, marginTop: 3 }}>Sets your birth year ({thisYear - age}) and the projection horizon.</div>
+          </div>
+
+          <div style={{ marginBottom: 14 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
               <span style={{ fontSize: 12, color: C.inkMid }}>Career Exit Year</span>
               <span style={{ fontSize: 12, fontWeight: 700, fontVariantNumeric: "tabular-nums", color: C.teal, background: C.tealWash, padding: "1px 8px", borderRadius: 99 }}>
                 {cp.exit_year}
               </span>
             </div>
-            <input type="range" min={2024} max={2040} step={1} value={cp.exit_year}
+            <input type="range" min={2024} max={Math.max(2040, (config.birth_year || (thisYear - age)) + 75, cp.exit_year)} step={1} value={cp.exit_year}
               style={{ width: "100%", accentColor: C.teal }}
               onChange={e => {
                 const yr = parseInt(e.target.value);
@@ -367,18 +382,29 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
                 <Input type="number" step={1} value={ip.target_bonus_rate ?? 0}
                   onChange={e => updateNestedConfig("income_profile", { target_bonus_rate: +e.target.value })} /></div>
             </Row>
-            <div>
-              <FieldLabel>Unvested Shares (count · vesting yrs)</FieldLabel>
-              <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 6 }}>
-                <Input type="number" placeholder="Total shares" value={ip.initial_unvested_shares ?? 0}
-                  onChange={e => updateNestedConfig("income_profile", { initial_unvested_shares: +e.target.value })} />
-                <Input type="number" placeholder="Yrs" value={ip.vesting_years ?? 4}
-                  onChange={e => updateNestedConfig("income_profile", { vesting_years: +e.target.value })} />
-              </div>
+            <SectionDivider />
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: C.inkFaint }}>Company Equity / RSUs</span>
+              <input type="checkbox" checked={config.use_equity_comp === true}
+                onChange={e => updateConfig({ use_equity_comp: e.target.checked })}
+                style={{ accentColor: C.teal }} />
             </div>
-            <div><FieldLabel>Annual Equity Refresher ($)</FieldLabel>
-              <Input type="number" step={1000} value={ip.annual_equity_grant ?? 0}
-                onChange={e => updateNestedConfig("income_profile", { annual_equity_grant: +e.target.value })} /></div>
+            {config.use_equity_comp === true && (
+              <>
+                <div>
+                  <FieldLabel>Unvested Shares (count · vesting yrs)</FieldLabel>
+                  <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 6 }}>
+                    <Input type="number" placeholder="Total shares" value={ip.initial_unvested_shares ?? 0}
+                      onChange={e => updateNestedConfig("income_profile", { initial_unvested_shares: +e.target.value })} />
+                    <Input type="number" placeholder="Yrs" value={ip.vesting_years ?? 4}
+                      onChange={e => updateNestedConfig("income_profile", { vesting_years: +e.target.value })} />
+                  </div>
+                </div>
+                <div><FieldLabel>Annual Equity Refresher ($)</FieldLabel>
+                  <Input type="number" step={1000} value={ip.annual_equity_grant ?? 0}
+                    onChange={e => updateNestedConfig("income_profile", { annual_equity_grant: +e.target.value })} /></div>
+              </>
+            )}
           </div>
         </AccCard>
 
@@ -431,14 +457,16 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
                 <Input type="number" step={0.1} value={ma.volatility_drag}
                   onChange={e => updateNestedConfig("market_assumptions", { volatility_drag: +e.target.value })} /></div>
             </Row>
-            <Row>
-              <div><FieldLabel>Employer Stock Ticker</FieldLabel>
-                <Input type="text" placeholder="e.g. AAPL" value={config.concentrated_symbol ?? ""}
-                  onChange={e => updateConfig({ concentrated_symbol: e.target.value.toUpperCase() })} /></div>
-              <div><FieldLabel>Employer Stock Growth (%)</FieldLabel>
-                <Input type="number" step={0.5} value={ma.goog_growth_rate}
-                  onChange={e => updateNestedConfig("market_assumptions", { goog_growth_rate: +e.target.value })} /></div>
-            </Row>
+            {config.use_equity_comp === true && (
+              <Row>
+                <div><FieldLabel>Employer Stock Ticker</FieldLabel>
+                  <Input type="text" placeholder="e.g. AAPL" value={config.concentrated_symbol ?? ""}
+                    onChange={e => updateConfig({ concentrated_symbol: e.target.value.toUpperCase() })} /></div>
+                <div><FieldLabel>Employer Stock Growth (%)</FieldLabel>
+                  <Input type="number" step={0.5} value={ma.goog_growth_rate}
+                    onChange={e => updateNestedConfig("market_assumptions", { goog_growth_rate: +e.target.value })} /></div>
+              </Row>
+            )}
             <Row>
               <div><FieldLabel>Inflation (%)</FieldLabel>
                 <Input type="number" step={0.25} value={ma.inflation_rate}
@@ -458,6 +486,7 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
                 onChange={e => updateNestedConfig("spending", { monthly_lifestyle: +e.target.value })} />
               <Input type="number" value={sp.monthly_lifestyle}
                 onChange={e => updateNestedConfig("spending", { monthly_lifestyle: +e.target.value })} />
+              <div style={{ fontSize: 9, color: C.inkFaint, marginTop: 3 }}>Everyday living costs — excludes rent/mortgage &amp; healthcare (set separately).</div>
             </div>
 
             <SectionDivider />
@@ -485,9 +514,24 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
                     <div><FieldLabel>Start Year</FieldLabel>
                       <Input type="number" value={sp.empty_nest_year || 2038}
                         onChange={e => updateNestedConfig("spending", { empty_nest_year: +e.target.value })} /></div>
-                    <div><FieldLabel>Monthly Spend</FieldLabel>
-                      <Input type="number" step={250} value={sp.empty_nest_monthly_spend ?? 0}
-                        onChange={e => updateNestedConfig("spending", { empty_nest_monthly_spend: +e.target.value })} /></div>
+                    <div>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <FieldLabel>Monthly Spend</FieldLabel>
+                        <button
+                          onClick={() => updateNestedConfig("spending", sp.empty_nest_linked !== false
+                            ? { empty_nest_linked: false, empty_nest_monthly_spend: Math.round(sp.monthly_lifestyle * 0.85) }
+                            : { empty_nest_linked: true })}
+                          style={{ fontSize: 9, color: C.teal, background: "none", border: "none", cursor: "pointer", padding: 0, marginBottom: 4 }}>
+                          {sp.empty_nest_linked !== false ? "🔗 Linked" : "Unlink ✕"}
+                        </button>
+                      </div>
+                      <Input type="number" step={250} disabled={sp.empty_nest_linked !== false}
+                        value={sp.empty_nest_linked !== false ? Math.round(sp.monthly_lifestyle * 0.85) : (sp.empty_nest_monthly_spend ?? 0)}
+                        onChange={e => updateNestedConfig("spending", { empty_nest_monthly_spend: +e.target.value, empty_nest_linked: false })} />
+                      {sp.empty_nest_linked !== false && (
+                        <div style={{ fontSize: 9, color: C.inkFaint, marginTop: 3 }}>−15% of monthly spend</div>
+                      )}
+                    </div>
                   </Row>
                 )}
               </>
@@ -495,7 +539,8 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
           </div>
         </AccCard>
 
-        {/* ── Divestment Strategy ── */}
+        {/* ── Divestment Strategy (only relevant with company stock) ── */}
+        {config.use_equity_comp === true && (
         <AccCard {...acc("divest")} title="Divestment Strategy" color="#2a7a68">
           <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
             {(["none", "progressive", "immediate"] as const).map(t => (
@@ -525,6 +570,7 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
             </div>
           )}
         </AccCard>
+        )}
 
         {/* ── Tax Profiling ── */}
         <AccCard {...acc("tax")} title="Tax Profiling" color={C.inkMid}>
@@ -539,13 +585,11 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
               </Select>
             </div>
             <div><FieldLabel>State of Residence</FieldLabel>
-              <Select value={config.tax_assumptions?.state_of_residence ?? "NY"}
+              <Select value={config.tax_assumptions?.state_of_residence ?? "NONE"}
                 onChange={e => updateNestedConfig("tax_assumptions", { state_of_residence: e.target.value as any })}>
-                <option value="CA">California</option>
-                <option value="WA">Washington</option>
-                <option value="TX">Texas</option>
-                <option value="NY">New York</option>
-                <option value="NONE">No State Tax</option>
+                {STATE_OPTIONS.map(([code, label]) => (
+                  <option key={code} value={code}>{label}</option>
+                ))}
               </Select>
             </div>
           </div>

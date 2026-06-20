@@ -25,10 +25,7 @@ export default function Header({ view, onViewChange }: Props) {
           <div style={{ width: 2, height: 28, borderRadius: 2, background: C.teal, flexShrink: 0 }} />
           <div>
             <div style={{ color: C.ink, fontSize: 12, fontWeight: 600, letterSpacing: "0.2em", textTransform: "uppercase", lineHeight: 1 }}>
-              Horizon
-            </div>
-            <div style={{ color: C.inkSoft, fontSize: 8.5, letterSpacing: "0.22em", textTransform: "uppercase", marginTop: 3 }}>
-              The Elegant Taper
+              Taper
             </div>
           </div>
         </div>

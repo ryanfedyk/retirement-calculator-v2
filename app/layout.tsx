@@ -4,7 +4,7 @@ import { AuthProvider } from "@/lib/auth/AuthProvider";
 import { CloudSyncProvider } from "@/lib/cloud/CloudSyncProvider";
 
 export const metadata: Metadata = {
-  title: "Horizon — The Elegant Taper",
+  title: "Taper",
   description: "A graceful system for the transition to everything that matters.",
 };
 

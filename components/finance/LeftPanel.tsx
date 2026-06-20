@@ -462,7 +462,7 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
 
             <SectionDivider />
 
-            <div><FieldLabel>Monthly Mortgage Payment ($)</FieldLabel>
+            <div><FieldLabel>Monthly Mortgage / Rent Payment ($)</FieldLabel>
               <Input type="number" value={sp.mortgage_payment}
                 onChange={e => updateNestedConfig("spending", { mortgage_payment: +e.target.value || 0 })} />
               <div style={{ fontSize: 9, color: C.inkFaint, marginTop: 3 }}>Automatically ends Jun 2051</div>
@@ -471,22 +471,26 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
               <Input type="number" step={100} value={sp.healthcare_premium}
                 onChange={e => updateNestedConfig("spending", { healthcare_premium: +e.target.value })} /></div>
 
-            <SectionDivider />
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: C.inkFaint }}>Empty Nest Phase</span>
-              <input type="checkbox" checked={sp.use_empty_nest !== false}
-                onChange={e => updateNestedConfig("spending", { use_empty_nest: e.target.checked })}
-                style={{ accentColor: C.teal }} />
-            </div>
-            {sp.use_empty_nest !== false && (
-              <Row>
-                <div><FieldLabel>Start Year</FieldLabel>
-                  <Input type="number" value={sp.empty_nest_year || 2038}
-                    onChange={e => updateNestedConfig("spending", { empty_nest_year: +e.target.value })} /></div>
-                <div><FieldLabel>Monthly Spend</FieldLabel>
-                  <Input type="number" step={250} value={sp.empty_nest_monthly_spend ?? 0}
-                    onChange={e => updateNestedConfig("spending", { empty_nest_monthly_spend: +e.target.value })} /></div>
-              </Row>
+            {kids.length > 0 && (
+              <>
+                <SectionDivider />
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: C.inkFaint }}>Empty Nest Phase</span>
+                  <input type="checkbox" checked={sp.use_empty_nest !== false}
+                    onChange={e => updateNestedConfig("spending", { use_empty_nest: e.target.checked })}
+                    style={{ accentColor: C.teal }} />
+                </div>
+                {sp.use_empty_nest !== false && (
+                  <Row>
+                    <div><FieldLabel>Start Year</FieldLabel>
+                      <Input type="number" value={sp.empty_nest_year || 2038}
+                        onChange={e => updateNestedConfig("spending", { empty_nest_year: +e.target.value })} /></div>
+                    <div><FieldLabel>Monthly Spend</FieldLabel>
+                      <Input type="number" step={250} value={sp.empty_nest_monthly_spend ?? 0}
+                        onChange={e => updateNestedConfig("spending", { empty_nest_monthly_spend: +e.target.value })} /></div>
+                  </Row>
+                )}
+              </>
             )}
           </div>
         </AccCard>

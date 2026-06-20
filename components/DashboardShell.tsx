@@ -84,7 +84,7 @@ export default function DashboardShell() {
 
           <footer style={{ borderTop: `1px solid ${C.border}`, background: C.bgHeader }} className="px-8 py-4">
             <div className="max-w-7xl mx-auto flex justify-between items-center">
-              <p style={{ color: C.inkFaint }} className="text-[10px] tracking-widest uppercase">Horizon — The Elegant Taper</p>
+              <p style={{ color: C.inkFaint }} className="text-[10px] tracking-widest uppercase">Taper</p>
               <p style={{ color: C.inkFaint }} className="text-[10px]">
                 {user.name ? `${user.name} · ` : ""}Retiring {retirementDate.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" })}
               </p>

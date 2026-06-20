@@ -27,6 +27,18 @@ const fieldStyle: React.CSSProperties = {
   width: "100%", background: C.bg, border: `1px solid ${C.border}`,
   borderRadius: 8, padding: "11px 13px", fontSize: 14, color: C.ink, outline: "none",
 };
+// Custom chevron so the dropdown arrow has breathing room from the right edge
+// (the native arrow sits flush against the border).
+const selectStyle: React.CSSProperties = {
+  ...fieldStyle,
+  appearance: "none", WebkitAppearance: "none", MozAppearance: "none",
+  paddingRight: 36,
+  backgroundImage:
+    "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236a8e82' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E\")",
+  backgroundRepeat: "no-repeat",
+  backgroundPosition: "right 14px center",
+  backgroundSize: "12px",
+};
 const optionalTag = (
   <span style={{ textTransform: "none", color: C.inkFaint, fontWeight: 400 }}>(optional)</span>
 );
@@ -122,13 +134,6 @@ export default function OnboardingFlow() {
     updateConfig({ birth_year: by });
     updateCareerPath({ exit_year: ry });
 
-    // Children drive milestones, the empty-nest phase, and college costs.
-    const validKids = kids
-      .map((k) => ({ name: k.name.trim() || "Child", year: Number(k.year) }))
-      .filter((k) => k.year >= 1990 && k.year <= CURRENT_YEAR + 30)
-      .map((k) => ({ name: k.name, birthYear: k.year, birthMonth: 0 }));
-    setChildren(validKids);
-
     // Optional fields — only applied when the user actually entered something.
     const cash = optNum(savings);
     if (cash !== undefined) updateNestedSnapshot("liquid_assets", { cash_savings: Math.max(0, cash) });
@@ -143,6 +148,15 @@ export default function OnboardingFlow() {
     }
     const spend = optNum(monthlySpend);
     if (spend !== undefined) updateSpending({ monthly_lifestyle: Math.max(0, spend) });
+
+    // Children drive milestones, the empty-nest phase, and college costs. Run
+    // this last so the empty-nest spend default reflects any monthly spend set
+    // above.
+    const validKids = kids
+      .map((k) => ({ name: k.name.trim() || "Child", year: Number(k.year) }))
+      .filter((k) => k.year >= 1990 && k.year <= CURRENT_YEAR + 30)
+      .map((k) => ({ name: k.name, birthYear: k.year, birthMonth: 0 }));
+    setChildren(validKids);
   };
 
   const addMore = () => {
@@ -157,7 +171,7 @@ export default function OnboardingFlow() {
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 6 }}>
           <div style={{ width: 3, height: 30, borderRadius: 2, background: C.teal }} />
           <div style={{ color: C.ink, fontSize: 14, fontWeight: 600, letterSpacing: "0.2em", textTransform: "uppercase" }}>
-            Horizon
+            Taper
           </div>
         </div>
         <h1 style={{ color: C.ink, fontSize: 24, fontWeight: 600, marginTop: 18, marginBottom: 6 }}>
@@ -197,7 +211,7 @@ export default function OnboardingFlow() {
                 <div>
                   <label style={labelStyle}>Target retirement date</label>
                   <div style={{ display: "flex", gap: 10 }}>
-                    <select style={{ ...fieldStyle, flex: 1.4 }} value={retMonth}
+                    <select style={{ ...selectStyle, flex: 1.4 }} value={retMonth}
                             onChange={(e) => setRetMonth(Number(e.target.value))}>
                       {MONTHS.map((m, i) => <option key={m} value={i}>{m}</option>)}
                     </select>
@@ -268,32 +282,39 @@ export default function OnboardingFlow() {
                 </button>
               )}
               <div style={{ flex: 1 }} />
+              {/* Finish is the secondary action while optional steps remain; it
+                  becomes the primary CTA on the final step. */}
+              <button
+                onClick={finish}
+                disabled={!essentialsValid}
+                style={isLast ? {
+                  background: C.teal, color: "#fff", border: "none", borderRadius: 8,
+                  padding: "13px 22px", fontSize: 14, fontWeight: 700,
+                  cursor: essentialsValid ? "pointer" : "not-allowed", opacity: essentialsValid ? 1 : 0.55,
+                  boxShadow: essentialsValid ? `0 2px 8px ${C.tealLight}` : "none",
+                } : {
+                  background: "transparent", color: essentialsValid ? C.teal : C.inkFaint,
+                  border: `1px solid ${essentialsValid ? C.tealLight : C.border}`, borderRadius: 8,
+                  padding: "13px 18px", fontSize: 14, fontWeight: 600,
+                  cursor: essentialsValid ? "pointer" : "not-allowed",
+                }}
+              >
+                Finish{isLast ? " →" : ""}
+              </button>
               {!isLast && (
                 <button
                   onClick={addMore}
                   disabled={!essentialsValid}
                   style={{
-                    background: "transparent", color: essentialsValid ? C.teal : C.inkFaint,
-                    border: `1px solid ${essentialsValid ? C.tealLight : C.border}`, borderRadius: 8,
-                    padding: "13px 18px", fontSize: 14, fontWeight: 600,
-                    cursor: essentialsValid ? "pointer" : "not-allowed",
+                    background: C.teal, color: "#fff", border: "none", borderRadius: 8,
+                    padding: "13px 22px", fontSize: 14, fontWeight: 700,
+                    cursor: essentialsValid ? "pointer" : "not-allowed", opacity: essentialsValid ? 1 : 0.55,
+                    boxShadow: essentialsValid ? `0 2px 8px ${C.tealLight}` : "none",
                   }}
                 >
-                  Add more
+                  Add more →
                 </button>
               )}
-              <button
-                onClick={finish}
-                disabled={!essentialsValid}
-                style={{
-                  background: C.teal, color: "#fff", border: "none", borderRadius: 8,
-                  padding: "13px 22px", fontSize: 14, fontWeight: 700,
-                  cursor: essentialsValid ? "pointer" : "not-allowed", opacity: essentialsValid ? 1 : 0.55,
-                  boxShadow: essentialsValid ? `0 2px 8px ${C.tealLight}` : "none",
-                }}
-              >
-                Finish →
-              </button>
             </div>
           </div>
         </div>

@@ -66,10 +66,7 @@ export default function SignInScreen() {
           <div style={{ width: 3, height: 34, borderRadius: 2, background: C.teal }} />
           <div>
             <div style={{ color: C.ink, fontSize: 16, fontWeight: 600, letterSpacing: "0.2em", textTransform: "uppercase", lineHeight: 1 }}>
-              Horizon
-            </div>
-            <div style={{ color: C.inkSoft, fontSize: 9, letterSpacing: "0.22em", textTransform: "uppercase", marginTop: 4 }}>
-              The Elegant Taper
+              Taper
             </div>
           </div>
         </div>

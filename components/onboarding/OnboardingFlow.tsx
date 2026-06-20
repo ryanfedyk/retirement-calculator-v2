@@ -27,6 +27,18 @@ const fieldStyle: React.CSSProperties = {
   width: "100%", background: C.bg, border: `1px solid ${C.border}`,
   borderRadius: 8, padding: "11px 13px", fontSize: 14, color: C.ink, outline: "none",
 };
+// Custom chevron so the dropdown arrow has breathing room from the right edge
+// (the native arrow sits flush against the border).
+const selectStyle: React.CSSProperties = {
+  ...fieldStyle,
+  appearance: "none", WebkitAppearance: "none", MozAppearance: "none",
+  paddingRight: 36,
+  backgroundImage:
+    "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236a8e82' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E\")",
+  backgroundRepeat: "no-repeat",
+  backgroundPosition: "right 14px center",
+  backgroundSize: "12px",
+};
 const optionalTag = (
   <span style={{ textTransform: "none", color: C.inkFaint, fontWeight: 400 }}>(optional)</span>
 );
@@ -197,7 +209,7 @@ export default function OnboardingFlow() {
                 <div>
                   <label style={labelStyle}>Target retirement date</label>
                   <div style={{ display: "flex", gap: 10 }}>
-                    <select style={{ ...fieldStyle, flex: 1.4 }} value={retMonth}
+                    <select style={{ ...selectStyle, flex: 1.4 }} value={retMonth}
                             onChange={(e) => setRetMonth(Number(e.target.value))}>
                       {MONTHS.map((m, i) => <option key={m} value={i}>{m}</option>)}
                     </select>

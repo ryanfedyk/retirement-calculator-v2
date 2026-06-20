@@ -208,12 +208,12 @@ export default function AdventureGenerator({ saved, setSaved }: Props) {
         </div>
       )}
 
-      {/* ── Horizon Ledger ── */}
+      {/* ── Taper Ledger ── */}
       {saved.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-5">
             <p style={{ color: C.inkFaint }} className="text-[10px] uppercase tracking-widest">
-              Horizon Ledger
+              Taper Ledger
             </p>
             <p style={{ color: C.inkFaint }} className="text-[11px]">{saved.length} pinned</p>
           </div>

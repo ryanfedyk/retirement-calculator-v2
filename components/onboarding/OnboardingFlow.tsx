@@ -157,7 +157,7 @@ export default function OnboardingFlow() {
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 6 }}>
           <div style={{ width: 3, height: 30, borderRadius: 2, background: C.teal }} />
           <div style={{ color: C.ink, fontSize: 14, fontWeight: 600, letterSpacing: "0.2em", textTransform: "uppercase" }}>
-            Horizon
+            Taper
           </div>
         </div>
         <h1 style={{ color: C.ink, fontSize: 24, fontWeight: 600, marginTop: 18, marginBottom: 6 }}>
@@ -268,32 +268,39 @@ export default function OnboardingFlow() {
                 </button>
               )}
               <div style={{ flex: 1 }} />
+              {/* Finish is the secondary action while optional steps remain; it
+                  becomes the primary CTA on the final step. */}
+              <button
+                onClick={finish}
+                disabled={!essentialsValid}
+                style={isLast ? {
+                  background: C.teal, color: "#fff", border: "none", borderRadius: 8,
+                  padding: "13px 22px", fontSize: 14, fontWeight: 700,
+                  cursor: essentialsValid ? "pointer" : "not-allowed", opacity: essentialsValid ? 1 : 0.55,
+                  boxShadow: essentialsValid ? `0 2px 8px ${C.tealLight}` : "none",
+                } : {
+                  background: "transparent", color: essentialsValid ? C.teal : C.inkFaint,
+                  border: `1px solid ${essentialsValid ? C.tealLight : C.border}`, borderRadius: 8,
+                  padding: "13px 18px", fontSize: 14, fontWeight: 600,
+                  cursor: essentialsValid ? "pointer" : "not-allowed",
+                }}
+              >
+                Finish{isLast ? " →" : ""}
+              </button>
               {!isLast && (
                 <button
                   onClick={addMore}
                   disabled={!essentialsValid}
                   style={{
-                    background: "transparent", color: essentialsValid ? C.teal : C.inkFaint,
-                    border: `1px solid ${essentialsValid ? C.tealLight : C.border}`, borderRadius: 8,
-                    padding: "13px 18px", fontSize: 14, fontWeight: 600,
-                    cursor: essentialsValid ? "pointer" : "not-allowed",
+                    background: C.teal, color: "#fff", border: "none", borderRadius: 8,
+                    padding: "13px 22px", fontSize: 14, fontWeight: 700,
+                    cursor: essentialsValid ? "pointer" : "not-allowed", opacity: essentialsValid ? 1 : 0.55,
+                    boxShadow: essentialsValid ? `0 2px 8px ${C.tealLight}` : "none",
                   }}
                 >
-                  Add more
+                  Add more →
                 </button>
               )}
-              <button
-                onClick={finish}
-                disabled={!essentialsValid}
-                style={{
-                  background: C.teal, color: "#fff", border: "none", borderRadius: 8,
-                  padding: "13px 22px", fontSize: 14, fontWeight: 700,
-                  cursor: essentialsValid ? "pointer" : "not-allowed", opacity: essentialsValid ? 1 : 0.55,
-                  boxShadow: essentialsValid ? `0 2px 8px ${C.tealLight}` : "none",
-                }}
-              >
-                Finish →
-              </button>
             </div>
           </div>
         </div>

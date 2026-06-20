@@ -52,8 +52,7 @@ export default function MobileApp() {
         display: "flex", alignItems: "center", justifyContent: "space-between",
       }}>
         <div>
-          <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: "0.18em", color: C.ink }}>HORIZON</div>
-          <div style={{ fontSize: 9, letterSpacing: "0.22em", color: C.inkFaint, textTransform: "uppercase" }}>The Elegant Taper</div>
+          <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: "0.18em", color: C.ink }}>TAPER</div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {view === "financial" && (

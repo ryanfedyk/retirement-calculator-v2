@@ -105,7 +105,7 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
   if (cp.use_jump)       addMile(findDate(d => d.currentPhase === "JUMP"),       "Career jump begins", "#2a9d7f");
   if (cp.use_bridge)     addMile(findDate(d => d.currentPhase === "BRIDGE"),     "Bridge job begins", "#3a7d9c");
   if (fullRetireDate)    addMile(fullRetireDate, "Full retirement 🌿", "#7a6da8");
-  if (config.spending.use_empty_nest !== false && config.spending.empty_nest_year) addMile(findDate(p => p.date.includes(String(config.spending.empty_nest_year))), "Empty nest", C.warm);
+  if (children.length > 0 && config.spending.use_empty_nest !== false && config.spending.empty_nest_year) addMile(findDate(p => p.date.includes(String(config.spending.empty_nest_year))), "Empty nest", C.warm);
   addMile(findDate(p => p.date === "Jun 2051"), "Mortgage paid off", "#9bbdb4");
   if (indep) addMile(indep.date, "Financial independence 🎉", "#80c4ae");
   if (config.social_security) addMile(findDate(p => p.date.includes(String(by + config.social_security.start_age))), "Social Security starts", C.warm);
@@ -121,7 +121,7 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
     cp.use_jump       && { x: snap(findDate(d => d.currentPhase === "JUMP")),       c: "#2a9d7f", l: "Jump" },
     cp.use_bridge     && { x: snap(findDate(d => d.currentPhase === "BRIDGE")),     c: "#3a7d9c", l: "Bridge" },
     fullRetireDate    && { x: snap(fullRetireDate), c: "#7a6da8", l: "Retire" },
-    config.spending.use_empty_nest !== false && config.spending.empty_nest_year && { x: snap(findDate(p => p.date.includes(String(config.spending.empty_nest_year)))), c: C.warm, l: "Nest" },
+    children.length > 0 && config.spending.use_empty_nest !== false && config.spending.empty_nest_year && { x: snap(findDate(p => p.date.includes(String(config.spending.empty_nest_year)))), c: C.warm, l: "Nest" },
     { x: snap(findDate(p => p.date === "Jun 2051")), c: "#9bbdb4", l: "Paid" },
     indep && { x: snap(indep.date), c: "#80c4ae", l: "FI" },
   ].filter(Boolean) as { x?: string; c: string; l: string }[]).filter(m => m.x) as { x: string; c: string; l: string }[];
@@ -251,7 +251,7 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
           <Chip label="Exit" value={String(cp.exit_year)} />
           <Chip label="Spend" value={`${fmtM(config.spending.monthly_lifestyle)}/mo`} />
-          {config.spending.use_empty_nest !== false && <Chip label="Empty Nest" value={`${fmtM(config.spending.empty_nest_monthly_spend ?? 0)}/mo`} />}
+          {children.length > 0 && config.spending.use_empty_nest !== false && <Chip label="Empty Nest" value={`${fmtM(config.spending.empty_nest_monthly_spend ?? 0)}/mo`} />}
           {activePhases.length > 0
             ? activePhases.map(p => <Chip key={p} label="Phase" value={p} accent />)
             : <Chip label="Path" value="Straight to exit" />}

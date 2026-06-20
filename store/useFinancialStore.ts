@@ -85,11 +85,18 @@ export const useFinancialStore = create<FinancialStore>()(
         set((s) => {
           const profile = { ...s.profile, children };
           const hasKids = children.length > 0;
+          const hadKids = s.profile.children.length > 0;
 
           // Empty nest = when the youngest child turns 18 (last one leaves home).
           const youngestBirthYear = hasKids ? Math.max(...children.map((c) => c.birthYear)) : 0;
+          // When first enabling the phase, default its spend to 15% below the
+          // current monthly lifestyle; preserve any value the user has since set.
+          const emptyNestSpend =
+            hasKids && !hadKids
+              ? Math.round(s.config.spending.monthly_lifestyle * 0.85)
+              : s.config.spending.empty_nest_monthly_spend;
           const emptyNest = hasKids
-            ? { use_empty_nest: true, empty_nest_year: youngestBirthYear + 18 }
+            ? { use_empty_nest: true, empty_nest_year: youngestBirthYear + 18, empty_nest_monthly_spend: emptyNestSpend }
             : { use_empty_nest: false };
 
           // Regenerate auto college-cost events; keep user-added ones untouched.

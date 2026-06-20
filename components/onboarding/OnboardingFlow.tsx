@@ -134,13 +134,6 @@ export default function OnboardingFlow() {
     updateConfig({ birth_year: by });
     updateCareerPath({ exit_year: ry });
 
-    // Children drive milestones, the empty-nest phase, and college costs.
-    const validKids = kids
-      .map((k) => ({ name: k.name.trim() || "Child", year: Number(k.year) }))
-      .filter((k) => k.year >= 1990 && k.year <= CURRENT_YEAR + 30)
-      .map((k) => ({ name: k.name, birthYear: k.year, birthMonth: 0 }));
-    setChildren(validKids);
-
     // Optional fields — only applied when the user actually entered something.
     const cash = optNum(savings);
     if (cash !== undefined) updateNestedSnapshot("liquid_assets", { cash_savings: Math.max(0, cash) });
@@ -155,6 +148,15 @@ export default function OnboardingFlow() {
     }
     const spend = optNum(monthlySpend);
     if (spend !== undefined) updateSpending({ monthly_lifestyle: Math.max(0, spend) });
+
+    // Children drive milestones, the empty-nest phase, and college costs. Run
+    // this last so the empty-nest spend default reflects any monthly spend set
+    // above.
+    const validKids = kids
+      .map((k) => ({ name: k.name.trim() || "Child", year: Number(k.year) }))
+      .filter((k) => k.year >= 1990 && k.year <= CURRENT_YEAR + 30)
+      .map((k) => ({ name: k.name, birthYear: k.year, birthMonth: 0 }));
+    setChildren(validKids);
   };
 
   const addMore = () => {

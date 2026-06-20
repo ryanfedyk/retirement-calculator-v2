@@ -479,9 +479,10 @@ export const runSimulation = (
     }
 
     // ── Expenses ───────────────────────────────────────────────────────────
-    // Empty-nest phase is optional; treat a missing flag as enabled so existing
-    // saved configs keep their prior behavior.
-    const useEmptyNest  = config.spending.use_empty_nest !== false;
+    // Empty-nest phase only applies when there are children (it models the spend
+    // drop after kids leave home) and the user hasn't turned it off.
+    const hasChildren   = (config.children?.length ?? 0) > 0;
+    const useEmptyNest  = hasChildren && config.spending.use_empty_nest !== false;
     const emptyNestYear = config.spending.empty_nest_year ?? 3_000;
     const baseMonthlySpend = (useEmptyNest && currentYear >= emptyNestYear && config.spending.empty_nest_monthly_spend)
       ? config.spending.empty_nest_monthly_spend

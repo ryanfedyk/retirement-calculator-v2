@@ -244,10 +244,18 @@ export default function OnboardingFlow() {
                     </button>
                   </div>
                 ))}
-                <button onClick={addKid}
-                  style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%", padding: "11px 0", background: C.tealWash, border: `1px solid ${C.tealLight}`, borderRadius: 8, color: C.tealDark, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
-                  <Plus size={15} /> {kids.length === 0 ? "Add a child" : "Add another child"}
-                </button>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button onClick={addKid}
+                    style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "11px 0", background: C.tealWash, border: `1px solid ${C.tealLight}`, borderRadius: 8, color: C.tealDark, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
+                    <Plus size={15} /> {kids.length === 0 ? "Add a child" : "Add another child"}
+                  </button>
+                  {kids.length === 0 && (
+                    <button onClick={() => { setKids([]); addMore(); }}
+                      style={{ flex: 1, padding: "11px 0", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 8, color: C.inkSoft, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
+                      No kids
+                    </button>
+                  )}
+                </div>
               </>
             )}
 
@@ -312,7 +320,7 @@ export default function OnboardingFlow() {
                     boxShadow: essentialsValid ? `0 2px 8px ${C.tealLight}` : "none",
                   }}
                 >
-                  Add more →
+                  Next →
                 </button>
               )}
             </div>

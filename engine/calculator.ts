@@ -104,6 +104,9 @@ export interface SimulationConfiguration {
     mortgage_payment: number;
   };
   birth_year: number;
+  // Whether the user receives company equity (RSUs). Gates the equity-income
+  // inputs and the divestment strategy. Default off.
+  use_equity_comp?: boolean;
   social_security: {
     start_age: number;
     monthly_amount: number;
@@ -204,6 +207,13 @@ export const runSimulation = (
   const startYear  = new Date().getFullYear();
   const startMonth = new Date().getMonth();
 
+  // Project through age 95, so the chart's horizon (end date) shifts with the
+  // user's age: younger users see a longer runway, older users a shorter one.
+  // Clamped to a sane 15–70 year window.
+  const END_AGE          = 95;
+  const startAge         = startYear - (config.birth_year || 1980);
+  const monthsToSimulate = Math.min(840, Math.max(180, (END_AGE - startAge) * 12));
+
   // ── Initial balances ───────────────────────────────────────────────────────
   let liquidCash  = snapshot.liquid_assets.vanguard_bridge + snapshot.liquid_assets.cash_savings;
   // Split retirement into Roth (tax-free) vs traditional (taxable on withdrawal)
@@ -213,7 +223,10 @@ export const runSimulation = (
   // The "concentrated position" (employer stock / RSUs) that gets its own growth
   // rate, vesting, and divestment treatment. Configurable per user; defaults to
   // none. Legacy data may carry GOOG holdings + share_counts.google_shares.
-  const concSym = (config.concentrated_symbol ?? '').toUpperCase();
+  // Equity comp is opt-in; when off, ignore the employer ticker so there's no
+  // concentrated position, divestment, or RSU income.
+  const equityEnabled = config.use_equity_comp === true;
+  const concSym = equityEnabled ? (config.concentrated_symbol ?? '').toUpperCase() : '';
   const isConcentrated = (sym: string) => concSym !== '' && sym?.toUpperCase() === concSym;
   const googInvs          = (snapshot.other_investments ?? []).filter(i => isConcentrated(i.symbol));
   const googFromPortfolio = googInvs.reduce((s, i) => s + i.shares, 0);
@@ -257,8 +270,8 @@ export const runSimulation = (
   // effective annual yield (7%/12 monthly compounds to ~7.23%/yr).
   const monthlyRate = (annualPct: number) => Math.pow(1 + annualPct / 100, 1 / 12) - 1;
 
-  // ── Main simulation loop (360 months = 30 years) ──────────────────────────
-  for (let month = 0; month < 360; month++) {
+  // ── Main simulation loop (runs through age 95; see monthsToSimulate) ───────
+  for (let month = 0; month < monthsToSimulate; month++) {
 
     const totalMonths = startMonth + month;
     const currentYear = startYear + Math.floor(totalMonths / 12);
@@ -331,7 +344,7 @@ export const runSimulation = (
 
     // ── RSU vesting ────────────────────────────────────────────────────────
     let monthlyEquityVestUnits = 0;
-    if (phase === 'GOOGLE') {
+    if (phase === 'GOOGLE' && equityEnabled) {
       // Initial grant — linear over vesting_years
       if (yearsPassed < (ip.vesting_years || 4)) {
         monthlyEquityVestUnits += (ip.initial_unvested_shares || 0) / ((ip.vesting_years || 4) * 12);

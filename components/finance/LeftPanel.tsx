@@ -196,8 +196,15 @@ function InvestmentItem({
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices }) {
-  const { config, snapshot, profile, updateNestedConfig, updateNestedSnapshot, updateConfig, setChildren, resetToDefaults } = useFinancialStore();
+  const { config, snapshot, profile, updateProfile, updateNestedConfig, updateNestedSnapshot, updateConfig, setChildren, resetToDefaults } = useFinancialStore();
   const kids = profile.children;
+  const thisYear = new Date().getFullYear();
+  const age = thisYear - (config.birth_year || profile.birthYear || 1985);
+  const setAge = (a: number) => {
+    const birthYear = thisYear - Math.max(0, a);
+    updateProfile({ birthYear });
+    updateConfig({ birth_year: birthYear });
+  };
   const [newEvent, setNewEvent] = useState({ name: "", year: 2030, cost: 50_000 });
   const [newInvSym,  setNewInvSym]  = useState("");
   const [newInvName, setNewInvName] = useState("");
@@ -270,6 +277,13 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
 
         {/* ── Career Trajectory ── */}
         <AccCard {...acc("career")} title="Career Trajectory" color={C.teal}>
+
+          <div style={{ marginBottom: 14 }}>
+            <FieldLabel>Your Age</FieldLabel>
+            <Input type="number" min={18} max={100} value={age}
+              onChange={e => setAge(+e.target.value || 0)} />
+            <div style={{ fontSize: 9, color: C.inkFaint, marginTop: 3 }}>Sets your birth year ({thisYear - age}) and the projection horizon.</div>
+          </div>
 
           <div style={{ marginBottom: 14 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
@@ -367,18 +381,29 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
                 <Input type="number" step={1} value={ip.target_bonus_rate ?? 0}
                   onChange={e => updateNestedConfig("income_profile", { target_bonus_rate: +e.target.value })} /></div>
             </Row>
-            <div>
-              <FieldLabel>Unvested Shares (count · vesting yrs)</FieldLabel>
-              <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 6 }}>
-                <Input type="number" placeholder="Total shares" value={ip.initial_unvested_shares ?? 0}
-                  onChange={e => updateNestedConfig("income_profile", { initial_unvested_shares: +e.target.value })} />
-                <Input type="number" placeholder="Yrs" value={ip.vesting_years ?? 4}
-                  onChange={e => updateNestedConfig("income_profile", { vesting_years: +e.target.value })} />
-              </div>
+            <SectionDivider />
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: C.inkFaint }}>Company Equity / RSUs</span>
+              <input type="checkbox" checked={config.use_equity_comp === true}
+                onChange={e => updateConfig({ use_equity_comp: e.target.checked })}
+                style={{ accentColor: C.teal }} />
             </div>
-            <div><FieldLabel>Annual Equity Refresher ($)</FieldLabel>
-              <Input type="number" step={1000} value={ip.annual_equity_grant ?? 0}
-                onChange={e => updateNestedConfig("income_profile", { annual_equity_grant: +e.target.value })} /></div>
+            {config.use_equity_comp === true && (
+              <>
+                <div>
+                  <FieldLabel>Unvested Shares (count · vesting yrs)</FieldLabel>
+                  <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 6 }}>
+                    <Input type="number" placeholder="Total shares" value={ip.initial_unvested_shares ?? 0}
+                      onChange={e => updateNestedConfig("income_profile", { initial_unvested_shares: +e.target.value })} />
+                    <Input type="number" placeholder="Yrs" value={ip.vesting_years ?? 4}
+                      onChange={e => updateNestedConfig("income_profile", { vesting_years: +e.target.value })} />
+                  </div>
+                </div>
+                <div><FieldLabel>Annual Equity Refresher ($)</FieldLabel>
+                  <Input type="number" step={1000} value={ip.annual_equity_grant ?? 0}
+                    onChange={e => updateNestedConfig("income_profile", { annual_equity_grant: +e.target.value })} /></div>
+              </>
+            )}
           </div>
         </AccCard>
 
@@ -431,14 +456,16 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
                 <Input type="number" step={0.1} value={ma.volatility_drag}
                   onChange={e => updateNestedConfig("market_assumptions", { volatility_drag: +e.target.value })} /></div>
             </Row>
-            <Row>
-              <div><FieldLabel>Employer Stock Ticker</FieldLabel>
-                <Input type="text" placeholder="e.g. AAPL" value={config.concentrated_symbol ?? ""}
-                  onChange={e => updateConfig({ concentrated_symbol: e.target.value.toUpperCase() })} /></div>
-              <div><FieldLabel>Employer Stock Growth (%)</FieldLabel>
-                <Input type="number" step={0.5} value={ma.goog_growth_rate}
-                  onChange={e => updateNestedConfig("market_assumptions", { goog_growth_rate: +e.target.value })} /></div>
-            </Row>
+            {config.use_equity_comp === true && (
+              <Row>
+                <div><FieldLabel>Employer Stock Ticker</FieldLabel>
+                  <Input type="text" placeholder="e.g. AAPL" value={config.concentrated_symbol ?? ""}
+                    onChange={e => updateConfig({ concentrated_symbol: e.target.value.toUpperCase() })} /></div>
+                <div><FieldLabel>Employer Stock Growth (%)</FieldLabel>
+                  <Input type="number" step={0.5} value={ma.goog_growth_rate}
+                    onChange={e => updateNestedConfig("market_assumptions", { goog_growth_rate: +e.target.value })} /></div>
+              </Row>
+            )}
             <Row>
               <div><FieldLabel>Inflation (%)</FieldLabel>
                 <Input type="number" step={0.25} value={ma.inflation_rate}
@@ -495,7 +522,8 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
           </div>
         </AccCard>
 
-        {/* ── Divestment Strategy ── */}
+        {/* ── Divestment Strategy (only relevant with company stock) ── */}
+        {config.use_equity_comp === true && (
         <AccCard {...acc("divest")} title="Divestment Strategy" color="#2a7a68">
           <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
             {(["none", "progressive", "immediate"] as const).map(t => (
@@ -525,6 +553,7 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
             </div>
           )}
         </AccCard>
+        )}
 
         {/* ── Tax Profiling ── */}
         <AccCard {...acc("tax")} title="Tax Profiling" color={C.inkMid}>

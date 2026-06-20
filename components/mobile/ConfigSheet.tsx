@@ -82,8 +82,15 @@ function Section({ title, accent, openId, setOpenId, id, children }: {
 }
 
 export default function ConfigSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { config, snapshot, profile, updateNestedConfig, updateNestedSnapshot, updateConfig, setChildren, resetToDefaults } = useFinancialStore();
+  const { config, snapshot, profile, updateProfile, updateNestedConfig, updateNestedSnapshot, updateConfig, setChildren, resetToDefaults } = useFinancialStore();
   const kids = profile.children;
+  const thisYear = new Date().getFullYear();
+  const age = thisYear - (config.birth_year || profile.birthYear || 1985);
+  const setAge = (a: number) => {
+    const birthYear = thisYear - Math.max(0, a);
+    updateProfile({ birthYear });
+    updateConfig({ birth_year: birthYear });
+  };
   const [openId, setOpenId] = useState<string | null>("quick");
   const [newEvent, setNewEvent] = useState({ name: "", year: 2030, cost: 50_000 });
   const [newInv, setNewInv] = useState({ symbol: "", name: "", shares: "", ret: "" });
@@ -178,6 +185,7 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
 
           {/* ── Career & Phases ── */}
           <Section title="Career & Phases" accent="#2a9d7f" {...sec("career")}>
+            <Field label="Your Age"><Num value={age} onChange={setAge} /></Field>
             <Toggle label="Take a Sabbatical" color="#d98a3d" on={cp.use_sabbatical} onChange={v => updateNestedConfig("career_path", { use_sabbatical: v })} />
             {cp.use_sabbatical && <Field label="Sabbatical Duration (years)"><Num value={cp.sabbatical_duration} onChange={v => updateNestedConfig("career_path", { sabbatical_duration: v })} /></Field>}
 
@@ -215,11 +223,16 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
               <Field label="Annual Raise (%)"><Num step={0.1} value={ip.income_growth_rate ?? 0} onChange={v => updateNestedConfig("income_profile", { income_growth_rate: v })} /></Field>
               <Field label="Target Bonus (%)"><Num value={ip.target_bonus_rate ?? 0} onChange={v => updateNestedConfig("income_profile", { target_bonus_rate: v })} /></Field>
             </Two>
-            <Two>
-              <Field label="Unvested Shares"><Num value={ip.initial_unvested_shares ?? 0} onChange={v => updateNestedConfig("income_profile", { initial_unvested_shares: v })} /></Field>
-              <Field label="Vesting (yrs)"><Num value={ip.vesting_years ?? 4} onChange={v => updateNestedConfig("income_profile", { vesting_years: v })} /></Field>
-            </Two>
-            <Field label="Annual Equity Refresher"><Num prefix="$" step={1000} value={ip.annual_equity_grant ?? 0} onChange={v => updateNestedConfig("income_profile", { annual_equity_grant: v })} /></Field>
+            <Toggle label="Company Equity / RSUs" on={config.use_equity_comp === true} onChange={v => updateConfig({ use_equity_comp: v })} />
+            {config.use_equity_comp === true && (
+              <>
+                <Two>
+                  <Field label="Unvested Shares"><Num value={ip.initial_unvested_shares ?? 0} onChange={v => updateNestedConfig("income_profile", { initial_unvested_shares: v })} /></Field>
+                  <Field label="Vesting (yrs)"><Num value={ip.vesting_years ?? 4} onChange={v => updateNestedConfig("income_profile", { vesting_years: v })} /></Field>
+                </Two>
+                <Field label="Annual Equity Refresher"><Num prefix="$" step={1000} value={ip.annual_equity_grant ?? 0} onChange={v => updateNestedConfig("income_profile", { annual_equity_grant: v })} /></Field>
+              </>
+            )}
             <Two>
               <Field label="401(k) Contribution / yr"><Num prefix="$" step={500} value={ip.annual_401k_contribution ?? 0} onChange={v => updateNestedConfig("income_profile", { annual_401k_contribution: v })} /></Field>
               <Field label="Backdoor Roth / yr"><Num prefix="$" step={500} value={ip.annual_backdoor_roth ?? 0} onChange={v => updateNestedConfig("income_profile", { annual_backdoor_roth: v })} /></Field>
@@ -267,14 +280,17 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
               <Field label="Market Return (%)"><Num step={0.1} value={ma.market_return_rate} onChange={v => updateNestedConfig("market_assumptions", { market_return_rate: v })} /></Field>
               <Field label="Volatility Drag (%)"><Num step={0.1} value={ma.volatility_drag} onChange={v => updateNestedConfig("market_assumptions", { volatility_drag: v })} /></Field>
             </Two>
-            <Two>
-              <Field label="Employer Stock Ticker"><TextInput placeholder="e.g. AAPL" value={config.concentrated_symbol ?? ""} onChange={v => updateConfig({ concentrated_symbol: v.toUpperCase() })} /></Field>
-              <Field label="Employer Stock Growth (%)"><Num step={0.5} value={ma.goog_growth_rate} onChange={v => updateNestedConfig("market_assumptions", { goog_growth_rate: v })} /></Field>
-            </Two>
+            {config.use_equity_comp === true && (
+              <Two>
+                <Field label="Employer Stock Ticker"><TextInput placeholder="e.g. AAPL" value={config.concentrated_symbol ?? ""} onChange={v => updateConfig({ concentrated_symbol: v.toUpperCase() })} /></Field>
+                <Field label="Employer Stock Growth (%)"><Num step={0.5} value={ma.goog_growth_rate} onChange={v => updateNestedConfig("market_assumptions", { goog_growth_rate: v })} /></Field>
+              </Two>
+            )}
             <Field label="Inflation (%)"><Num step={0.25} value={ma.inflation_rate} onChange={v => updateNestedConfig("market_assumptions", { inflation_rate: v })} /></Field>
           </Section>
 
-          {/* ── Divestment ── */}
+          {/* ── Divestment (only relevant with company stock) ── */}
+          {config.use_equity_comp === true && (
           <Section title="Employer Stock Divestment" accent="#2a7a68" {...sec("divest")}>
             <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
               {(["none", "progressive", "immediate"] as const).map(t => (
@@ -293,6 +309,7 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
               </Two>
             )}
           </Section>
+          )}
 
           {/* ── Taxes ── */}
           <Section title="Taxes" accent={C.inkMid} {...sec("tax")}>

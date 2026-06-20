@@ -145,6 +145,7 @@ export const DEFAULT_SIM_CONFIG: SimulationConfiguration = {
     mortgage_payment:         0,
   },
   birth_year: DEFAULT_PROFILE.birthYear,
+  use_equity_comp: false,
   social_security: {
     start_age:      67,
     monthly_amount: 2_000,

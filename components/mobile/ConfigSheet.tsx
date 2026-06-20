@@ -23,11 +23,18 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   return <div style={{ marginBottom: 14 }}><span style={labelStyle}>{label}</span>{children}</div>;
 }
 function Num({ value, onChange, step = 1, prefix }: { value: number; onChange: (v: number) => void; step?: number; prefix?: string }) {
+  // Local buffer while focused so the field can be fully cleared (a controlled
+  // value={0} otherwise snaps back to "0" and the leading zero can't be erased).
+  const [focused, setFocused] = useState(false);
+  const [text, setText] = useState<string>(String(value));
+  useEffect(() => { if (!focused) setText(String(value)); }, [value, focused]);
   return (
     <div style={{ position: "relative" }}>
       {prefix && <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: C.inkFaint, fontSize: 16 }}>{prefix}</span>}
-      <input type="number" inputMode="decimal" step={step} value={value}
-        onChange={e => onChange(e.target.value === "" ? 0 : +e.target.value)}
+      <input type="number" inputMode="decimal" step={step} value={focused ? text : String(value)}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        onChange={e => { setText(e.target.value); onChange(e.target.value === "" ? 0 : +e.target.value); }}
         style={{ ...inputStyle, paddingLeft: prefix ? 26 : 12 }} />
     </div>
   );
@@ -227,11 +234,15 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
             <Toggle label="Company Equity / RSUs" on={config.use_equity_comp === true} onChange={v => updateConfig({ use_equity_comp: v })} />
             {config.use_equity_comp === true && (
               <>
+                <Field label="Company Ticker"><TickerAutocomplete placeholder="e.g. AAPL" inputStyle={inputStyle} value={config.concentrated_symbol ?? ""} onChange={v => updateConfig({ concentrated_symbol: v })} onSelect={r => updateConfig({ concentrated_symbol: r.symbol })} /></Field>
+                <Two>
+                  <Field label="Expected Return (%)"><Num step={0.5} value={ma.goog_growth_rate} onChange={v => updateNestedConfig("market_assumptions", { goog_growth_rate: v })} /></Field>
+                  <Field label="Annual Equity Refresher"><Num prefix="$" step={1000} value={ip.annual_equity_grant ?? 0} onChange={v => updateNestedConfig("income_profile", { annual_equity_grant: v })} /></Field>
+                </Two>
                 <Two>
                   <Field label="Unvested Shares"><Num value={ip.initial_unvested_shares ?? 0} onChange={v => updateNestedConfig("income_profile", { initial_unvested_shares: v })} /></Field>
                   <Field label="Vesting (yrs)"><Num value={ip.vesting_years ?? 4} onChange={v => updateNestedConfig("income_profile", { vesting_years: v })} /></Field>
                 </Two>
-                <Field label="Annual Equity Refresher"><Num prefix="$" step={1000} value={ip.annual_equity_grant ?? 0} onChange={v => updateNestedConfig("income_profile", { annual_equity_grant: v })} /></Field>
               </>
             )}
             <Two>
@@ -240,8 +251,8 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
             </Two>
           </Section>
 
-          {/* ── Supplemental Income ── */}
-          <Section title="Supplemental Income" accent="#4aab92" {...sec("supplemental")}>
+          {/* ── Additional Income ── */}
+          <Section title="Additional Income" accent="#4aab92" {...sec("supplemental")}>
             <Field label="Monthly Rental Income"><Num prefix="$" step={100} value={ip.monthly_rental_income ?? 0} onChange={v => updateNestedConfig("income_profile", { monthly_rental_income: v })} /></Field>
             <Field label="Monthly Part-Time Work Income"><Num prefix="$" step={100} value={ip.monthly_parttime_income ?? 0} onChange={v => updateNestedConfig("income_profile", { monthly_parttime_income: v })} /></Field>
             <Toggle label="Include Partner Income" on={ip.use_partner_income || false} onChange={v => updateNestedConfig("income_profile", { use_partner_income: v })} />
@@ -266,20 +277,23 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
               <>
                 <Toggle label="Model an Empty-Nest Phase" on={sp.use_empty_nest !== false} onChange={v => updateNestedConfig("spending", { use_empty_nest: v })} />
                 {sp.use_empty_nest !== false && (
-                  <>
-                    <Toggle label="Link empty-nest spend to monthly (−15%)" on={sp.empty_nest_linked !== false}
-                      onChange={v => updateNestedConfig("spending", v
-                        ? { empty_nest_linked: true }
-                        : { empty_nest_linked: false, empty_nest_monthly_spend: Math.round(sp.monthly_lifestyle * 0.85) })} />
-                    <Two>
-                      <Field label="Empty-Nest Year"><Num value={sp.empty_nest_year || 2038} onChange={v => updateNestedConfig("spending", { empty_nest_year: v })} /></Field>
-                      <Field label="Empty-Nest Spend">
-                        {sp.empty_nest_linked !== false
-                          ? <div style={{ ...inputStyle, color: C.inkSoft, display: "flex", alignItems: "center" }}>{money(sp.monthly_lifestyle * 0.85)}/mo</div>
-                          : <Num prefix="$" step={250} value={sp.empty_nest_monthly_spend ?? 0} onChange={v => updateNestedConfig("spending", { empty_nest_monthly_spend: v })} />}
-                      </Field>
-                    </Two>
-                  </>
+                  <Two>
+                    <Field label="Empty-Nest Year"><Num value={sp.empty_nest_year || 2038} onChange={v => updateNestedConfig("spending", { empty_nest_year: v })} /></Field>
+                    <Field label="Empty-Nest Spend">
+                      <div style={{ position: "relative" }}>
+                        <Num prefix="$" step={250}
+                          value={sp.empty_nest_linked !== false ? Math.round(sp.monthly_lifestyle * 0.85) : (sp.empty_nest_monthly_spend ?? 0)}
+                          onChange={v => updateNestedConfig("spending", { empty_nest_monthly_spend: v, empty_nest_linked: false })} />
+                        {sp.empty_nest_linked === false && (
+                          <button onClick={() => updateNestedConfig("spending", { empty_nest_linked: true })}
+                            aria-label="Re-link to monthly spend" title="Re-link to monthly spend (−15%)"
+                            style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: C.teal, display: "flex" }}>
+                            <RotateCcw size={16} />
+                          </button>
+                        )}
+                      </div>
+                    </Field>
+                  </Two>
                 )}
               </>
             )}
@@ -291,12 +305,6 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
               <Field label="Market Return (%)"><Num step={0.1} value={ma.market_return_rate} onChange={v => updateNestedConfig("market_assumptions", { market_return_rate: v })} /></Field>
               <Field label="Volatility Drag (%)"><Num step={0.1} value={ma.volatility_drag} onChange={v => updateNestedConfig("market_assumptions", { volatility_drag: v })} /></Field>
             </Two>
-            {config.use_equity_comp === true && (
-              <Two>
-                <Field label="Employer Stock Ticker"><TextInput placeholder="e.g. AAPL" value={config.concentrated_symbol ?? ""} onChange={v => updateConfig({ concentrated_symbol: v.toUpperCase() })} /></Field>
-                <Field label="Employer Stock Growth (%)"><Num step={0.5} value={ma.goog_growth_rate} onChange={v => updateNestedConfig("market_assumptions", { goog_growth_rate: v })} /></Field>
-              </Two>
-            )}
             <Field label="Inflation (%)"><Num step={0.25} value={ma.inflation_rate} onChange={v => updateNestedConfig("market_assumptions", { inflation_rate: v })} /></Field>
           </Section>
 

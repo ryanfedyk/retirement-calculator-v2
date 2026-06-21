@@ -114,6 +114,8 @@ export interface SimulationConfiguration {
     start_age: number;
     monthly_amount: number;
     social_security_linked?: boolean; // When true (default), estimate from income
+    partner_monthly_amount?: number;
+    partner_ss_linked?: boolean;      // When true (default), estimate partner SS from their income
   };
   medicare: {
     start_age: number;
@@ -520,11 +522,29 @@ export const runSimulation = (
     // SS entirely (so we compute federal-only by passing state 'NONE'). The
     // taxable portion stacks on top of other ordinary income (rental).
     let socialSecurityIncome = 0;
-    if (config.social_security && currentAge >= config.social_security.start_age) {
-      // Linked (default) → estimate from income; otherwise use the manual amount.
-      const ssMonthly = config.social_security.social_security_linked !== false
-        ? estimateMonthlySocialSecurity(ip.gross_annual_salary, config.social_security.start_age)
-        : config.social_security.monthly_amount;
+    if (config.social_security) {
+      const claimAge = config.social_security.start_age;
+      let ssMonthly = 0;
+
+      // Primary: linked (default) → estimate from income; else manual amount.
+      if (currentAge >= claimAge) {
+        ssMonthly += config.social_security.social_security_linked !== false
+          ? estimateMonthlySocialSecurity(ip.gross_annual_salary, claimAge)
+          : config.social_security.monthly_amount;
+      }
+
+      // Partner: starts when the partner reaches the claim age (from their own
+      // birth year), estimated from their income unless overridden.
+      if (ip.use_partner_income && ip.partner_birth_year) {
+        const partnerAge = currentYear - ip.partner_birth_year;
+        if (partnerAge >= claimAge) {
+          ssMonthly += config.social_security.partner_ss_linked !== false
+            ? estimateMonthlySocialSecurity(ip.partner_gross_annual_salary || 0, claimAge)
+            : (config.social_security.partner_monthly_amount || 0);
+        }
+      }
+
+      if (ssMonthly > 0) {
       const grossSSAnnual = ssMonthly * inflationMultiplier * 12;
       const taxableSSAnnual = grossSSAnnual * 0.85; // max inclusion for higher-income retirees
 
@@ -542,6 +562,7 @@ export const runSimulation = (
 
       socialSecurityIncome = (grossSSAnnual - ssFedTaxAnnual) / 12; // net monthly
       liquidCash += socialSecurityIncome;
+      }
     }
 
     // Healthcare

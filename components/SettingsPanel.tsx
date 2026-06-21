@@ -193,6 +193,20 @@ export default function SettingsPanel() {
             <div style={{ fontSize: 10, color: C.inkFaint, marginTop: -6, marginBottom: 12 }}>
               {ss?.social_security_linked !== false ? "Estimated from your income · ✎ to override" : "Manual · ↺ to re-estimate"}
             </div>
+            {ip.use_partner_income && (
+              <>
+                <Field label="Partner SS Monthly ($)" hint={`Begins when your partner reaches age ${ss?.start_age ?? 67}. ${ss?.partner_ss_linked !== false ? "Estimated from their income · ✎ to override" : "Manual · ↺ to re-estimate"}`}>
+                  <LinkedNumberField
+                    linked={ss?.partner_ss_linked !== false}
+                    displayValue={ss?.partner_ss_linked !== false
+                      ? estimateMonthlySocialSecurity(ip.partner_gross_annual_salary || 0, ss?.start_age ?? 67)
+                      : (ss?.partner_monthly_amount ?? 0)}
+                    onOverride={() => updateNestedConfig("social_security", { partner_ss_linked: false, partner_monthly_amount: estimateMonthlySocialSecurity(ip.partner_gross_annual_salary || 0, ss?.start_age ?? 67) } as any)}
+                    onChange={v => updateNestedConfig("social_security", { partner_monthly_amount: v, partner_ss_linked: false } as any)}
+                    onRelink={() => updateNestedConfig("social_security", { partner_ss_linked: true } as any)} />
+                </Field>
+              </>
+            )}
             <Two>
               <Field label="Medicare Age"><Num value={config.medicare?.start_age ?? 65} onChange={v => updateNestedConfig("medicare", { start_age: v } as any)} /></Field>
               <Field label="Medicare $/mo"><Num prefix="$" step={25} value={config.medicare?.monthly_premium ?? 185} onChange={v => updateNestedConfig("medicare", { monthly_premium: v } as any)} /></Field>

@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Sliders, RotateCcw, Wallet, Trash2, PlusCircle, ChevronDown, Pencil } from "lucide-react";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { C } from "@/config/colors";
@@ -53,16 +53,37 @@ const FieldLabel = ({ children }: { children: React.ReactNode }) => (
   </label>
 );
 
-const Input = (props: React.InputHTMLAttributes<HTMLInputElement>) => (
-  <input
-    {...props}
-    style={{
-      width: "100%", boxSizing: "border-box", border: `1px solid ${C.border}`,
-      borderRadius: 5, padding: "5px 8px", fontSize: 12, color: C.ink,
-      background: C.bg, outline: "none",
-    }}
-  />
-);
+const INPUT_STYLE: React.CSSProperties = {
+  width: "100%", boxSizing: "border-box", border: `1px solid ${C.border}`,
+  borderRadius: 5, padding: "5px 8px", fontSize: 12, color: C.ink,
+  background: C.bg, outline: "none",
+};
+
+// For number fields, hold a local string buffer while focused so the user can
+// fully clear the field (otherwise a controlled `value={0}` immediately snaps
+// back to "0" and you can never delete the leading zero). Text inputs keep the
+// plain controlled behavior.
+const Input = (props: React.InputHTMLAttributes<HTMLInputElement>) => {
+  const { value, onChange, type, style, ...rest } = props;
+  const [focused, setFocused] = useState(false);
+  const [text, setText] = useState<string>(value == null ? "" : String(value));
+  useEffect(() => { if (!focused) setText(value == null ? "" : String(value)); }, [value, focused]);
+
+  if (type !== "number") {
+    return <input {...props} style={{ ...INPUT_STYLE, ...style }} />;
+  }
+  return (
+    <input
+      {...rest}
+      type="number"
+      value={focused ? text : (value == null ? "" : String(value))}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      onChange={e => { setText(e.target.value); onChange?.(e); }}
+      style={{ ...INPUT_STYLE, ...style }}
+    />
+  );
+};
 
 const Select = (props: React.SelectHTMLAttributes<HTMLSelectElement>) => (
   <select
@@ -391,6 +412,15 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
             </div>
             {config.use_equity_comp === true && (
               <>
+                <Row>
+                  <div><FieldLabel>Company Ticker</FieldLabel>
+                    <TickerAutocomplete placeholder="e.g. AAPL" value={config.concentrated_symbol ?? ""}
+                      onChange={v => updateConfig({ concentrated_symbol: v })}
+                      onSelect={r => updateConfig({ concentrated_symbol: r.symbol })} /></div>
+                  <div><FieldLabel>Expected Return (%)</FieldLabel>
+                    <Input type="number" step={0.5} value={ma.goog_growth_rate}
+                      onChange={e => updateNestedConfig("market_assumptions", { goog_growth_rate: +e.target.value })} /></div>
+                </Row>
                 <div>
                   <FieldLabel>Unvested Shares (count · vesting yrs)</FieldLabel>
                   <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 6 }}>
@@ -408,8 +438,8 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
           </div>
         </AccCard>
 
-        {/* ── Supplemental Income ── */}
-        <AccCard {...acc("supplemental")} title="Supplemental Income" color="#4aab92">
+        {/* ── Additional Income ── */}
+        <AccCard {...acc("supplemental")} title="Additional Income" color="#4aab92">
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <div><FieldLabel>Monthly Rental Income ($)</FieldLabel>
               <Input type="number" step={100} value={ip.monthly_rental_income ?? 0}
@@ -457,16 +487,6 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
                 <Input type="number" step={0.1} value={ma.volatility_drag}
                   onChange={e => updateNestedConfig("market_assumptions", { volatility_drag: +e.target.value })} /></div>
             </Row>
-            {config.use_equity_comp === true && (
-              <Row>
-                <div><FieldLabel>Employer Stock Ticker</FieldLabel>
-                  <Input type="text" placeholder="e.g. AAPL" value={config.concentrated_symbol ?? ""}
-                    onChange={e => updateConfig({ concentrated_symbol: e.target.value.toUpperCase() })} /></div>
-                <div><FieldLabel>Employer Stock Growth (%)</FieldLabel>
-                  <Input type="number" step={0.5} value={ma.goog_growth_rate}
-                    onChange={e => updateNestedConfig("market_assumptions", { goog_growth_rate: +e.target.value })} /></div>
-              </Row>
-            )}
             <Row>
               <div><FieldLabel>Inflation (%)</FieldLabel>
                 <Input type="number" step={0.25} value={ma.inflation_rate}
@@ -517,19 +537,20 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
                     <div>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <FieldLabel>Monthly Spend</FieldLabel>
-                        <button
-                          onClick={() => updateNestedConfig("spending", sp.empty_nest_linked !== false
-                            ? { empty_nest_linked: false, empty_nest_monthly_spend: Math.round(sp.monthly_lifestyle * 0.85) }
-                            : { empty_nest_linked: true })}
-                          style={{ fontSize: 9, color: C.teal, background: "none", border: "none", cursor: "pointer", padding: 0, marginBottom: 4 }}>
-                          {sp.empty_nest_linked !== false ? "🔗 Linked" : "Unlink ✕"}
-                        </button>
+                        {sp.empty_nest_linked === false && (
+                          <button
+                            onClick={() => updateNestedConfig("spending", { empty_nest_linked: true })}
+                            aria-label="Re-link to monthly spend" title="Re-link to monthly spend (−15%)"
+                            style={{ display: "flex", alignItems: "center", color: C.teal, background: "none", border: "none", cursor: "pointer", padding: 0, marginBottom: 4 }}>
+                            <RotateCcw size={11} />
+                          </button>
+                        )}
                       </div>
-                      <Input type="number" step={250} disabled={sp.empty_nest_linked !== false}
+                      <Input type="number" step={250}
                         value={sp.empty_nest_linked !== false ? Math.round(sp.monthly_lifestyle * 0.85) : (sp.empty_nest_monthly_spend ?? 0)}
                         onChange={e => updateNestedConfig("spending", { empty_nest_monthly_spend: +e.target.value, empty_nest_linked: false })} />
                       {sp.empty_nest_linked !== false && (
-                        <div style={{ fontSize: 9, color: C.inkFaint, marginTop: 3 }}>−15% of monthly spend</div>
+                        <div style={{ fontSize: 9, color: C.inkFaint, marginTop: 3 }}>Linked to monthly spend (−15%) · edit to change</div>
                       )}
                     </div>
                   </Row>
@@ -541,7 +562,10 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
 
         {/* ── Divestment Strategy (only relevant with company stock) ── */}
         {config.use_equity_comp === true && (
-        <AccCard {...acc("divest")} title="Divestment Strategy" color="#2a7a68">
+        <AccCard {...acc("divest")} title="Company Stock Divestment" color="#2a7a68">
+          <div style={{ fontSize: 10, color: C.inkFaint, marginBottom: 10, lineHeight: 1.5 }}>
+            How you sell down your concentrated company stock ({config.concentrated_symbol || "your ticker"}) over time to diversify.
+          </div>
           <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
             {(["none", "progressive", "immediate"] as const).map(t => (
               <button key={t} onClick={() => updateNestedConfig("divestment_strategy", { type: t })}

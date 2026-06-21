@@ -27,7 +27,7 @@ export default function FireMoments(metrics: FireMetrics) {
       const id = ms.id;
       setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 6000);
     }
-  }, [metrics.netWorth, metrics.swrTarget, metrics.isIndependent, metrics.savingsRate]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [metrics.netWorth, metrics.swrTarget, metrics.isIndependent, metrics.savingsRate, metrics.coastFI]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!toasts.length) return null;
   return (

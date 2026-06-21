@@ -19,6 +19,7 @@ import PriceTicker from "./PriceTicker";
 import ScenarioLevers from "./ScenarioLevers";
 import ScenarioCompare from "./ScenarioCompare";
 import FireMoments from "@/components/fx/FireMoments";
+import { isCoastFI } from "@/lib/fire/moments";
 import { GitCompare } from "lucide-react";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -189,6 +190,13 @@ export default function RightPanel({ livePrices, pricesUpdatedAt, pricesFetching
   const birthYear      = config.birth_year ?? 1980;
   // Rough current savings rate (net income that isn't going to needs) for FIRE callouts.
   const savingsRate    = todayPoint ? Math.max(0, Math.min(1, 1 - (todayPoint.annualExpenseNeed / Math.max(1, todayPoint.salaryAndEquityNet)))) : 0;
+  // Coast FIRE: current assets compounding at the real return reach FI by 65 with no new contributions.
+  const coastFI        = isCoastFI({
+    investable: todayPoint?.investableAssets ?? 0,
+    fiNumber: swrTarget,
+    realReturn: (config.market_assumptions.market_return_rate - config.market_assumptions.inflation_rate) / 100,
+    yearsToRetirement: Math.max(0, 65 - (new Date().getFullYear() - birthYear)),
+  });
 
   // Chart data
   const chartData = useMemo(() => trajectoryData.map((pt, i) => ({
@@ -301,7 +309,7 @@ export default function RightPanel({ livePrices, pricesUpdatedAt, pricesFetching
   return (
     <main style={{ flex: 1, background: C.bg, padding: "20px 24px", overflowY: "auto", display: "flex", flexDirection: "column", gap: 16 }}>
 
-      <FireMoments netWorth={currentNW} swrTarget={swrTarget} isIndependent={todayPoint?.isIndependent ?? false} savingsRate={savingsRate} />
+      <FireMoments netWorth={currentNW} swrTarget={swrTarget} isIndependent={todayPoint?.isIndependent ?? false} savingsRate={savingsRate} coastFI={coastFI} />
 
       {/* ── Scenario levers — the headline interaction ── */}
       <ScenarioLevers />

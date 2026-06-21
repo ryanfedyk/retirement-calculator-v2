@@ -1,13 +1,15 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { LineChart, Compass, SlidersHorizontal, LogOut } from "lucide-react";
+import { LineChart, Compass, SlidersHorizontal, LogOut, Settings } from "lucide-react";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
+import { useUIStore } from "@/store/useUIStore";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import type { LivePrices } from "@/components/finance/FinancialDashboard";
 import MobileFinancial from "./MobileFinancial";
 import MobileForecasting from "./MobileForecasting";
 import ConfigSheet from "./ConfigSheet";
+import SettingsPanel from "@/components/SettingsPanel";
 
 type View = "financial" | "forecasting";
 
@@ -75,6 +77,7 @@ export default function MobileApp() {
       </main>
 
       <ConfigSheet open={configOpen} onClose={() => setConfigOpen(false)} />
+      <SettingsPanel />
 
       {/* Bottom tab bar */}
       <nav style={{
@@ -135,8 +138,15 @@ function MobileAccountMenu() {
           <div style={{ padding: "6px 10px 10px", borderBottom: `1px solid ${C.borderSoft}`, fontSize: 12, color: C.inkSoft, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {user.displayName || user.email}
           </div>
-          <button onClick={() => { setOpen(false); signOutUser(); }} style={{
+          <button onClick={() => { setOpen(false); useUIStore.getState().setSettingsOpen(true); }} style={{
             width: "100%", display: "flex", alignItems: "center", gap: 8, marginTop: 6,
+            padding: "10px", background: "transparent", border: "none", borderRadius: 8,
+            color: C.inkMid, fontSize: 14, cursor: "pointer", textAlign: "left",
+          }}>
+            <Settings size={15} /> Settings
+          </button>
+          <button onClick={() => { setOpen(false); signOutUser(); }} style={{
+            width: "100%", display: "flex", alignItems: "center", gap: 8, marginTop: 2,
             padding: "10px", background: "transparent", border: "none", borderRadius: 8,
             color: C.inkMid, fontSize: 14, cursor: "pointer", textAlign: "left",
           }}>

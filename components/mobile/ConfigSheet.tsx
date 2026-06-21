@@ -5,8 +5,6 @@ import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import TickerAutocomplete from "@/components/finance/TickerAutocomplete";
 import LinkedNumberField from "@/components/finance/LinkedNumberField";
-import { STATE_OPTIONS } from "@/engine/state_tax";
-import { estimateMonthlySocialSecurity } from "@/engine/social_security";
 
 const money = (n: number) => `$${Math.round(n).toLocaleString()}`;
 
@@ -92,15 +90,10 @@ function Section({ title, accent, openId, setOpenId, id, children }: {
 }
 
 export default function ConfigSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { config, snapshot, profile, updateProfile, updateNestedConfig, updateNestedSnapshot, updateConfig, setChildren, resetToDefaults } = useFinancialStore();
+  const { config, snapshot, profile, updateNestedConfig, updateNestedSnapshot, updateConfig, setChildren, resetToDefaults } = useFinancialStore();
   const kids = profile.children;
   const thisYear = new Date().getFullYear();
   const age = thisYear - (config.birth_year || profile.birthYear || 1985);
-  const setAge = (a: number) => {
-    const birthYear = thisYear - Math.max(0, a);
-    updateProfile({ birthYear });
-    updateConfig({ birth_year: birthYear });
-  };
   const [openId, setOpenId] = useState<string | null>("quick");
   const [newEvent, setNewEvent] = useState({ name: "", year: 2030, cost: 50_000 });
   const [newInv, setNewInv] = useState({ symbol: "", name: "", shares: "", ret: "7", retLinked: true });
@@ -195,7 +188,6 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
 
           {/* ── Career & Phases ── */}
           <Section title="Career & Phases" accent="#2a9d7f" {...sec("career")}>
-            <Field label="Your Age"><Num value={age} onChange={setAge} /></Field>
             <Toggle label="Take a Sabbatical" color="#d98a3d" on={cp.use_sabbatical} onChange={v => updateNestedConfig("career_path", { use_sabbatical: v })} />
             {cp.use_sabbatical && <Field label="Sabbatical Duration (years)"><Num value={cp.sabbatical_duration} onChange={v => updateNestedConfig("career_path", { sabbatical_duration: v })} /></Field>}
 
@@ -257,17 +249,7 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
           <Section title="Additional Income" accent="#4aab92" {...sec("supplemental")}>
             <Field label="Monthly Rental Income"><Num prefix="$" step={100} value={ip.monthly_rental_income ?? 0} onChange={v => updateNestedConfig("income_profile", { monthly_rental_income: v })} /></Field>
             <Field label="Monthly Part-Time Work Income"><Num prefix="$" step={100} value={ip.monthly_parttime_income ?? 0} onChange={v => updateNestedConfig("income_profile", { monthly_parttime_income: v })} /></Field>
-            <Toggle label="Include Partner Income" on={ip.use_partner_income || false} onChange={v => updateNestedConfig("income_profile", { use_partner_income: v })} />
-            {ip.use_partner_income && (
-              <>
-                <Field label="Partner Gross Salary"><Num prefix="$" step={1000} value={ip.partner_gross_annual_salary || 0} onChange={v => updateNestedConfig("income_profile", { partner_gross_annual_salary: v })} /></Field>
-                <Two>
-                  <Field label="Start Year"><Num value={ip.partner_employment_start_year || 2025} onChange={v => updateNestedConfig("income_profile", { partner_employment_start_year: v })} /></Field>
-                  <Field label="Retire Year"><Num value={ip.partner_retirement_year || 2030} onChange={v => updateNestedConfig("income_profile", { partner_retirement_year: v })} /></Field>
-                </Two>
-                <Toggle label="Partner Supplies Insurance" on={ip.partner_has_health_insurance || false} onChange={v => updateNestedConfig("income_profile", { partner_has_health_insurance: v })} />
-              </>
-            )}
+            <div style={{ fontSize: 11, color: C.inkFaint }}>Partner income lives in Settings → Family.</div>
           </Section>
 
           {/* ── Spending & Lifestyle ── */}
@@ -326,38 +308,7 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
           </Section>
           )}
 
-          {/* ── Taxes ── */}
-          <Section title="Taxes" accent={C.inkMid} {...sec("tax")}>
-            <Field label="Filing Status">
-              <Pick value={config.tax_assumptions.filing_status} onChange={v => updateNestedConfig("tax_assumptions", { filing_status: v as any })}
-                options={[["single", "Single"], ["married_joint", "Married Filing Jointly"], ["married_separate", "Married Filing Separately"], ["head_household", "Head of Household"]]} />
-            </Field>
-            <Field label="State of Residence">
-              <Pick value={config.tax_assumptions.state_of_residence} onChange={v => updateNestedConfig("tax_assumptions", { state_of_residence: v as any })}
-                options={STATE_OPTIONS} />
-            </Field>
-          </Section>
-
-          {/* ── Social Security & Medicare ── */}
-          <Section title="Social Security & Medicare" accent={C.inkSoft} {...sec("ssmed")}>
-            <Two>
-              <Field label="SS Start Age"><Num value={config.social_security?.start_age ?? 67} onChange={v => updateNestedConfig("social_security", { start_age: v } as any)} /></Field>
-              <Field label="SS Monthly ($)">
-                <LinkedNumberField variant="mobile"
-                  linked={config.social_security?.social_security_linked !== false}
-                  displayValue={config.social_security?.social_security_linked !== false
-                    ? estimateMonthlySocialSecurity(ip.gross_annual_salary, config.social_security?.start_age ?? 67)
-                    : (config.social_security?.monthly_amount ?? 0)}
-                  onOverride={() => updateNestedConfig("social_security", { social_security_linked: false, monthly_amount: estimateMonthlySocialSecurity(ip.gross_annual_salary, config.social_security?.start_age ?? 67) } as any)}
-                  onChange={v => updateNestedConfig("social_security", { monthly_amount: v, social_security_linked: false } as any)}
-                  onRelink={() => updateNestedConfig("social_security", { social_security_linked: true } as any)} />
-              </Field>
-            </Two>
-            <Two>
-              <Field label="Medicare Age"><Num value={config.medicare?.start_age ?? 65} onChange={v => updateNestedConfig("medicare", { start_age: v } as any)} /></Field>
-              <Field label="Medicare $/mo (per person)"><Num prefix="$" step={25} value={config.medicare?.monthly_premium ?? 250} onChange={v => updateNestedConfig("medicare", { monthly_premium: v } as any)} /></Field>
-            </Two>
-          </Section>
+          {/* Taxes, Social Security & Medicare now live in Settings (profile menu). */}
 
           {/* ── Life Events ── */}
           <Section title="Life Events" accent="#c4784e" {...sec("events")}>
@@ -382,28 +333,7 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
             </div>
           </Section>
 
-          {/* ── Family ── */}
-          <Section title="Family" accent="#7a6da8" {...sec("family")}>
-            <div style={{ fontSize: 12, color: C.inkSoft, marginBottom: 12, lineHeight: 1.5 }}>
-              Adding kids plots their milestones, plans college costs, and sets the empty-nest phase to when your youngest turns 18.
-            </div>
-            {kids.map((child, idx) => (
-              <div key={idx} style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr auto", gap: 8, alignItems: "center", marginBottom: 8 }}>
-                <input placeholder="Child's name" value={child.name} style={inputStyle}
-                  onChange={e => setChildren(kids.map((c, i) => i === idx ? { ...c, name: e.target.value } : c))} />
-                <input type="number" inputMode="numeric" placeholder="Birth yr" value={child.birthYear} style={inputStyle}
-                  onChange={e => setChildren(kids.map((c, i) => i === idx ? { ...c, birthYear: +e.target.value || c.birthYear } : c))} />
-                <button onClick={() => setChildren(kids.filter((_, i) => i !== idx))} aria-label="Remove child"
-                  style={{ background: "none", border: "none", cursor: "pointer", color: C.inkFaint, display: "flex", alignItems: "center" }}>
-                  <Trash2 size={18} />
-                </button>
-              </div>
-            ))}
-            <button onClick={() => setChildren([...kids, { name: "", birthYear: new Date().getFullYear() - 5, birthMonth: 0 }])}
-              style={{ marginTop: 4, width: "100%", padding: "12px", borderRadius: 10, border: `1px solid ${C.tealLight}`, background: C.tealWash, color: C.tealDark, fontSize: 14, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-              <Plus size={15} /> Add Child
-            </button>
-          </Section>
+          {/* Family (kids & partner) now lives in Settings (profile menu). */}
 
           {/* ── Portfolio Holdings ── */}
           <Section title="Portfolio Holdings" accent="#c4784e" {...sec("holdings")}>
@@ -443,7 +373,8 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
             </button>
           </Section>
 
-          {/* ── Education (529) ── */}
+          {/* ── Education (529) — only relevant with kids ── */}
+          {kids.length > 0 && (
           <Section title="Education (529)" accent={C.teal} {...sec("edu")}>
             {(snapshot.education_assets?.accounts || []).map((acc, idx) => (
               <div key={acc.id || idx} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
@@ -457,6 +388,7 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
               <Plus size={15} /> Add 529 Account
             </button>
           </Section>
+          )}
 
           <button onClick={onClose} style={{ marginTop: 8, width: "100%", padding: "16px", borderRadius: 16, border: "none", background: C.teal, color: "white", fontSize: 15, fontWeight: 600, cursor: "pointer", boxShadow: `0 4px 16px ${C.teal}55` }}>
             Done

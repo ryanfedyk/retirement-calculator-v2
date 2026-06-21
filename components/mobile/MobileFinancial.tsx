@@ -1,7 +1,7 @@
 "use client";
 import { useState, useMemo } from "react";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, ReferenceLine, CartesianGrid } from "recharts";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, AlertTriangle } from "lucide-react";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { runSimulation, findIndependencePoint } from "@/engine/calculator";
@@ -159,6 +159,19 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
         onRefreshPrices={onRefreshPrices}
         align="start"
       />
+
+      {/* Off-track warning — plan never reaches FI by age 70 */}
+      {!indep && (
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 10, background: "#fdece8", border: "2px solid #e0775a", borderRadius: 12, padding: "13px 14px" }}>
+          <AlertTriangle size={20} color="#c0492b" style={{ flexShrink: 0, marginTop: 1 }} />
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#a23818" }}>This plan doesn’t reach retirement</div>
+            <div style={{ fontSize: 11, color: "#8a4a38", marginTop: 3, lineHeight: 1.5 }}>
+              Assets never reach your FI number by age 70. Adjust your exit year, spending, savings, or returns.
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Chart card — touchAction pan-y so dragging the chart never scrolls the page sideways */}
       <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 20, padding: "16px 12px 12px", touchAction: "pan-y" }}>

@@ -4,7 +4,7 @@ import {
   ResponsiveContainer, AreaChart, Area, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine,
 } from "recharts";
-import { Flag, CheckCircle, TrendingUp, CalendarDays, Sparkles } from "lucide-react";
+import { Flag, CheckCircle, TrendingUp, CalendarDays, Sparkles, AlertTriangle } from "lucide-react";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { runSimulation, findIndependencePoint } from "@/engine/calculator";
 import type { TrajectoryPoint } from "@/engine/calculator";
@@ -304,6 +304,22 @@ export default function RightPanel({ livePrices, pricesUpdatedAt, pricesFetching
         onRefreshPrices={onRefreshPrices}
         align="end"
       />
+
+      {/* ── Off-track warning — this plan never reaches FI by age 70 ── */}
+      {!indepPoint && (
+        <div style={{
+          display: "flex", alignItems: "flex-start", gap: 12,
+          background: "#fdece8", border: "2px solid #e0775a", borderRadius: 12, padding: "14px 16px",
+        }}>
+          <AlertTriangle size={22} color="#c0492b" style={{ flexShrink: 0, marginTop: 1 }} />
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "#a23818" }}>This plan doesn’t reach retirement</div>
+            <div style={{ fontSize: 12, color: "#8a4a38", marginTop: 3, lineHeight: 1.5 }}>
+              Your assets never reach your FI number by age 70. Try a later exit year, lower monthly spend, higher savings, or stronger returns — the trajectory below stays under the FI target the whole way.
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Summary cards ── */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>

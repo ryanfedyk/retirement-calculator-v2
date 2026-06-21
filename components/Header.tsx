@@ -1,9 +1,10 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
-import { Check, Cloud, LogOut, AlertCircle } from "lucide-react";
+import { Check, Cloud, LogOut, AlertCircle, Settings } from "lucide-react";
 import { C } from "@/config/colors";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { useCloudSync } from "@/lib/cloud/CloudSyncProvider";
+import { useUIStore } from "@/store/useUIStore";
 
 export type AppView = "forecasting" | "financial";
 
@@ -128,6 +129,18 @@ function AccountMenu() {
             )}
             <div style={{ marginTop: 8 }}><SaveIndicator /></div>
           </div>
+          <button
+            onClick={() => { setOpen(false); useUIStore.getState().setSettingsOpen(true); }}
+            style={{
+              width: "100%", display: "flex", alignItems: "center", gap: 8, marginTop: 6,
+              padding: "9px 10px", background: "transparent", border: "none", borderRadius: 8,
+              color: C.inkMid, fontSize: 13, cursor: "pointer", textAlign: "left",
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = C.bg)}
+            onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+          >
+            <Settings size={14} /> Settings
+          </button>
           <button
             onClick={() => { setOpen(false); signOutUser(); }}
             style={{

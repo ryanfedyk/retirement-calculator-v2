@@ -17,6 +17,7 @@ import { getLifeEvents } from "@/lib/horizonUtils";
 import { useHorizonProfile } from "@/config/horizonConfig";
 import PriceTicker from "./PriceTicker";
 import ScenarioLevers from "./ScenarioLevers";
+import FireMoments from "@/components/fx/FireMoments";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -183,6 +184,8 @@ export default function RightPanel({ livePrices, pricesUpdatedAt, pricesFetching
   const swrTarget      = todayPoint?.swrTarget ?? 0;
   const progress       = swrTarget > 0 ? Math.min(100, (currentNW / swrTarget) * 100) : 0;
   const birthYear      = config.birth_year ?? 1980;
+  // Rough current savings rate (net income that isn't going to needs) for FIRE callouts.
+  const savingsRate    = todayPoint ? Math.max(0, Math.min(1, 1 - (todayPoint.annualExpenseNeed / Math.max(1, todayPoint.salaryAndEquityNet)))) : 0;
 
   // Chart data
   const chartData = useMemo(() => trajectoryData.map((pt, i) => ({
@@ -294,6 +297,8 @@ export default function RightPanel({ livePrices, pricesUpdatedAt, pricesFetching
 
   return (
     <main style={{ flex: 1, background: C.bg, padding: "20px 24px", overflowY: "auto", display: "flex", flexDirection: "column", gap: 16 }}>
+
+      <FireMoments netWorth={currentNW} swrTarget={swrTarget} isIndependent={todayPoint?.isIndependent ?? false} savingsRate={savingsRate} />
 
       {/* ── Scenario levers — the headline interaction ── */}
       <ScenarioLevers />

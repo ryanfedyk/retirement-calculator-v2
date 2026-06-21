@@ -38,6 +38,17 @@ const Num = ({ value, onChange, step = 1, prefix }: { value: number; onChange: (
 const Select = (props: React.SelectHTMLAttributes<HTMLSelectElement>) => (
   <select {...props} style={{ ...inputStyle, appearance: "none", cursor: "pointer" }} />
 );
+const stepBtnStyle: React.CSSProperties = {
+  padding: "8px 16px", background: C.bgCard, border: "none", cursor: "pointer",
+  fontSize: 18, lineHeight: 1, fontWeight: 700, color: C.teal,
+};
+const Stepper = ({ value, onChange, min = 0, max = 20 }: { value: number; onChange: (v: number) => void; min?: number; max?: number }) => (
+  <div style={{ display: "flex", alignItems: "center", border: `1px solid ${C.border}`, borderRadius: 8, width: "fit-content", overflow: "hidden" }}>
+    <button type="button" aria-label="Decrease" onClick={() => onChange(Math.max(min, value - 1))} style={stepBtnStyle}>−</button>
+    <span style={{ minWidth: 46, textAlign: "center", fontSize: 15, fontWeight: 700, color: C.ink, fontVariantNumeric: "tabular-nums", borderLeft: `1px solid ${C.border}`, borderRight: `1px solid ${C.border}`, padding: "8px 0" }}>{value}</span>
+    <button type="button" aria-label="Increase" onClick={() => onChange(Math.min(max, value + 1))} style={stepBtnStyle}>+</button>
+  </div>
+);
 const Toggle = ({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }) => (
   <button onClick={() => onChange(!on)} style={{
     display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%",
@@ -80,6 +91,8 @@ export default function SettingsPanel() {
   const ss = config.social_security;
   const ta = config.tax_assumptions;
   const kids = profile.children;
+  // Suggested W-4 allowances ≈ self (+ spouse) + dependents.
+  const suggestedAllowances = (ta.filing_status === "married_joint" ? 2 : 1) + kids.length;
   const thisYear = new Date().getFullYear();
   const age = thisYear - (config.birth_year || profile.birthYear || 1985);
   const setAge = (a: number) => {
@@ -162,8 +175,8 @@ export default function SettingsPanel() {
                 <option value="head_household">Head of Household</option>
               </Select>
             </Field>
-            <Field label="Deductions (W-4)" hint="Number of withholding allowances you claim on your W-4 — each lowers taxable income (~$4,300). The standard deduction is applied automatically on top.">
-              <Num value={ta.w4_allowances ?? 0} onChange={v => updateNestedConfig("tax_assumptions", { w4_allowances: Math.max(0, Math.round(v)) })} />
+            <Field label="Deductions (W-4)" hint={`Allowances you claim on your W-4 — like 1, 2, 3, 4… for the people in your household. Each lowers taxable income (~$4,300); the standard deduction applies on top. Your household: ${suggestedAllowances} (you${ta.filing_status === "married_joint" ? " + spouse" : ""}${kids.length ? ` + ${kids.length} kid${kids.length > 1 ? "s" : ""}` : ""}).`}>
+              <Stepper value={ta.w4_allowances ?? suggestedAllowances} onChange={v => updateNestedConfig("tax_assumptions", { w4_allowances: v })} />
             </Field>
           </Section>
 

@@ -141,7 +141,7 @@ export default function ConfigPanel() {
 
       {/* Reset */}
       <button
-        onClick={resetToDefaults}
+        onClick={() => { if (window.confirm("Start over?\n\nThis clears your plan and balance sheet and walks you back through the quick setup. It can't be undone.")) resetToDefaults(); }}
         style={{
           width: "100%", padding: "7px 0", background: "transparent",
           border: `1px solid ${C.border}`, borderRadius: 6,
@@ -149,7 +149,7 @@ export default function ConfigPanel() {
           textTransform: "uppercase", cursor: "pointer",
         }}
       >
-        Reset to Defaults
+        Start Over
       </button>
     </div>
   );

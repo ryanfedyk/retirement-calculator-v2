@@ -239,6 +239,11 @@ export default function OnboardingFlow() {
                   <label style={labelStyle}>Birth year</label>
                   <input style={fieldStyle} type="number" inputMode="numeric" placeholder="1985" min={1920} max={CURRENT_YEAR}
                          value={birthYear} onChange={(e) => setBirthYear(e.target.value)} />
+                  {user?.displayName && (
+                    <p style={{ fontSize: 12, color: C.inkFaint, marginTop: 6, lineHeight: 1.4 }}>
+                      We pulled your name from Google — but Google doesn’t share your birth year, so pop it in here.
+                    </p>
+                  )}
                 </div>
               </>
             )}

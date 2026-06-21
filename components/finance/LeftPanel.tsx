@@ -6,8 +6,6 @@ import { C } from "@/config/colors";
 import { DEFAULT_SNAPSHOT, DEFAULT_SIM_CONFIG } from "@/config/sharedConfig";
 import TickerAutocomplete from "./TickerAutocomplete";
 import LinkedNumberField from "./LinkedNumberField";
-import { STATE_OPTIONS } from "@/engine/state_tax";
-import { estimateMonthlySocialSecurity } from "@/engine/social_security";
 import type { LivePrices } from "./FinancialDashboard";
 
 // ── Styled primitives ─────────────────────────────────────────────────────────
@@ -86,17 +84,6 @@ const Input = (props: React.InputHTMLAttributes<HTMLInputElement>) => {
     />
   );
 };
-
-const Select = (props: React.SelectHTMLAttributes<HTMLSelectElement>) => (
-  <select
-    {...props}
-    style={{
-      width: "100%", border: `1px solid ${C.border}`, borderRadius: 5,
-      padding: "5px 8px", fontSize: 12, color: C.ink, background: C.bg,
-      outline: "none", cursor: "pointer",
-    }}
-  />
-);
 
 const Checkbox = ({
   checked, onChange, label, id,
@@ -220,15 +207,10 @@ function InvestmentItem({
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices }) {
-  const { config, snapshot, profile, updateProfile, updateNestedConfig, updateNestedSnapshot, updateConfig, setChildren, resetToDefaults } = useFinancialStore();
+  const { config, snapshot, profile, updateNestedConfig, updateNestedSnapshot, updateConfig, setChildren, resetToDefaults } = useFinancialStore();
   const kids = profile.children;
   const thisYear = new Date().getFullYear();
   const age = thisYear - (config.birth_year || profile.birthYear || 1985);
-  const setAge = (a: number) => {
-    const birthYear = thisYear - Math.max(0, a);
-    updateProfile({ birthYear });
-    updateConfig({ birth_year: birthYear });
-  };
   const [newEvent, setNewEvent] = useState({ name: "", year: 2030, cost: 50_000 });
   const [newInvSym,  setNewInvSym]  = useState("");
   const [newInvName, setNewInvName] = useState("");
@@ -302,13 +284,6 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
 
         {/* ── Career Trajectory ── */}
         <AccCard {...acc("career")} title="Career Trajectory" color={C.teal}>
-
-          <div style={{ marginBottom: 14 }}>
-            <FieldLabel>Your Age</FieldLabel>
-            <Input type="number" min={18} max={100} value={age}
-              onChange={e => setAge(+e.target.value || 0)} />
-            <div style={{ fontSize: 9, color: C.inkFaint, marginTop: 3 }}>Sets your birth year ({thisYear - age}) and the projection horizon.</div>
-          </div>
 
           <div style={{ marginBottom: 14 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
@@ -450,32 +425,7 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
             <div><FieldLabel>Monthly Part-Time Work Income ($)</FieldLabel>
               <Input type="number" step={100} value={ip.monthly_parttime_income ?? 0}
                 onChange={e => updateNestedConfig("income_profile", { monthly_parttime_income: +e.target.value })} /></div>
-
-            <SectionDivider />
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: C.inkFaint }}>Partner Income</span>
-              <input type="checkbox" checked={ip.use_partner_income || false}
-                onChange={e => updateNestedConfig("income_profile", { use_partner_income: e.target.checked })}
-                style={{ accentColor: C.teal }} />
-            </div>
-            {ip.use_partner_income && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <div><FieldLabel>Gross Annual Salary</FieldLabel>
-                  <Input type="number" step={1000} value={ip.partner_gross_annual_salary || 0}
-                    onChange={e => updateNestedConfig("income_profile", { partner_gross_annual_salary: +e.target.value || 0 })} /></div>
-                <Row>
-                  <div><FieldLabel>Start Year</FieldLabel>
-                    <Input type="number" value={ip.partner_employment_start_year || 2025}
-                      onChange={e => updateNestedConfig("income_profile", { partner_employment_start_year: +e.target.value })} /></div>
-                  <div><FieldLabel>Retirement Year</FieldLabel>
-                    <Input type="number" value={ip.partner_retirement_year || 2030}
-                      onChange={e => updateNestedConfig("income_profile", { partner_retirement_year: +e.target.value || 2030 })} /></div>
-                </Row>
-                <Checkbox label="Supplies Health Insurance" id="partner_health"
-                  checked={ip.partner_has_health_insurance || false}
-                  onChange={v => updateNestedConfig("income_profile", { partner_has_health_insurance: v })} />
-              </div>
-            )}
+            <div style={{ fontSize: 9, color: C.inkFaint }}>Partner income lives in Settings → Family.</div>
           </div>
         </AccCard>
 
@@ -593,60 +543,7 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
         </AccCard>
         )}
 
-        {/* ── Tax Profiling ── */}
-        <AccCard {...acc("tax")} title="Tax Profiling" color={C.inkMid}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <div><FieldLabel>Filing Status</FieldLabel>
-              <Select value={config.tax_assumptions?.filing_status ?? "single"}
-                onChange={e => updateNestedConfig("tax_assumptions", { filing_status: e.target.value as any })}>
-                <option value="single">Single</option>
-                <option value="married_joint">Married Filing Jointly</option>
-                <option value="married_separate">Married Filing Separately</option>
-                <option value="head_household">Head of Household</option>
-              </Select>
-            </div>
-            <div><FieldLabel>State of Residence</FieldLabel>
-              <Select value={config.tax_assumptions?.state_of_residence ?? "NONE"}
-                onChange={e => updateNestedConfig("tax_assumptions", { state_of_residence: e.target.value as any })}>
-                {STATE_OPTIONS.map(([code, label]) => (
-                  <option key={code} value={code}>{label}</option>
-                ))}
-              </Select>
-            </div>
-          </div>
-        </AccCard>
-
-        {/* ── Social Security & Medicare ── */}
-        <AccCard {...acc("ssmed")} title="Social Security & Medicare" color={C.inkSoft}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <Row>
-              <div><FieldLabel>SS Start Age</FieldLabel>
-                <Input type="number" value={config.social_security?.start_age ?? 67}
-                  onChange={e => updateNestedConfig("social_security", { start_age: +e.target.value } as any)} /></div>
-              <div><FieldLabel>SS Monthly ($)</FieldLabel>
-                <LinkedNumberField
-                  linked={config.social_security?.social_security_linked !== false}
-                  displayValue={config.social_security?.social_security_linked !== false
-                    ? estimateMonthlySocialSecurity(ip.gross_annual_salary, config.social_security?.start_age ?? 67)
-                    : (config.social_security?.monthly_amount ?? 0)}
-                  onOverride={() => updateNestedConfig("social_security", { social_security_linked: false, monthly_amount: estimateMonthlySocialSecurity(ip.gross_annual_salary, config.social_security?.start_age ?? 67) } as any)}
-                  onChange={v => updateNestedConfig("social_security", { monthly_amount: v, social_security_linked: false } as any)}
-                  onRelink={() => updateNestedConfig("social_security", { social_security_linked: true } as any)} />
-                <div style={{ fontSize: 9, color: C.inkFaint, marginTop: 3 }}>
-                  {config.social_security?.social_security_linked !== false ? "Estimated from your income · ✎ to override" : "Manual · ↺ to re-estimate"}
-                </div>
-              </div>
-            </Row>
-            <Row>
-              <div><FieldLabel>Medicare Age</FieldLabel>
-                <Input type="number" value={config.medicare?.start_age ?? 65}
-                  onChange={e => updateNestedConfig("medicare", { start_age: +e.target.value } as any)} /></div>
-              <div><FieldLabel>Medicare Premium</FieldLabel>
-                <Input type="number" value={config.medicare?.monthly_premium ?? 174.70}
-                  onChange={e => updateNestedConfig("medicare", { monthly_premium: +e.target.value } as any)} /></div>
-            </Row>
-          </div>
-        </AccCard>
+        {/* Tax, Social Security & Medicare now live in Settings (profile menu). */}
 
         {/* ── Life Events ── */}
         <AccCard {...acc("events")} title="Life Events" color="#c4784e">
@@ -686,34 +583,7 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
           </div>
         </AccCard>
 
-        {/* ── Family ── */}
-        <AccCard {...acc("family")} title="Family" color="#7a6da8">
-          <div style={{ fontSize: 10, color: C.inkFaint, marginBottom: 10, lineHeight: 1.5 }}>
-            Adding kids plots their milestones, plans college costs, and sets the empty-nest phase to when your youngest turns 18.
-          </div>
-          {kids.map((child, idx) => (
-            <div key={idx} style={{ display: "flex", gap: 6, alignItems: "flex-end", marginBottom: 6 }}>
-              <div style={{ flex: 1.5 }}>
-                <FieldLabel>Name</FieldLabel>
-                <Input type="text" placeholder="Child's name" value={child.name}
-                  onChange={e => setChildren(kids.map((c, i) => i === idx ? { ...c, name: e.target.value } : c))} />
-              </div>
-              <div style={{ flex: 1 }}>
-                <FieldLabel>Birth Year</FieldLabel>
-                <Input type="number" placeholder="2015" value={child.birthYear}
-                  onChange={e => setChildren(kids.map((c, i) => i === idx ? { ...c, birthYear: +e.target.value || c.birthYear } : c))} />
-              </div>
-              <button onClick={() => setChildren(kids.filter((_, i) => i !== idx))} aria-label="Remove child"
-                style={{ flexShrink: 0, height: 30, width: 30, display: "flex", alignItems: "center", justifyContent: "center", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 5, color: C.warm, cursor: "pointer" }}>
-                <Trash2 size={13} />
-              </button>
-            </div>
-          ))}
-          <button onClick={() => setChildren([...kids, { name: "", birthYear: new Date().getFullYear() - 5, birthMonth: 0 }])}
-            style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "6px 0", background: C.tealWash, border: `1px solid ${C.tealLight}`, color: C.tealDark, borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: "pointer", marginTop: 4 }}>
-            <PlusCircle size={12} /> Add Child
-          </button>
-        </AccCard>
+        {/* Family (kids & partner) now lives in Settings (profile menu). */}
 
         {/* ── Portfolio Holdings ── */}
         <AccCard {...acc("holdings")} title="Portfolio Holdings" color="#c4784e">
@@ -766,7 +636,8 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
           </div>
         </AccCard>
 
-        {/* ── Education (529) ── */}
+        {/* ── Education (529) — only relevant with kids ── */}
+        {kids.length > 0 && (
         <AccCard {...acc("edu")} title="Education Assets (529)" color={C.teal}>
           <div style={{ marginBottom: 8 }}>
             {(snapshot.education_assets?.accounts || []).map((acc, idx) => (
@@ -799,6 +670,7 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
             <PlusCircle size={12} /> Add 529 Account
           </button>
         </AccCard>
+        )}
 
       </div>
     </aside>

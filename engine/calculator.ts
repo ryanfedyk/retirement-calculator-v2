@@ -82,6 +82,7 @@ export interface SimulationConfiguration {
   tax_assumptions: {
     filing_status: 'single' | 'married_joint' | 'married_separate' | 'head_household';
     state_of_residence: StateCode;
+    itemized_deductions?: number; // Extra annual itemized deductions (charitable, etc.) beyond auto mortgage/SALT
   };
   tax_optimization: {
     enable_aca_optimization: boolean;      // Model ACA subsidies during low-income phases
@@ -211,12 +212,13 @@ export const runSimulation = (
   const startYear  = new Date().getFullYear();
   const startMonth = new Date().getMonth();
 
-  // Project through age 95, so the chart's horizon (end date) shifts with the
-  // user's age: younger users see a longer runway, older users a shorter one.
-  // Clamped to a sane 15–70 year window.
-  const END_AGE          = 95;
+  // The wealth trajectory runs from today through age 70. Independence (the FI
+  // target = 25× expenses) is a point-in-time check, so a plan that's solid by
+  // the 4% rule still reads as on-track here. A small floor keeps a usable
+  // window for users already near/over 70.
+  const END_AGE          = 70;
   const startAge         = startYear - (config.birth_year || 1980);
-  const monthsToSimulate = Math.min(840, Math.max(180, (END_AGE - startAge) * 12));
+  const monthsToSimulate = Math.min(720, Math.max(36, (END_AGE - startAge) * 12));
 
   // ── Initial balances ───────────────────────────────────────────────────────
   let liquidCash  = snapshot.liquid_assets.vanguard_bridge + snapshot.liquid_assets.cash_savings;
@@ -389,9 +391,10 @@ export const runSimulation = (
     const annualMortgageInterest    = hasMortgageNow ? currentMortgage * (mortgageRate / 100) : 0;
     const deductibleInterestFed     = annualMortgageInterest * deductibleMortgagePct;
     const saltCapFed                = 10_000;
-    const totalItemizedFed          = deductibleInterestFed + saltCapFed;
+    const userItemized              = config.tax_assumptions.itemized_deductions ?? 0;
+    const totalItemizedFed          = deductibleInterestFed + saltCapFed + userItemized;
     // NY: same mortgage interest deduction; SALT adds back since state deduction is for state
-    const totalItemizedNY           = deductibleInterestFed;
+    const totalItemizedNY           = deductibleInterestFed + userItemized;
 
     // ── Tax calculation ────────────────────────────────────────────────────
     // grossIncome = W2 (FICA base — full salary before 401k)

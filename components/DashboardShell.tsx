@@ -15,6 +15,7 @@ import AdventureGenerator    from "@/components/AdventureGenerator";
 import DailyDeflationWidget  from "@/components/DailyDeflationWidget";
 import FinancialDashboard    from "@/components/finance/FinancialDashboard";
 import LifeEventsFab         from "@/components/forecasting/LifeEventsFab";
+import SettingsPanel         from "@/components/SettingsPanel";
 import type { AdventureBlueprint } from "@/types/horizon";
 
 const NAV = [
@@ -39,6 +40,7 @@ export default function DashboardShell() {
     <div className="min-h-screen flex flex-col" style={{ background: C.bg }}>
 
       <Header view={appView} onViewChange={setAppView} />
+      <SettingsPanel />
 
       {/* Countdown — shown across both views */}
       <CountdownStrip />

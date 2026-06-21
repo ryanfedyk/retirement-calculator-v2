@@ -130,6 +130,7 @@ export const DEFAULT_SIM_CONFIG: SimulationConfiguration = {
   tax_assumptions: {
     filing_status:      "single",
     state_of_residence: "NONE",
+    itemized_deductions: 0,
   },
   divestment_strategy: {
     type:       "progressive",

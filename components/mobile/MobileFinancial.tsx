@@ -10,6 +10,7 @@ import { useHorizonProfile } from "@/config/horizonConfig";
 import { TodaysDelta, MomentumTurnstile, WhatIfChips } from "@/components/finance/MotivationWidgets";
 import AiAnalysis from "@/components/finance/AiAnalysis";
 import PriceTicker from "@/components/finance/PriceTicker";
+import ScenarioLevers from "@/components/finance/ScenarioLevers";
 import type { LivePrices } from "@/components/finance/FinancialDashboard";
 
 const fmtM = (v: number) => {
@@ -149,6 +150,9 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
           <span>{Math.round(progress)}% to {fmtM(swrTarget)}</span>
         </div>
       </div>
+
+      {/* Scenario levers — drive the trajectory live */}
+      <ScenarioLevers />
 
       {/* Portfolio price ticker (from the user's holdings) */}
       <PriceTicker

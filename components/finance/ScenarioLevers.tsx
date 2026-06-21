@@ -1,10 +1,38 @@
 "use client";
+import { useState } from "react";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { C } from "@/config/colors";
 import ScenarioSwitcher from "./ScenarioSwitcher";
 import { colTier } from "@/lib/fire/moments";
 
 const money = (n: number) => `$${Math.round(n).toLocaleString()}`;
+
+/** A small chip that reveals an explanatory tooltip on hover/focus. */
+function TipChip({ label, tip, color }: { label: string; tip: string; color: string }) {
+  const [show, setShow] = useState(false);
+  return (
+    <span
+      tabIndex={0}
+      onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}
+      onFocus={() => setShow(true)} onBlur={() => setShow(false)}
+      style={{ position: "relative", display: "inline-flex", alignItems: "center", cursor: "help", outline: "none",
+        fontSize: 9, fontWeight: 800, letterSpacing: "0.04em", color, background: `${color}1a`, borderRadius: 5, padding: "1px 5px" }}
+    >
+      {label}
+      {show && (
+        <span role="tooltip" style={{
+          position: "absolute", bottom: "calc(100% + 7px)", left: "50%", transform: "translateX(-50%)",
+          whiteSpace: "nowrap", zIndex: 20, background: C.ink, color: "#fff", fontSize: 11, fontWeight: 600,
+          letterSpacing: 0, padding: "6px 9px", borderRadius: 7, boxShadow: "0 4px 14px rgba(0,0,0,0.22)", pointerEvents: "none",
+        }}>
+          {tip}
+          <span style={{ position: "absolute", top: "100%", left: "50%", transform: "translateX(-50%)",
+            borderLeft: "5px solid transparent", borderRight: "5px solid transparent", borderTop: `5px solid ${C.ink}` }} />
+        </span>
+      )}
+    </span>
+  );
+}
 
 function Slider({ label, value, display, min, max, step, accent, onChange, badge }: {
   label: string; value: number; display: string; min: number; max: number; step: number; accent: string; onChange: (v: number) => void; badge?: React.ReactNode;
@@ -68,7 +96,7 @@ export default function ScenarioLevers() {
         <Slider label="Monthly Spend" value={sp.monthly_lifestyle} display={money(sp.monthly_lifestyle)}
           min={3000} max={35000} step={250} accent={C.warm}
           badge={(() => { const t = colTier(sp.monthly_lifestyle); return (
-            <span title={t.label} style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.04em", color: t.color, background: `${t.color}1a`, borderRadius: 5, padding: "1px 5px" }}>{t.emoji} {t.code}</span>
+            <TipChip label={`${t.emoji} ${t.code}`} tip={t.label} color={t.color} />
           ); })()}
           onChange={v => updateNestedConfig("spending", { monthly_lifestyle: v })} />
         <Slider label="Market Return" value={ma.market_return_rate} display={`${ma.market_return_rate}%`}

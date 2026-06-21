@@ -84,6 +84,7 @@ export interface SimulationConfiguration {
     filing_status: 'single' | 'married_joint' | 'married_separate' | 'head_household';
     state_of_residence: StateCode;
     itemized_deductions?: number; // Extra annual itemized deductions (charitable, etc.) beyond auto mortgage/SALT
+    w4_allowances?: number;       // Number of deductions/allowances claimed on the W-4
   };
   tax_optimization: {
     enable_aca_optimization: boolean;      // Model ACA subsidies during low-income phases
@@ -399,16 +400,21 @@ export const runSimulation = (
     // NY: same mortgage interest deduction; SALT adds back since state deduction is for state
     const totalItemizedNY           = deductibleInterestFed + userItemized;
 
+    // W-4 deductions/allowances — each reduces taxable income (income tax only,
+    // not FICA), modeled at the legacy per-allowance value.
+    const W4_ALLOWANCE_VALUE = 4_300;
+    const allowanceDeduction = (config.tax_assumptions.w4_allowances ?? 0) * W4_ALLOWANCE_VALUE;
+
     // ── Tax calculation ────────────────────────────────────────────────────
     // grossIncome = W2 (FICA base — full salary before 401k)
-    // preTaxDeductions = 401k (reduces income tax but not FICA)
+    // preTaxDeductions = 401k + W-4 allowances (reduce income tax but not FICA)
     const annualW2Gross = annualBaseSalary + annualTargetBonus + annualPartnerGross + annualParttimeGross + annualRSUValue + annualJumpGrantValue;
 
     const taxResult = calculateTax({
       filingStatus:          config.tax_assumptions.filing_status,
       state:                 config.tax_assumptions.state_of_residence,
       grossIncome:           annualW2Gross,
-      preTaxDeductions:      annualK401,
+      preTaxDeductions:      annualK401 + allowanceDeduction,
       ficaExemptIncome:      annualRentalGross,
       itemizedDeductions:    totalItemizedFed,
       nyItemizedDeductions:  totalItemizedNY,

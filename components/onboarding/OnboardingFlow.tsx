@@ -121,42 +121,49 @@ export default function OnboardingFlow() {
     .filter((k) => k.year >= 1990 && k.year <= CURRENT_YEAR + 30)
     .map((k) => ({ name: k.name, birthYear: k.year, birthMonth: 0 }));
 
-  // ── Build a config+snapshot from the inputs, then find when FI is reached. ──
+  // ── Build a config+snapshot from the inputs, then find the earliest year
+  // they could retire and still stay solvent through the horizon — i.e. the
+  // earliest exit year for which the plan never trips the off-track warning.
   const projection = useMemo(() => {
-    if (!essentialsValid) return undefined;
-    const cfg = structuredClone(DEFAULT_SIM_CONFIG);
-    cfg.birth_year = by;
-    cfg.career_path.exit_year = by + 60; // assume working while we look for the FI crossover
-    const grossSalary = num(salary, cfg.income_profile.gross_annual_salary);
-    cfg.income_profile.gross_annual_salary = grossSalary;
-    cfg.income_profile.google_net_monthly = Math.round(grossSalary * 0.65 / 12);
-    cfg.income_profile.use_partner_income = hasPartner;
+    if (!essentialsValid || !onReveal) return undefined;
+    const baseCfg = structuredClone(DEFAULT_SIM_CONFIG);
+    baseCfg.birth_year = by;
+    const grossSalary = num(salary, baseCfg.income_profile.gross_annual_salary);
+    baseCfg.income_profile.gross_annual_salary = grossSalary;
+    baseCfg.income_profile.google_net_monthly = Math.round(grossSalary * 0.65 / 12);
+    baseCfg.income_profile.use_partner_income = hasPartner;
     if (hasPartner) {
-      cfg.income_profile.partner_gross_annual_salary = num(partnerSalary, 0);
+      baseCfg.income_profile.partner_gross_annual_salary = num(partnerSalary, 0);
       const pa = optNum(partnerAge);
-      if (pa !== undefined) cfg.income_profile.partner_birth_year = CURRENT_YEAR - pa;
+      if (pa !== undefined) baseCfg.income_profile.partner_birth_year = CURRENT_YEAR - pa;
     }
-    cfg.spending.monthly_lifestyle = num(monthlySpend, cfg.spending.monthly_lifestyle);
-    cfg.spending.mortgage_payment = num(housing, 0);
-    cfg.tax_assumptions.filing_status = filing as typeof cfg.tax_assumptions.filing_status;
-    cfg.tax_assumptions.state_of_residence = stateCode as typeof cfg.tax_assumptions.state_of_residence;
-    cfg.children = validKids().map((k) => ({ birthYear: k.birthYear }));
+    baseCfg.spending.monthly_lifestyle = num(monthlySpend, baseCfg.spending.monthly_lifestyle);
+    baseCfg.spending.mortgage_payment = num(housing, 0);
+    baseCfg.tax_assumptions.filing_status = filing as typeof baseCfg.tax_assumptions.filing_status;
+    baseCfg.tax_assumptions.state_of_residence = stateCode as typeof baseCfg.tax_assumptions.state_of_residence;
+    baseCfg.children = validKids().map((k) => ({ birthYear: k.birthYear }));
 
     const snap = structuredClone(DEFAULT_SNAPSHOT);
     snap.liquid_assets.cash_savings = num(savings, 0);
     snap.retirement_assets.k401 = num(k401, 0);
     snap.retirement_assets.roth_ira = num(roth, 0);
 
-    const points = runSimulation(snap, cfg, 0);
-    const fi = findIndependencePoint(points);
-    const last = points[points.length - 1];
-    const progress = last && last.swrTarget > 0
-      ? Math.min(100, Math.round((points[0].investableAssets / points[0].swrTarget) * 100)) : 0;
-    if (!fi) return { fi: false as const, progress };
-    const fiYear = Number((fi.date.match(/\d{4}/) || [])[0]);
-    return { fi: true as const, fiYear, age: fiYear - by, progress };
+    // Walk exit years from now outward; the first one that ends independent is
+    // the earliest date they can safely retire — what we'll seed and reveal.
+    const maxYear = by + 72;
+    for (let exitYear = CURRENT_YEAR; exitYear <= maxYear; exitYear++) {
+      const cfg = { ...baseCfg, career_path: { ...baseCfg.career_path, exit_year: exitYear } };
+      if (findIndependencePoint(runSimulation(snap, cfg, 0))) {
+        return { fi: true as const, fiYear: exitYear, age: exitYear - by };
+      }
+    }
+    // Not reachable in-horizon — report how far along they are (working long).
+    const longCfg = { ...baseCfg, career_path: { ...baseCfg.career_path, exit_year: maxYear } };
+    const p0 = runSimulation(snap, longCfg, 0)[0];
+    const progress = p0 && p0.swrTarget > 0 ? Math.min(100, Math.round((p0.investableAssets / p0.swrTarget) * 100)) : 0;
+    return { fi: false as const, progress };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [essentialsValid, by, salary, partnerSalary, partnerAge, hasPartner, monthlySpend, housing, filing, stateCode, savings, k401, roth, kids]);
+  }, [onReveal, essentialsValid, by, salary, partnerSalary, partnerAge, hasPartner, monthlySpend, housing, filing, stateCode, savings, k401, roth, kids]);
 
   // Celebrate on the reveal.
   useEffect(() => {

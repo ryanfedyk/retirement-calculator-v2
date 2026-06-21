@@ -246,7 +246,7 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
         </div>
         <button
           onClick={() => {
-            if (window.confirm("Reset everything to defaults?\n\nThis permanently erases your current configuration and can't be undone."))
+            if (window.confirm("Start over?\n\nThis clears your plan and balance sheet and walks you back through the quick setup. It can't be undone."))
               resetToDefaults();
           }}
           style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: C.inkFaint, background: "none", border: "none", cursor: "pointer" }}>

@@ -4,58 +4,82 @@ import { Pencil, RotateCcw } from "lucide-react";
 import { C } from "@/config/colors";
 
 /**
- * Consistent control for a value that is auto-calculated but can be manually
- * overridden. While linked, the field shows the computed value (read-only) with
- * a pencil button to take over; once overridden it's editable with a refresh
- * button to revert to the auto value.
+ * Control for a value that is auto-calculated but can be manually overridden.
+ * While linked it reads as plain text (the computed value) with an "auto" tag
+ * and a pencil to take over; once overridden it's an editable input with a
+ * counter-clockwise reset to revert to the auto value.
  */
 const SIZES = {
-  desktop: { fontSize: 12, borderRadius: 5, padding: "5px 28px 5px 8px", iconRight: 6, iconSize: 13 },
-  mobile:  { fontSize: 16, borderRadius: 10, padding: "11px 34px 11px 12px", iconRight: 11, iconSize: 17 },
+  desktop: { fontSize: 15, minHeight: 38, borderRadius: 8, padding: "10px 12px", iconSize: 13, iconRight: 8 },
+  mobile:  { fontSize: 16, minHeight: 44, borderRadius: 10, padding: "12px 13px", iconSize: 16, iconRight: 11 },
 } as const;
 
 export default function LinkedNumberField({
   linked, displayValue, onOverride, onChange, onRelink,
-  variant = "desktop", step = 1,
+  variant = "desktop", step = 1, format,
 }: {
   linked: boolean;
   displayValue: number;            // auto value when linked, manual value otherwise
   onOverride: () => void;          // pencil: switch to manual (caller unlinks + seeds)
   onChange: (v: number) => void;   // edit while overridden
-  onRelink: () => void;            // refresh: revert to auto
+  onRelink: () => void;            // reset: revert to auto
   variant?: "desktop" | "mobile";
   step?: number;
+  format?: (n: number) => string;  // how to render the value while linked
 }) {
   const sz = SIZES[variant];
   const [focused, setFocused] = useState(false);
   const [text, setText] = useState(String(displayValue));
   useEffect(() => { if (!focused) setText(String(displayValue)); }, [displayValue, focused]);
 
+  const fmt = format ?? ((n: number) => n.toLocaleString());
+
+  // ── Linked → plain number + edit affordance ──
+  if (linked) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 8, minHeight: sz.minHeight }}>
+        <span style={{ fontSize: sz.fontSize, fontWeight: 600, color: C.ink, fontVariantNumeric: "tabular-nums" }}>
+          {fmt(displayValue)}
+        </span>
+        <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: C.inkFaint, background: C.bgHeader, borderRadius: 4, padding: "2px 6px" }}>
+          auto
+        </span>
+        <button
+          type="button" onClick={onOverride}
+          aria-label="Edit value" title="Edit value"
+          style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: C.teal, display: "flex", padding: 4 }}
+        >
+          <Pencil size={sz.iconSize} />
+        </button>
+      </div>
+    );
+  }
+
+  // ── Overridden → editable input + reset-to-auto ──
   return (
     <div style={{ position: "relative" }}>
       <input
-        type="number" inputMode="decimal" step={step} disabled={linked}
+        autoFocus
+        type="number" inputMode="decimal" step={step}
         value={focused ? text : String(displayValue)}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         onChange={e => { setText(e.target.value); onChange(e.target.value === "" ? 0 : +e.target.value); }}
         style={{
-          width: "100%", boxSizing: "border-box", border: `1px solid ${C.border}`,
-          borderRadius: sz.borderRadius, padding: sz.padding, fontSize: sz.fontSize,
-          color: linked ? C.inkSoft : C.ink, background: linked ? C.bgHeader : C.bg, outline: "none",
+          width: "100%", boxSizing: "border-box", border: `1px solid ${C.teal}`,
+          borderRadius: sz.borderRadius, padding: sz.padding, paddingRight: 34, fontSize: sz.fontSize,
+          color: C.ink, background: C.bg, outline: "none",
         }}
       />
       <button
-        type="button"
-        onClick={() => (linked ? onOverride() : onRelink())}
-        aria-label={linked ? "Override with a manual value" : "Reset to auto-calculated"}
-        title={linked ? "Override with a manual value" : "Reset to auto-calculated"}
+        type="button" onClick={onRelink}
+        aria-label="Reset to auto-calculated" title="Reset to auto-calculated"
         style={{
           position: "absolute", right: sz.iconRight, top: "50%", transform: "translateY(-50%)",
           background: "none", border: "none", cursor: "pointer", color: C.teal, display: "flex", padding: 0,
         }}
       >
-        {linked ? <Pencil size={sz.iconSize} /> : <RotateCcw size={sz.iconSize} />}
+        <RotateCcw size={sz.iconSize} />
       </button>
     </div>
   );

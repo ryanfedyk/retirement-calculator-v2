@@ -395,7 +395,7 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
                     <TickerAutocomplete placeholder="e.g. AAPL" value={config.concentrated_symbol ?? ""}
                       onChange={v => updateConfig({ concentrated_symbol: v })}
                       onSelect={r => updateConfig({ concentrated_symbol: r.symbol })} /></div>
-                  <div><FieldLabel>Expected Return (%)</FieldLabel>
+                  <div><FieldLabel>Return (%)</FieldLabel>
                     <Input type="number" step={0.5} value={ma.goog_growth_rate}
                       onChange={e => updateNestedConfig("market_assumptions", { goog_growth_rate: +e.target.value })} /></div>
                 </Row>

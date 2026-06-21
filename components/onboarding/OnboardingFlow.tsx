@@ -236,6 +236,13 @@ export default function OnboardingFlow() {
                     <div style={{ flex: 1 }}>
                       <label style={labelStyle}>Birth year</label>
                       <input style={fieldStyle} type="number" inputMode="numeric" placeholder="2015" value={kid.year}
+                             onKeyDown={(e) => {
+                               // Stepping from empty should start at the placeholder year, not 1.
+                               if (kid.year === "" && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+                                 e.preventDefault();
+                                 updateKid(i, { year: "2015" });
+                               }
+                             }}
                              onChange={(e) => updateKid(i, { year: e.target.value })} />
                     </div>
                     <button onClick={() => removeKid(i)} aria-label="Remove child"

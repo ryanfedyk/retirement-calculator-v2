@@ -111,6 +111,7 @@ export interface SimulationConfiguration {
   social_security: {
     start_age: number;
     monthly_amount: number;
+    social_security_linked?: boolean; // When true (default), estimate from income
   };
   medicare: {
     start_age: number;
@@ -164,6 +165,7 @@ export interface TrajectoryPoint {
 
 import { calculateTax } from './tax_engine';
 import type { StateCode } from './state_tax';
+import { estimateMonthlySocialSecurity } from './social_security';
 
 // Age at which a child is assumed to leave the family health plan (post-college).
 const CHILD_OFF_PLAN_AGE = 22;
@@ -515,7 +517,11 @@ export const runSimulation = (
     // taxable portion stacks on top of other ordinary income (rental).
     let socialSecurityIncome = 0;
     if (config.social_security && currentAge >= config.social_security.start_age) {
-      const grossSSAnnual = config.social_security.monthly_amount * inflationMultiplier * 12;
+      // Linked (default) → estimate from income; otherwise use the manual amount.
+      const ssMonthly = config.social_security.social_security_linked !== false
+        ? estimateMonthlySocialSecurity(ip.gross_annual_salary, config.social_security.start_age)
+        : config.social_security.monthly_amount;
+      const grossSSAnnual = ssMonthly * inflationMultiplier * 12;
       const taxableSSAnnual = grossSSAnnual * 0.85; // max inclusion for higher-income retirees
 
       const ssBaseTax = calculateTax({

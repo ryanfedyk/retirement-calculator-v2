@@ -298,6 +298,7 @@ export default function RightPanel({ livePrices, pricesUpdatedAt, pricesFetching
       <PriceTicker
         holdings={snapshot.other_investments}
         livePrices={livePrices}
+        concentratedSymbol={config.use_equity_comp ? config.concentrated_symbol : ""}
         pricesUpdatedAt={pricesUpdatedAt}
         pricesFetching={pricesFetching}
         onRefreshPrices={onRefreshPrices}

@@ -150,6 +150,7 @@ export const DEFAULT_SIM_CONFIG: SimulationConfiguration = {
   social_security: {
     start_age:      67,
     monthly_amount: 2_000,
+    social_security_linked: true,
   },
   medicare: {
     start_age:       65,

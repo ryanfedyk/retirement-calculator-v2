@@ -86,6 +86,21 @@ function makeDefaultScenarios(config: SimulationConfiguration): { scenarios: Sce
   return { scenarios: [{ id, name: "My Plan", config }], activeScenarioId: id };
 }
 
+// Sections shared across all scenarios ("facts"), not part of a scenario's plan.
+const FACT_KEYS = ["tax_assumptions", "social_security", "medicare"] as const;
+function pickFacts(config: SimulationConfiguration): Partial<SimulationConfiguration> {
+  return {
+    tax_assumptions: config.tax_assumptions,
+    social_security: config.social_security,
+    medicare: config.medicare,
+  };
+}
+/** Apply the shared facts from `config` to every scenario. */
+function syncFactsToAll(scenarios: Scenario[], config: SimulationConfiguration): Scenario[] {
+  const facts = pickFacts(config);
+  return scenarios.map((sc) => ({ ...sc, config: { ...sc.config, ...facts } }));
+}
+
 export const useFinancialStore = create<FinancialStore>()(
   persist(
     (set) => {
@@ -148,7 +163,17 @@ export const useFinancialStore = create<FinancialStore>()(
           } else {
             merged = { ...(current as object), ...(updates as object) } as typeof current;
           }
-          return writeConfig(s, { ...s.config, [section]: merged });
+          const config = { ...s.config, [section]: merged };
+          // Facts (tax / SS / Medicare) are shared — write them to every scenario.
+          if ((FACT_KEYS as readonly string[]).includes(section as string)) {
+            return {
+              config,
+              scenarios: s.scenarios.map((sc) =>
+                sc.id === s.activeScenarioId ? { ...sc, config } : { ...sc, config: { ...sc.config, [section]: merged } }
+              ),
+            };
+          }
+          return writeConfig(s, config);
         }),
 
       updateNestedSnapshot: (section, updates) =>
@@ -179,6 +204,7 @@ export const useFinancialStore = create<FinancialStore>()(
           const config = structuredClone(DEFAULT_SIM_CONFIG);
           config.birth_year = s.profile.birthYear;
           config.children = projectChildren(s.profile);
+          Object.assign(config, pickFacts(s.config)); // inherit the shared facts
           const sc: Scenario = { id, name: name || `Scenario ${s.scenarios.length + 1}`, config };
           return { scenarios: [...s.scenarios, sc], activeScenarioId: id, config };
         }),
@@ -214,12 +240,13 @@ export const useFinancialStore = create<FinancialStore>()(
         set((s) => {
           const sc = s.scenarios.find((x) => x.id === id);
           if (!sc) return {};
-          // Keep shared identity consistent across scenarios.
-          const config = { ...sc.config, birth_year: s.profile.birthYear, children: projectChildren(s.profile) };
+          // Keep shared identity + facts consistent across scenarios. The
+          // currently-active config is canonical for the shared facts.
+          const config = { ...sc.config, ...pickFacts(s.config), birth_year: s.profile.birthYear, children: projectChildren(s.profile) };
           return {
             activeScenarioId: id,
             config,
-            scenarios: s.scenarios.map((x) => (x.id === id ? { ...x, config } : x)),
+            scenarios: syncFactsToAll(s.scenarios, config).map((x) => (x.id === id ? { ...x, config } : x)),
           };
         }),
 
@@ -247,7 +274,9 @@ export const useFinancialStore = create<FinancialStore>()(
           const active = scenarios.find((x) => x.id === activeScenarioId) ?? scenarios[0];
           activeScenarioId = active.id;
           const config = { ...active.config, children: projectChildren(profile) };
-          scenarios = scenarios.map((x) => (x.id === activeScenarioId ? { ...x, config } : x));
+          // The active scenario is canonical for the shared facts; reconcile any
+          // legacy divergence across the others.
+          scenarios = syncFactsToAll(scenarios, config).map((x) => (x.id === activeScenarioId ? { ...x, config } : x));
 
           return { profile, snapshot: state.snapshot ?? s.snapshot, scenarios, activeScenarioId, config };
         }),

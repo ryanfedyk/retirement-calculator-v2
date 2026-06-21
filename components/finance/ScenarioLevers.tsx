@@ -1,6 +1,7 @@
 "use client";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { C } from "@/config/colors";
+import ScenarioSwitcher from "./ScenarioSwitcher";
 
 const money = (n: number) => `$${Math.round(n).toLocaleString()}`;
 
@@ -55,10 +56,9 @@ export default function ScenarioLevers() {
 
   return (
     <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 18px", boxShadow: `0 1px 3px ${C.border}` }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
         <span style={{ width: 3, height: 15, borderRadius: 2, background: C.teal }} />
-        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: C.ink }}>Scenario</span>
-        <span style={{ fontSize: 10, color: C.inkFaint }}>· drag to model</span>
+        <ScenarioSwitcher />
       </div>
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: "14px 22px", marginBottom: 14 }}>

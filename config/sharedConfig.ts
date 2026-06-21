@@ -131,6 +131,7 @@ export const DEFAULT_SIM_CONFIG: SimulationConfiguration = {
     filing_status:      "single",
     state_of_residence: "NONE",
     itemized_deductions: 0,
+    w4_allowances:       2,
   },
   divestment_strategy: {
     type:       "progressive",

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { X, Trash2, Plus } from "lucide-react";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
@@ -79,9 +79,6 @@ export default function SettingsPanel() {
   const ip = config.income_profile;
   const ss = config.social_security;
   const ta = config.tax_assumptions;
-  const STD_DEDUCTION: Record<string, number> = { single: 15_000, married_joint: 30_000, married_separate: 15_000, head_household: 22_500 };
-  const stdDeduction = STD_DEDUCTION[ta.filing_status] ?? 15_000;
-  const [itemize, setItemize] = useState((ta.itemized_deductions ?? 0) > 0);
   const kids = profile.children;
   const thisYear = new Date().getFullYear();
   const age = thisYear - (config.birth_year || profile.birthYear || 1985);
@@ -165,14 +162,9 @@ export default function SettingsPanel() {
                 <option value="head_household">Head of Household</option>
               </Select>
             </Field>
-            <div style={{ marginBottom: 13 }}>
-              <span style={labelStyle}>Deductions</span>
-              <Toggle label="Itemize (instead of standard)" on={itemize}
-                onChange={v => { setItemize(v); if (!v) updateNestedConfig("tax_assumptions", { itemized_deductions: 0 }); }} />
-              {itemize
-                ? <Num prefix="$" step={500} value={ta.itemized_deductions ?? 0} onChange={v => updateNestedConfig("tax_assumptions", { itemized_deductions: v })} />
-                : <div style={{ fontSize: 10, color: C.inkFaint, marginTop: 2 }}>Using the standard deduction (${stdDeduction.toLocaleString()}) — typical for W-2 earners.</div>}
-            </div>
+            <Field label="Deductions (W-4)" hint="Number of withholding allowances you claim on your W-4 — each lowers taxable income (~$4,300). The standard deduction is applied automatically on top.">
+              <Num value={ta.w4_allowances ?? 0} onChange={v => updateNestedConfig("tax_assumptions", { w4_allowances: Math.max(0, Math.round(v)) })} />
+            </Field>
           </Section>
 
           {/* ── Social Security & Medicare ── */}

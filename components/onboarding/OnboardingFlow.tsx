@@ -1,50 +1,41 @@
 "use client";
-import { useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Plus, Trash2, Sparkles } from "lucide-react";
 import { C } from "@/config/colors";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { useFinancialStore } from "@/store/useFinancialStore";
-
-const MONTHS = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
+import { DEFAULT_SIM_CONFIG, DEFAULT_SNAPSHOT } from "@/config/sharedConfig";
+import { runSimulation, findIndependencePoint } from "@/engine/calculator";
+import { STATE_OPTIONS } from "@/engine/state_tax";
+import { launchConfetti } from "@/lib/fx/confetti";
 
 const CURRENT_YEAR = new Date().getFullYear();
 
-// Parse an optional numeric input — returns undefined when left blank so we can
-// fall back to defaults for any step the user skips.
 const optNum = (s: string): number | undefined => {
   const n = Number(String(s).replace(/,/g, ""));
   return s.trim() !== "" && !isNaN(n) ? n : undefined;
 };
+const num = (s: string, fallback = 0) => optNum(s) ?? fallback;
 
 const labelStyle: React.CSSProperties = {
   fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase",
   color: C.inkSoft, marginBottom: 6, display: "block",
 };
 const fieldStyle: React.CSSProperties = {
-  width: "100%", background: C.bg, border: `1px solid ${C.border}`,
+  width: "100%", boxSizing: "border-box", background: C.bg, border: `1px solid ${C.border}`,
   borderRadius: 8, padding: "11px 13px", fontSize: 14, color: C.ink, outline: "none",
 };
-// Custom chevron so the dropdown arrow has breathing room from the right edge
-// (the native arrow sits flush against the border).
 const selectStyle: React.CSSProperties = {
   ...fieldStyle,
-  appearance: "none", WebkitAppearance: "none", MozAppearance: "none",
-  paddingRight: 36,
+  appearance: "none", WebkitAppearance: "none", MozAppearance: "none", paddingRight: 36,
   backgroundImage:
     "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236a8e82' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E\")",
-  backgroundRepeat: "no-repeat",
-  backgroundPosition: "right 14px center",
-  backgroundSize: "12px",
+  backgroundRepeat: "no-repeat", backgroundPosition: "right 14px center", backgroundSize: "12px",
 };
 const optionalTag = (
   <span style={{ textTransform: "none", color: C.inkFaint, fontWeight: 400 }}>(optional)</span>
 );
 
-// Defined at module scope so it isn't remounted on each parent render (which
-// would drop focus mid-typing).
 function MoneyField({ label, value, onChange, placeholder }: {
   label: React.ReactNode; value: string; onChange: (v: string) => void; placeholder?: string;
 }) {
@@ -66,103 +57,148 @@ function MoneyField({ label, value, onChange, placeholder }: {
 type KidDraft = { name: string; year: string };
 
 /**
- * Stepped onboarding. Step 1 collects the essentials needed to render a
- * meaningful dashboard; the remaining steps are optional. From any step the
- * user can hit "Finish" to jump straight in, or "Add more" to keep refining.
- * Anything left blank keeps a sensible default.
+ * Onboarding that captures the data that actually moves a retirement
+ * trajectory — household, money in, money out, taxes — then, instead of asking
+ * when you want to retire, computes and reveals when you *can*. Every step past
+ * the first is skippable ("you can add this later").
  */
 export default function OnboardingFlow() {
   const { user } = useAuth();
   const {
     updateProfile, updateConfig, updateCareerPath,
-    updateNestedSnapshot, updateIncomeProfile, updateSpending, setChildren,
+    updateNestedSnapshot, updateNestedConfig, updateIncomeProfile, updateSpending, setChildren,
   } = useFinancialStore();
 
   const [step, setStep] = useState(0);
 
-  // Step 1 — essentials (required)
+  // Step 1 — You
   const [name, setName] = useState(user?.displayName ?? "");
   const [birthYear, setBirthYear] = useState<string>(String(CURRENT_YEAR - 40));
-  const [retYear, setRetYear] = useState<string>(String(CURRENT_YEAR + 10));
-  const [retMonth, setRetMonth] = useState<number>(0);
 
-  // Step 2 — family (optional)
+  // Step 2 — Household
+  const [hasPartner, setHasPartner] = useState(false);
+  const [partnerAge, setPartnerAge] = useState<string>("");
+  const [partnerSalary, setPartnerSalary] = useState<string>("");
   const [kids, setKids] = useState<KidDraft[]>([]);
 
-  // Step 3 — savings & accounts (optional)
+  // Step 3 — Money in
+  const [salary, setSalary] = useState<string>("");
   const [savings, setSavings] = useState<string>("");
   const [k401, setK401] = useState<string>("");
   const [roth, setRoth] = useState<string>("");
 
-  // Step 4 — income & spending (optional)
-  const [salary, setSalary] = useState<string>("");
+  // Step 4 — Money out
   const [monthlySpend, setMonthlySpend] = useState<string>("");
+  const [housing, setHousing] = useState<string>("");
+
+  // Step 5 — Taxes
+  const [filing, setFiling] = useState<string>("single");
+  const [stateCode, setStateCode] = useState<string>("NONE");
 
   const by = Number(birthYear);
-  const ry = Number(retYear);
-  const essentialsValid =
-    name.trim().length > 0 &&
-    by >= 1920 && by <= CURRENT_YEAR &&
-    ry >= CURRENT_YEAR && ry <= CURRENT_YEAR + 60;
+  const essentialsValid = name.trim().length > 0 && by >= 1920 && by <= CURRENT_YEAR;
 
   const STEP_META = [
-    { title: "Let’s chart your horizon", subtitle: "Just a few essentials to get you started. You can refine everything later." },
-    { title: "Do you have kids?", subtitle: "Add them to put their milestones on your timeline — we’ll also plan for college costs and an empty-nest phase. No kids? Just continue." },
-    { title: "What have you saved?", subtitle: "Optional — a rough picture sharpens your projection. Skip any you’re unsure of." },
-    { title: "Income & spending", subtitle: "Optional — helps model your runway. Leave blank to use sensible defaults." },
+    { title: "Let’s chart your horizon", subtitle: "Two essentials to begin — you can refine everything later." },
+    { title: "Your household", subtitle: "Partners and kids shape taxes, spending and milestones. None? Just continue." },
+    { title: "Money in", subtitle: "Salary and what you’ve already banked. Rough numbers are fine — skip what you’re unsure of." },
+    { title: "Money out", subtitle: "What you spend keeps the projection honest. You can fine-tune later." },
+    { title: "Taxes", subtitle: "Filing status and state are big levers on your take-home — and your timeline." },
+    { title: "Here’s your horizon", subtitle: "Based on what you’ve shared." },
   ];
-  const TOTAL_STEPS = STEP_META.length;
+  const REVEAL = STEP_META.length - 1;
   const isFirst = step === 0;
-  const isLast = step === TOTAL_STEPS - 1;
+  const onReveal = step === REVEAL;
 
-  // ── Kid helpers ──────────────────────────────────────────────────────────
-  const addKid    = () => setKids((k) => [...k, { name: "", year: "" }]);
-  const removeKid  = (i: number) => setKids((k) => k.filter((_, idx) => idx !== i));
-  const updateKid  = (i: number, patch: Partial<KidDraft>) =>
+  // ── Kid helpers ──
+  const addKid = () => setKids((k) => [...k, { name: "", year: "" }]);
+  const removeKid = (i: number) => setKids((k) => k.filter((_, idx) => idx !== i));
+  const updateKid = (i: number, patch: Partial<KidDraft>) =>
     setKids((k) => k.map((kid, idx) => (idx === i ? { ...kid, ...patch } : kid)));
 
-  const finish = () => {
+  const validKids = () => kids
+    .map((k) => ({ name: k.name.trim() || "Child", year: Number(k.year) }))
+    .filter((k) => k.year >= 1990 && k.year <= CURRENT_YEAR + 30)
+    .map((k) => ({ name: k.name, birthYear: k.year, birthMonth: 0 }));
+
+  // ── Build a config+snapshot from the inputs, then find when FI is reached. ──
+  const projection = useMemo(() => {
+    if (!essentialsValid) return undefined;
+    const cfg = structuredClone(DEFAULT_SIM_CONFIG);
+    cfg.birth_year = by;
+    cfg.career_path.exit_year = by + 60; // assume working while we look for the FI crossover
+    const grossSalary = num(salary, cfg.income_profile.gross_annual_salary);
+    cfg.income_profile.gross_annual_salary = grossSalary;
+    cfg.income_profile.google_net_monthly = Math.round(grossSalary * 0.65 / 12);
+    cfg.income_profile.use_partner_income = hasPartner;
+    if (hasPartner) {
+      cfg.income_profile.partner_gross_annual_salary = num(partnerSalary, 0);
+      const pa = optNum(partnerAge);
+      if (pa !== undefined) cfg.income_profile.partner_birth_year = CURRENT_YEAR - pa;
+    }
+    cfg.spending.monthly_lifestyle = num(monthlySpend, cfg.spending.monthly_lifestyle);
+    cfg.spending.mortgage_payment = num(housing, 0);
+    cfg.tax_assumptions.filing_status = filing as typeof cfg.tax_assumptions.filing_status;
+    cfg.tax_assumptions.state_of_residence = stateCode as typeof cfg.tax_assumptions.state_of_residence;
+    cfg.children = validKids().map((k) => ({ birthYear: k.birthYear }));
+
+    const snap = structuredClone(DEFAULT_SNAPSHOT);
+    snap.liquid_assets.cash_savings = num(savings, 0);
+    snap.retirement_assets.k401 = num(k401, 0);
+    snap.retirement_assets.roth_ira = num(roth, 0);
+
+    const points = runSimulation(snap, cfg, 0);
+    const fi = findIndependencePoint(points);
+    const last = points[points.length - 1];
+    const progress = last && last.swrTarget > 0
+      ? Math.min(100, Math.round((points[0].investableAssets / points[0].swrTarget) * 100)) : 0;
+    if (!fi) return { fi: false as const, progress };
+    const fiYear = Number((fi.date.match(/\d{4}/) || [])[0]);
+    return { fi: true as const, fiYear, age: fiYear - by, progress };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [essentialsValid, by, salary, partnerSalary, partnerAge, hasPartner, monthlySpend, housing, filing, stateCode, savings, k401, roth, kids]);
+
+  // Celebrate on the reveal.
+  useEffect(() => {
+    if (onReveal && projection?.fi) {
+      const t = setTimeout(() => launchConfetti({ count: 180 }), 250);
+      return () => clearTimeout(t);
+    }
+  }, [onReveal, projection?.fi]);
+
+  const commitAndEnter = () => {
     if (!essentialsValid) { setStep(0); return; }
+    const fiYear = projection?.fi ? projection.fiYear : by + 25;
 
-    updateProfile({
-      name: name.trim(),
-      birthYear: by,
-      retirementYear: ry,
-      retirementMonth: retMonth,
-      onboarded: true,
-    });
+    updateProfile({ name: name.trim(), birthYear: by, retirementYear: fiYear, retirementMonth: 0, onboarded: true });
     updateConfig({ birth_year: by });
-    updateCareerPath({ exit_year: ry });
+    updateCareerPath({ exit_year: fiYear });
+    updateNestedConfig("tax_assumptions", { filing_status: filing as any, state_of_residence: stateCode as any });
 
-    // Optional fields — only applied when the user actually entered something.
-    const cash = optNum(savings);
-    if (cash !== undefined) updateNestedSnapshot("liquid_assets", { cash_savings: Math.max(0, cash) });
-    const k = optNum(k401);
-    if (k !== undefined) updateNestedSnapshot("retirement_assets", { k401: Math.max(0, k) });
-    const r = optNum(roth);
-    if (r !== undefined) updateNestedSnapshot("retirement_assets", { roth_ira: Math.max(0, r) });
+    const cash = optNum(savings); if (cash !== undefined) updateNestedSnapshot("liquid_assets", { cash_savings: Math.max(0, cash) });
+    const k = optNum(k401); if (k !== undefined) updateNestedSnapshot("retirement_assets", { k401: Math.max(0, k) });
+    const r = optNum(roth); if (r !== undefined) updateNestedSnapshot("retirement_assets", { roth_ira: Math.max(0, r) });
 
     const gross = optNum(salary);
-    if (gross !== undefined) {
-      updateIncomeProfile({ gross_annual_salary: Math.max(0, gross), google_net_monthly: Math.round(Math.max(0, gross) * 0.65 / 12) });
+    if (gross !== undefined) updateIncomeProfile({ gross_annual_salary: Math.max(0, gross), google_net_monthly: Math.round(Math.max(0, gross) * 0.65 / 12) });
+
+    if (hasPartner) {
+      const pa = optNum(partnerAge);
+      updateIncomeProfile({
+        use_partner_income: true,
+        partner_gross_annual_salary: Math.max(0, num(partnerSalary, 0)),
+        ...(pa !== undefined ? { partner_birth_year: CURRENT_YEAR - pa } : {}),
+      });
     }
-    const spend = optNum(monthlySpend);
-    if (spend !== undefined) updateSpending({ monthly_lifestyle: Math.max(0, spend) });
 
-    // Children drive milestones, the empty-nest phase, and college costs. Run
-    // this last so the empty-nest spend default reflects any monthly spend set
-    // above.
-    const validKids = kids
-      .map((k) => ({ name: k.name.trim() || "Child", year: Number(k.year) }))
-      .filter((k) => k.year >= 1990 && k.year <= CURRENT_YEAR + 30)
-      .map((k) => ({ name: k.name, birthYear: k.year, birthMonth: 0 }));
-    setChildren(validKids);
+    const spend = optNum(monthlySpend); if (spend !== undefined) updateSpending({ monthly_lifestyle: Math.max(0, spend) });
+    const house = optNum(housing); if (house !== undefined) updateSpending({ mortgage_payment: Math.max(0, house) });
+
+    setChildren(validKids());
   };
 
-  const addMore = () => {
-    if (!essentialsValid) return;
-    setStep((s) => Math.min(TOTAL_STEPS - 1, s + 1));
-  };
+  const next = () => { if (essentialsValid) setStep((s) => Math.min(REVEAL, s + 1)); };
+  const skipToReveal = () => { if (essentialsValid) setStep(REVEAL); };
   const goBack = () => setStep((s) => Math.max(0, s - 1));
 
   return (
@@ -170,79 +206,71 @@ export default function OnboardingFlow() {
       <div style={{ width: "100%", maxWidth: 460 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 6 }}>
           <div style={{ width: 3, height: 30, borderRadius: 2, background: C.teal }} />
-          <div style={{ color: C.ink, fontSize: 14, fontWeight: 600, letterSpacing: "0.2em", textTransform: "uppercase" }}>
-            Taper
-          </div>
+          <div style={{ color: C.ink, fontSize: 14, fontWeight: 600, letterSpacing: "0.2em", textTransform: "uppercase" }}>Taper</div>
         </div>
-        <h1 style={{ color: C.ink, fontSize: 24, fontWeight: 600, marginTop: 18, marginBottom: 6 }}>
-          {STEP_META[step].title}
-        </h1>
-        <p style={{ color: C.inkSoft, fontSize: 14, marginBottom: 18 }}>
-          {STEP_META[step].subtitle}
-        </p>
+        <h1 style={{ color: C.ink, fontSize: 24, fontWeight: 600, marginTop: 18, marginBottom: 6 }}>{STEP_META[step].title}</h1>
+        <p style={{ color: C.inkSoft, fontSize: 14, marginBottom: 18 }}>{STEP_META[step].subtitle}</p>
 
         {/* Progress dots */}
         <div style={{ display: "flex", gap: 7, marginBottom: 18 }}>
-          {Array.from({ length: TOTAL_STEPS }).map((_, i) => (
-            <div key={i} style={{
-              height: 4, flex: 1, borderRadius: 2,
-              background: i <= step ? C.teal : C.border, transition: "background 0.2s",
-            }} />
+          {STEP_META.map((_, i) => (
+            <div key={i} style={{ height: 4, flex: 1, borderRadius: 2, background: i <= step ? C.teal : C.border, transition: "background 0.2s" }} />
           ))}
         </div>
 
         <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24, boxShadow: `0 1px 3px ${C.border}` }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
 
-            {/* ── Step 1 — Essentials ── */}
+            {/* ── Step 1 — You ── */}
             {step === 0 && (
               <>
                 <div>
                   <label style={labelStyle}>What should we call you?</label>
-                  <input style={fieldStyle} type="text" placeholder="Your name" value={name}
-                         onChange={(e) => setName(e.target.value)} />
+                  <input style={fieldStyle} type="text" placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} />
                 </div>
                 <div>
                   <label style={labelStyle}>Birth year</label>
-                  <input style={fieldStyle} type="number" inputMode="numeric" placeholder="1985"
-                         min={1920} max={CURRENT_YEAR} value={birthYear}
-                         onChange={(e) => setBirthYear(e.target.value)} />
-                </div>
-                <div>
-                  <label style={labelStyle}>Target retirement date</label>
-                  <div style={{ display: "flex", gap: 10 }}>
-                    <select style={{ ...selectStyle, flex: 1.4 }} value={retMonth}
-                            onChange={(e) => setRetMonth(Number(e.target.value))}>
-                      {MONTHS.map((m, i) => <option key={m} value={i}>{m}</option>)}
-                    </select>
-                    <input style={{ ...fieldStyle, flex: 1 }} type="number" inputMode="numeric"
-                           min={CURRENT_YEAR} max={CURRENT_YEAR + 60} value={retYear}
-                           onChange={(e) => setRetYear(e.target.value)} />
-                  </div>
+                  <input style={fieldStyle} type="number" inputMode="numeric" placeholder="1985" min={1920} max={CURRENT_YEAR}
+                         value={birthYear} onChange={(e) => setBirthYear(e.target.value)} />
                 </div>
               </>
             )}
 
-            {/* ── Step 2 — Family ── */}
+            {/* ── Step 2 — Household ── */}
             {step === 1 && (
               <>
+                <button onClick={() => setHasPartner((v) => !v)} style={{
+                  display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%",
+                  padding: "12px 14px", borderRadius: 10, border: `1px solid ${hasPartner ? C.teal : C.border}`,
+                  background: hasPartner ? `${C.teal}14` : C.bgCard, cursor: "pointer",
+                }}>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: hasPartner ? C.teal : C.inkMid }}>I have a spouse / partner</span>
+                  <span style={{ width: 40, height: 23, borderRadius: 999, padding: 2, background: hasPartner ? C.teal : C.border, display: "flex", justifyContent: hasPartner ? "flex-end" : "flex-start", transition: "all 0.2s" }}>
+                    <span style={{ width: 19, height: 19, borderRadius: "50%", background: "white" }} />
+                  </span>
+                </button>
+                {hasPartner && (
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={labelStyle}>Partner age {optionalTag}</label>
+                      <input style={fieldStyle} type="number" inputMode="numeric" placeholder="40" value={partnerAge} onChange={(e) => setPartnerAge(e.target.value)} />
+                    </div>
+                    <div style={{ flex: 1.4 }}>
+                      <MoneyField label={<>Partner salary {optionalTag}</>} value={partnerSalary} onChange={setPartnerSalary} placeholder="90,000" />
+                    </div>
+                  </div>
+                )}
+
                 {kids.map((kid, i) => (
                   <div key={i} style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
                     <div style={{ flex: 1.5 }}>
-                      <label style={labelStyle}>Name</label>
-                      <input style={fieldStyle} type="text" placeholder="Child’s name" value={kid.name}
-                             onChange={(e) => updateKid(i, { name: e.target.value })} />
+                      <label style={labelStyle}>Child name</label>
+                      <input style={fieldStyle} type="text" placeholder="Child’s name" value={kid.name} onChange={(e) => updateKid(i, { name: e.target.value })} />
                     </div>
                     <div style={{ flex: 1 }}>
                       <label style={labelStyle}>Birth year</label>
                       <input style={fieldStyle} type="number" inputMode="numeric" placeholder="2015" value={kid.year}
-                             onKeyDown={(e) => {
-                               // Stepping from empty should start at the placeholder year, not 1.
-                               if (kid.year === "" && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
-                                 e.preventDefault();
-                                 updateKid(i, { year: "2015" });
-                               }
-                             }}
+                             onKeyDown={(e) => { if (kid.year === "" && (e.key === "ArrowUp" || e.key === "ArrowDown")) { e.preventDefault(); updateKid(i, { year: "2015" }); } }}
                              onChange={(e) => updateKid(i, { year: e.target.value })} />
                     </div>
                     <button onClick={() => removeKid(i)} aria-label="Remove child"
@@ -251,83 +279,102 @@ export default function OnboardingFlow() {
                     </button>
                   </div>
                 ))}
-                <div style={{ display: "flex", gap: 10 }}>
-                  <button onClick={addKid}
-                    style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "11px 0", background: C.tealWash, border: `1px solid ${C.tealLight}`, borderRadius: 8, color: C.tealDark, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
-                    <Plus size={15} /> {kids.length === 0 ? "Add a child" : "Add another child"}
-                  </button>
-                  {kids.length === 0 && (
-                    <button onClick={() => { setKids([]); addMore(); }}
-                      style={{ flex: 1, padding: "11px 0", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 8, color: C.inkSoft, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
-                      No kids
-                    </button>
-                  )}
-                </div>
+                <button onClick={addKid}
+                  style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "11px 0", background: C.tealWash, border: `1px solid ${C.tealLight}`, borderRadius: 8, color: C.tealDark, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
+                  <Plus size={15} /> {kids.length === 0 ? "Add a child" : "Add another child"}
+                </button>
               </>
             )}
 
-            {/* ── Step 3 — Savings & accounts ── */}
+            {/* ── Step 3 — Money in ── */}
             {step === 2 && (
               <>
+                <MoneyField label={<>Gross annual salary {optionalTag}</>} value={salary} onChange={setSalary} placeholder="120,000" />
                 <MoneyField label={<>Current cash savings {optionalTag}</>} value={savings} onChange={setSavings} placeholder="50,000" />
                 <MoneyField label={<>401(k) balance {optionalTag}</>} value={k401} onChange={setK401} placeholder="120,000" />
                 <MoneyField label={<>Roth IRA balance {optionalTag}</>} value={roth} onChange={setRoth} placeholder="30,000" />
               </>
             )}
 
-            {/* ── Step 4 — Income & spending ── */}
+            {/* ── Step 4 — Money out ── */}
             {step === 3 && (
               <>
-                <MoneyField label={<>Gross annual salary {optionalTag}</>} value={salary} onChange={setSalary} placeholder="120,000" />
-                <MoneyField label={<>Monthly spend, excl. rent/mortgage {optionalTag}</>} value={monthlySpend} onChange={setMonthlySpend} placeholder="5,000" />
+                <MoneyField label={<>Monthly spend, excl. housing {optionalTag}</>} value={monthlySpend} onChange={setMonthlySpend} placeholder="5,000" />
+                <MoneyField label={<>Monthly rent / mortgage {optionalTag}</>} value={housing} onChange={setHousing} placeholder="2,500" />
               </>
+            )}
+
+            {/* ── Step 5 — Taxes ── */}
+            {step === 4 && (
+              <>
+                <div>
+                  <label style={labelStyle}>Filing status {optionalTag}</label>
+                  <select style={selectStyle} value={filing} onChange={(e) => setFiling(e.target.value)}>
+                    <option value="single">Single</option>
+                    <option value="married_joint">Married Filing Jointly</option>
+                    <option value="married_separate">Married Filing Separately</option>
+                    <option value="head_household">Head of Household</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={labelStyle}>State {optionalTag}</label>
+                  <select style={selectStyle} value={stateCode} onChange={(e) => setStateCode(e.target.value)}>
+                    {STATE_OPTIONS.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
+                  </select>
+                </div>
+              </>
+            )}
+
+            {/* ── Reveal ── */}
+            {onReveal && (
+              <div style={{ textAlign: "center", padding: "6px 0 2px" }}>
+                {projection?.fi ? (
+                  <>
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.teal, marginBottom: 10 }}>
+                      <Sparkles size={14} /> You can retire in
+                    </div>
+                    <div style={{ fontSize: 52, fontWeight: 800, color: C.ink, lineHeight: 1 }}>{projection.fiYear}</div>
+                    <div style={{ fontSize: 16, color: C.inkSoft, marginTop: 8 }}>
+                      at age <strong style={{ color: C.ink }}>{projection.age}</strong> — when your portfolio covers 25× your spending.
+                    </div>
+                    <div style={{ marginTop: 14, fontSize: 13, color: C.inkFaint }}>
+                      We’ve set this as your starting plan. Tweak any assumption and watch the date move.
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ fontSize: 40, marginBottom: 6 }}>🌱</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: C.ink }}>You’re on your way</div>
+                    <div style={{ fontSize: 14, color: C.inkSoft, marginTop: 8 }}>
+                      You’re <strong style={{ color: C.ink }}>{projection?.progress ?? 0}%</strong> of the way to financial independence.
+                      Add more detail and we’ll pinpoint the year you can step back.
+                    </div>
+                  </>
+                )}
+              </div>
             )}
 
             {/* ── Navigation ── */}
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 4 }}>
               {!isFirst && (
-                <button
-                  onClick={goBack}
-                  style={{
-                    background: "transparent", color: C.inkSoft, border: `1px solid ${C.border}`,
-                    borderRadius: 8, padding: "13px 16px", fontSize: 14, fontWeight: 600, cursor: "pointer",
-                  }}
-                >
-                  ← Back
-                </button>
+                <button onClick={goBack} style={{ background: "transparent", color: C.inkSoft, border: `1px solid ${C.border}`, borderRadius: 8, padding: "13px 16px", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>← Back</button>
               )}
               <div style={{ flex: 1 }} />
-              {/* Finish is the secondary action while optional steps remain; it
-                  becomes the primary CTA on the final step. */}
-              <button
-                onClick={finish}
-                disabled={!essentialsValid}
-                style={isLast ? {
-                  background: C.teal, color: "#fff", border: "none", borderRadius: 8,
-                  padding: "13px 22px", fontSize: 14, fontWeight: 700,
-                  cursor: essentialsValid ? "pointer" : "not-allowed", opacity: essentialsValid ? 1 : 0.55,
-                  boxShadow: essentialsValid ? `0 2px 8px ${C.tealLight}` : "none",
-                } : {
-                  background: "transparent", color: essentialsValid ? C.teal : C.inkFaint,
-                  border: `1px solid ${essentialsValid ? C.tealLight : C.border}`, borderRadius: 8,
-                  padding: "13px 18px", fontSize: 14, fontWeight: 600,
-                  cursor: essentialsValid ? "pointer" : "not-allowed",
-                }}
-              >
-                Finish{isLast ? " →" : ""}
-              </button>
-              {!isLast && (
-                <button
-                  onClick={addMore}
-                  disabled={!essentialsValid}
-                  style={{
-                    background: C.teal, color: "#fff", border: "none", borderRadius: 8,
-                    padding: "13px 22px", fontSize: 14, fontWeight: 700,
-                    cursor: essentialsValid ? "pointer" : "not-allowed", opacity: essentialsValid ? 1 : 0.55,
-                    boxShadow: essentialsValid ? `0 2px 8px ${C.tealLight}` : "none",
-                  }}
-                >
-                  Next →
+              {!onReveal && !isFirst && (
+                <button onClick={skipToReveal} disabled={!essentialsValid}
+                  style={{ background: "transparent", color: essentialsValid ? C.teal : C.inkFaint, border: `1px solid ${essentialsValid ? C.tealLight : C.border}`, borderRadius: 8, padding: "13px 16px", fontSize: 14, fontWeight: 600, cursor: essentialsValid ? "pointer" : "not-allowed" }}>
+                  Skip ahead
+                </button>
+              )}
+              {onReveal ? (
+                <button onClick={commitAndEnter}
+                  style={{ background: C.teal, color: "#fff", border: "none", borderRadius: 8, padding: "13px 24px", fontSize: 14, fontWeight: 700, cursor: "pointer", boxShadow: `0 2px 8px ${C.tealLight}` }}>
+                  Enter Taper →
+                </button>
+              ) : (
+                <button onClick={next} disabled={!essentialsValid}
+                  style={{ background: C.teal, color: "#fff", border: "none", borderRadius: 8, padding: "13px 22px", fontSize: 14, fontWeight: 700, cursor: essentialsValid ? "pointer" : "not-allowed", opacity: essentialsValid ? 1 : 0.55, boxShadow: essentialsValid ? `0 2px 8px ${C.tealLight}` : "none" }}>
+                  {isFirst ? "Start →" : "Next →"}
                 </button>
               )}
             </div>

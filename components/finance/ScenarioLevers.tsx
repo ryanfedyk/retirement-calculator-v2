@@ -2,17 +2,18 @@
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { C } from "@/config/colors";
 import ScenarioSwitcher from "./ScenarioSwitcher";
+import { colTier } from "@/lib/fire/moments";
 
 const money = (n: number) => `$${Math.round(n).toLocaleString()}`;
 
-function Slider({ label, value, display, min, max, step, accent, onChange }: {
-  label: string; value: number; display: string; min: number; max: number; step: number; accent: string; onChange: (v: number) => void;
+function Slider({ label, value, display, min, max, step, accent, onChange, badge }: {
+  label: string; value: number; display: string; min: number; max: number; step: number; accent: string; onChange: (v: number) => void; badge?: React.ReactNode;
 }) {
   return (
     <div style={{ flex: "1 1 150px", minWidth: 140 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
         <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: C.inkFaint }}>{label}</span>
-        <span style={{ fontSize: 13, fontWeight: 700, color: C.ink, fontVariantNumeric: "tabular-nums" }}>{display}</span>
+        <span style={{ fontSize: 13, fontWeight: 700, color: C.ink, fontVariantNumeric: "tabular-nums", display: "flex", alignItems: "center", gap: 6 }}>{badge}{display}</span>
       </div>
       <input type="range" min={min} max={max} step={step} value={value}
         onChange={e => onChange(+e.target.value)}
@@ -66,6 +67,9 @@ export default function ScenarioLevers() {
           min={2024} max={maxExit} step={1} accent={C.teal} onChange={setExit} />
         <Slider label="Monthly Spend" value={sp.monthly_lifestyle} display={money(sp.monthly_lifestyle)}
           min={3000} max={35000} step={250} accent={C.warm}
+          badge={(() => { const t = colTier(sp.monthly_lifestyle); return (
+            <span title={t.label} style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.04em", color: t.color, background: `${t.color}1a`, borderRadius: 5, padding: "1px 5px" }}>{t.emoji} {t.code}</span>
+          ); })()}
           onChange={v => updateNestedConfig("spending", { monthly_lifestyle: v })} />
         <Slider label="Market Return" value={ma.market_return_rate} display={`${ma.market_return_rate}%`}
           min={2} max={12} step={0.5} accent="#7a6da8"

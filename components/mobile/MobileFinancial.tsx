@@ -11,6 +11,7 @@ import { TodaysDelta, MomentumTurnstile, WhatIfChips } from "@/components/financ
 import AiAnalysis from "@/components/finance/AiAnalysis";
 import PriceTicker from "@/components/finance/PriceTicker";
 import ScenarioLevers from "@/components/finance/ScenarioLevers";
+import FireMoments from "@/components/fx/FireMoments";
 import type { LivePrices } from "@/components/finance/FinancialDashboard";
 
 const fmtM = (v: number) => {
@@ -58,6 +59,7 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
   const swrTarget = today?.swrTarget ?? 0;
   const progress  = swrTarget > 0 ? Math.min(100, (currentNW / swrTarget) * 100) : 0;
   const birthYear = config.birth_year ?? 1980;
+  const savingsRate = today ? Math.max(0, Math.min(1, 1 - (today.annualExpenseNeed / Math.max(1, today.salaryAndEquityNet)))) : 0;
 
   // Sample yearly (every 12 months) to keep the mobile chart light & legible.
   const chartData = useMemo(() => traj
@@ -129,6 +131,8 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
 
   return (
     <div style={{ padding: "16px 16px 8px", display: "flex", flexDirection: "column", gap: 16 }}>
+
+      <FireMoments netWorth={currentNW} swrTarget={swrTarget} isIndependent={today?.isIndependent ?? false} savingsRate={savingsRate} />
 
       {/* Hero metric */}
       <div style={{

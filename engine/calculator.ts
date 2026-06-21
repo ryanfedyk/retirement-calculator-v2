@@ -70,6 +70,7 @@ export interface SimulationConfiguration {
     use_partner_income?: boolean;
     partner_gross_annual_salary?: number;
     partner_employment_start_year?: number;
+    partner_birth_year?: number;          // Partner's birth year — informs their Medicare/SS timing
     partner_has_health_insurance?: boolean;
     partner_retirement_year?: number;
   };
@@ -554,19 +555,26 @@ export const runSimulation = (
     // Self-paid healthcare cost — what the household WOULD pay without employer
     // coverage. Computed every year (even while employed) because the FI target
     // must reflect the retirement reality of buying your own coverage.
+    // Per-adult Medicare: each adult moves to Medicare pricing at their own 65,
+    // so a younger partner stays on private/ACA coverage until they're eligible.
+    // (If no partner birth year is set, the partner is assumed the same age.)
+    const medAge        = config.medicare?.start_age ?? 65;
+    const hasPartner    = adults === 2;
+    const partnerAge    = hasPartner ? (ip.partner_birth_year ? currentYear - ip.partner_birth_year : currentAge) : null;
+    const primaryOnMed  = !!config.medicare && currentAge >= medAge;
+    const partnerOnMed  = !!config.medicare && partnerAge != null && partnerAge >= medAge;
+    const adultsOnMed   = (primaryOnMed ? 1 : 0) + (partnerOnMed ? 1 : 0);
+
     let selfPaidHealthcare: number;
-    if (config.medicare && currentAge >= config.medicare.start_age) {
-      // Medicare: per-person all-in (Part B + Part D + modest Medigap) × adults.
-      selfPaidHealthcare = config.medicare.monthly_premium * adults * inflationMultiplier;
-    } else {
-      // Pre-65 private/ACA coverage scales with the people actually on the plan;
-      // children age off at ~22 (post-college).
+    {
+      const medCost        = (config.medicare?.monthly_premium ?? 0) * adultsOnMed;
       const baseFamilySize = Math.max(1, opt?.aca_family_size ?? 4);
       const perCapita      = config.spending.healthcare_premium / baseFamilySize;
       const coveredKids    = (config.children ?? []).filter(
         c => currentYear - c.birthYear < CHILD_OFF_PLAN_AGE
       ).length;
-      selfPaidHealthcare = perCapita * (adults + coveredKids) * inflationMultiplier;
+      const preMedAdults   = adults - adultsOnMed;
+      selfPaidHealthcare = (medCost + perCapita * (preMedAdults + coveredKids)) * inflationMultiplier;
     }
 
     // Actual out-of-pocket healthcare expense this month (0 while employer-covered).

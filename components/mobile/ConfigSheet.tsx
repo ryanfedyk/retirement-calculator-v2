@@ -249,7 +249,18 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
           <Section title="Additional Income" accent="#4aab92" {...sec("supplemental")}>
             <Field label="Monthly Rental Income"><Num prefix="$" step={100} value={ip.monthly_rental_income ?? 0} onChange={v => updateNestedConfig("income_profile", { monthly_rental_income: v })} /></Field>
             <Field label="Monthly Part-Time Work Income"><Num prefix="$" step={100} value={ip.monthly_parttime_income ?? 0} onChange={v => updateNestedConfig("income_profile", { monthly_parttime_income: v })} /></Field>
-            <div style={{ fontSize: 11, color: C.inkFaint }}>Partner income lives in Settings → Family.</div>
+            {ip.use_partner_income ? (
+              <>
+                <Field label="Partner Gross Salary"><Num prefix="$" step={1000} value={ip.partner_gross_annual_salary || 0} onChange={v => updateNestedConfig("income_profile", { partner_gross_annual_salary: v })} /></Field>
+                <Two>
+                  <Field label="Start Year"><Num value={ip.partner_employment_start_year || 2025} onChange={v => updateNestedConfig("income_profile", { partner_employment_start_year: v })} /></Field>
+                  <Field label="Retire Year"><Num value={ip.partner_retirement_year || 2030} onChange={v => updateNestedConfig("income_profile", { partner_retirement_year: v })} /></Field>
+                </Two>
+                <Toggle label="Partner Supplies Insurance" on={ip.partner_has_health_insurance || false} onChange={v => updateNestedConfig("income_profile", { partner_has_health_insurance: v })} />
+              </>
+            ) : (
+              <div style={{ fontSize: 11, color: C.inkFaint }}>Add a partner in Settings → Family to model their income.</div>
+            )}
           </Section>
 
           {/* ── Spending & Lifestyle ── */}

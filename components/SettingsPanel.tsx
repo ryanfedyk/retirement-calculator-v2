@@ -1,5 +1,5 @@
 "use client";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { X, Trash2, Plus } from "lucide-react";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
@@ -79,6 +79,9 @@ export default function SettingsPanel() {
   const ip = config.income_profile;
   const ss = config.social_security;
   const ta = config.tax_assumptions;
+  const STD_DEDUCTION: Record<string, number> = { single: 15_000, married_joint: 30_000, married_separate: 15_000, head_household: 22_500 };
+  const stdDeduction = STD_DEDUCTION[ta.filing_status] ?? 15_000;
+  const [itemize, setItemize] = useState((ta.itemized_deductions ?? 0) > 0);
   const kids = profile.children;
   const thisYear = new Date().getFullYear();
   const age = thisYear - (config.birth_year || profile.birthYear || 1985);
@@ -138,16 +141,12 @@ export default function SettingsPanel() {
               <Plus size={15} /> Add child
             </button>
 
-            <Toggle label="Include partner income" on={ip.use_partner_income || false} onChange={v => updateNestedConfig("income_profile", { use_partner_income: v })} />
+            <Toggle label="I have a partner" on={ip.use_partner_income || false} onChange={v => updateNestedConfig("income_profile", { use_partner_income: v })} />
             {ip.use_partner_income && (
-              <>
-                <Field label="Partner Gross Salary"><Num prefix="$" step={1000} value={ip.partner_gross_annual_salary || 0} onChange={v => updateNestedConfig("income_profile", { partner_gross_annual_salary: v })} /></Field>
-                <Two>
-                  <Field label="Start Year"><Num value={ip.partner_employment_start_year || thisYear} onChange={v => updateNestedConfig("income_profile", { partner_employment_start_year: v })} /></Field>
-                  <Field label="Retire Year"><Num value={ip.partner_retirement_year || thisYear + 10} onChange={v => updateNestedConfig("income_profile", { partner_retirement_year: v })} /></Field>
-                </Two>
-                <Toggle label="Partner supplies health insurance" on={ip.partner_has_health_insurance || false} onChange={v => updateNestedConfig("income_profile", { partner_has_health_insurance: v })} />
-              </>
+              <Field label="Partner's Age" hint="Informs their Medicare and Social Security timing. Partner income & retirement year are set in the plan (Additional Income).">
+                <Num value={ip.partner_birth_year ? thisYear - ip.partner_birth_year : age}
+                  onChange={v => updateNestedConfig("income_profile", { partner_birth_year: thisYear - Math.max(0, v) })} />
+              </Field>
             )}
           </Section>
 
@@ -166,9 +165,14 @@ export default function SettingsPanel() {
                 <option value="head_household">Head of Household</option>
               </Select>
             </Field>
-            <Field label="Itemized Deductions ($/yr)" hint="Charitable, etc. — on top of auto mortgage-interest & SALT. We take the greater of this or the standard deduction.">
-              <Num prefix="$" step={500} value={ta.itemized_deductions ?? 0} onChange={v => updateNestedConfig("tax_assumptions", { itemized_deductions: v })} />
-            </Field>
+            <div style={{ marginBottom: 13 }}>
+              <span style={labelStyle}>Deductions</span>
+              <Toggle label="Itemize (instead of standard)" on={itemize}
+                onChange={v => { setItemize(v); if (!v) updateNestedConfig("tax_assumptions", { itemized_deductions: 0 }); }} />
+              {itemize
+                ? <Num prefix="$" step={500} value={ta.itemized_deductions ?? 0} onChange={v => updateNestedConfig("tax_assumptions", { itemized_deductions: v })} />
+                : <div style={{ fontSize: 10, color: C.inkFaint, marginTop: 2 }}>Using the standard deduction (${stdDeduction.toLocaleString()}) — typical for W-2 earners.</div>}
+            </div>
           </Section>
 
           {/* ── Social Security & Medicare ── */}

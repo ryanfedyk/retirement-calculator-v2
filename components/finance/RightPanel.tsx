@@ -16,6 +16,7 @@ import type { LivePrices } from "./FinancialDashboard";
 import { getLifeEvents } from "@/lib/horizonUtils";
 import { useHorizonProfile } from "@/config/horizonConfig";
 import PriceTicker from "./PriceTicker";
+import ScenarioLevers from "./ScenarioLevers";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -293,6 +294,9 @@ export default function RightPanel({ livePrices, pricesUpdatedAt, pricesFetching
 
   return (
     <main style={{ flex: 1, background: C.bg, padding: "20px 24px", overflowY: "auto", display: "flex", flexDirection: "column", gap: 16 }}>
+
+      {/* ── Scenario levers — the headline interaction ── */}
+      <ScenarioLevers />
 
       {/* ── Portfolio price ticker (from the user's holdings) ── */}
       <PriceTicker

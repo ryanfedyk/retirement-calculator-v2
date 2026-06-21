@@ -425,7 +425,29 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
             <div><FieldLabel>Monthly Part-Time Work Income ($)</FieldLabel>
               <Input type="number" step={100} value={ip.monthly_parttime_income ?? 0}
                 onChange={e => updateNestedConfig("income_profile", { monthly_parttime_income: +e.target.value })} /></div>
-            <div style={{ fontSize: 9, color: C.inkFaint }}>Partner income lives in Settings → Family.</div>
+
+            {ip.use_partner_income ? (
+              <>
+                <SectionDivider />
+                <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: C.inkFaint }}>Partner Income</div>
+                <div><FieldLabel>Gross Annual Salary</FieldLabel>
+                  <Input type="number" step={1000} value={ip.partner_gross_annual_salary || 0}
+                    onChange={e => updateNestedConfig("income_profile", { partner_gross_annual_salary: +e.target.value || 0 })} /></div>
+                <Row>
+                  <div><FieldLabel>Start Year</FieldLabel>
+                    <Input type="number" value={ip.partner_employment_start_year || 2025}
+                      onChange={e => updateNestedConfig("income_profile", { partner_employment_start_year: +e.target.value })} /></div>
+                  <div><FieldLabel>Retirement Year</FieldLabel>
+                    <Input type="number" value={ip.partner_retirement_year || 2030}
+                      onChange={e => updateNestedConfig("income_profile", { partner_retirement_year: +e.target.value || 2030 })} /></div>
+                </Row>
+                <Checkbox label="Supplies Health Insurance" id="partner_health"
+                  checked={ip.partner_has_health_insurance || false}
+                  onChange={v => updateNestedConfig("income_profile", { partner_has_health_insurance: v })} />
+              </>
+            ) : (
+              <div style={{ fontSize: 9, color: C.inkFaint }}>Add a partner in Settings → Family to model their income.</div>
+            )}
           </div>
         </AccCard>
 

@@ -154,6 +154,7 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
       <PriceTicker
         holdings={snapshot.other_investments}
         livePrices={livePrices}
+        concentratedSymbol={config.use_equity_comp ? config.concentrated_symbol : ""}
         pricesFetching={pricesFetching}
         onRefreshPrices={onRefreshPrices}
         align="start"

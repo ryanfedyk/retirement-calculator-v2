@@ -11,7 +11,7 @@
  */
 import { getApps, getApp, initializeApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
-import { getFirestore, type Firestore } from "firebase/firestore";
+import { getFirestore, initializeFirestore, type Firestore } from "firebase/firestore";
 
 const env = {
   apiKey:            process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -41,5 +41,16 @@ const firebaseConfig = firebaseConfigured
 const app: FirebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
 export const auth: Auth = getAuth(app);
-export const db: Firestore = getFirestore(app);
+
+// `ignoreUndefinedProperties` so writes don't throw when an optional field is
+// undefined (e.g. a holding with no expected_return) — that was silently
+// failing the save and flipping the app to "offline". initializeFirestore must
+// run once before getFirestore; fall back if it's already initialized (HMR).
+export const db: Firestore = (() => {
+  try {
+    return initializeFirestore(app, { ignoreUndefinedProperties: true });
+  } catch {
+    return getFirestore(app);
+  }
+})();
 export default app;

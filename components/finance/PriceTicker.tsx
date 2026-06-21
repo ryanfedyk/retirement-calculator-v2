@@ -12,6 +12,7 @@ import type { FinancialSnapshot } from "@/engine/calculator";
 export default function PriceTicker({
   holdings,
   livePrices,
+  concentratedSymbol,
   pricesUpdatedAt,
   pricesFetching = false,
   onRefreshPrices,
@@ -19,15 +20,27 @@ export default function PriceTicker({
 }: {
   holdings: FinancialSnapshot["other_investments"];
   livePrices: LivePrices;
+  /** The user's employer/equity stock — always pinned when held. */
+  concentratedSymbol?: string;
   pricesUpdatedAt?: Date | null;
   pricesFetching?: boolean;
   onRefreshPrices?: () => void;
   align?: "start" | "end";
 }) {
-  // Unique, non-empty symbols in entry order.
-  const symbols = [
-    ...new Set((holdings ?? []).map((h) => h.symbol?.toUpperCase()).filter(Boolean)),
-  ] as string[];
+  // Don't list every holding — keep the bar focused: the company/employer stock
+  // (awarded through their job) plus their single largest position.
+  const held = (holdings ?? []).filter((h) => h.symbol);
+  const valueOf = (h: { symbol: string; shares: number; current_price: number }) =>
+    h.shares * (livePrices[h.symbol.toUpperCase()]?.price ?? h.current_price ?? 0);
+  const concSym = (concentratedSymbol ?? "").toUpperCase();
+
+  const symbols: string[] = [];
+  if (concSym && held.some((h) => h.symbol.toUpperCase() === concSym)) symbols.push(concSym);
+  const largest = held.reduce<typeof held[number] | null>((best, h) => (!best || valueOf(h) > valueOf(best) ? h : best), null);
+  if (largest) {
+    const s = largest.symbol.toUpperCase();
+    if (!symbols.includes(s)) symbols.push(s);
+  }
 
   const anyLive = symbols.some((s) => livePrices[s]?.source === "yahoo");
 

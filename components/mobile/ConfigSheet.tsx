@@ -4,7 +4,9 @@ import { X, ChevronDown, Trash2, Plus, RotateCcw } from "lucide-react";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import TickerAutocomplete from "@/components/finance/TickerAutocomplete";
+import LinkedNumberField from "@/components/finance/LinkedNumberField";
 import { STATE_OPTIONS } from "@/engine/state_tax";
+import { estimateMonthlySocialSecurity } from "@/engine/social_security";
 
 const money = (n: number) => `$${Math.round(n).toLocaleString()}`;
 
@@ -101,7 +103,7 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
   };
   const [openId, setOpenId] = useState<string | null>("quick");
   const [newEvent, setNewEvent] = useState({ name: "", year: 2030, cost: 50_000 });
-  const [newInv, setNewInv] = useState({ symbol: "", name: "", shares: "", ret: "" });
+  const [newInv, setNewInv] = useState({ symbol: "", name: "", shares: "", ret: "7", retLinked: true });
 
   useEffect(() => {
     if (open) {
@@ -280,18 +282,12 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
                   <Two>
                     <Field label="Empty-Nest Year"><Num value={sp.empty_nest_year || 2038} onChange={v => updateNestedConfig("spending", { empty_nest_year: v })} /></Field>
                     <Field label="Empty-Nest Spend">
-                      <div style={{ position: "relative" }}>
-                        <Num prefix="$" step={250}
-                          value={sp.empty_nest_linked !== false ? Math.round(sp.monthly_lifestyle * 0.85) : (sp.empty_nest_monthly_spend ?? 0)}
-                          onChange={v => updateNestedConfig("spending", { empty_nest_monthly_spend: v, empty_nest_linked: false })} />
-                        {sp.empty_nest_linked === false && (
-                          <button onClick={() => updateNestedConfig("spending", { empty_nest_linked: true })}
-                            aria-label="Re-link to monthly spend" title="Re-link to monthly spend (−15%)"
-                            style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: C.teal, display: "flex" }}>
-                            <RotateCcw size={16} />
-                          </button>
-                        )}
-                      </div>
+                      <LinkedNumberField variant="mobile" step={250}
+                        linked={sp.empty_nest_linked !== false}
+                        displayValue={sp.empty_nest_linked !== false ? Math.round(sp.monthly_lifestyle * 0.85) : (sp.empty_nest_monthly_spend ?? 0)}
+                        onOverride={() => updateNestedConfig("spending", { empty_nest_linked: false, empty_nest_monthly_spend: Math.round(sp.monthly_lifestyle * 0.85) })}
+                        onChange={v => updateNestedConfig("spending", { empty_nest_monthly_spend: v, empty_nest_linked: false })}
+                        onRelink={() => updateNestedConfig("spending", { empty_nest_linked: true })} />
                     </Field>
                   </Two>
                 )}
@@ -346,7 +342,16 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
           <Section title="Social Security & Medicare" accent={C.inkSoft} {...sec("ssmed")}>
             <Two>
               <Field label="SS Start Age"><Num value={config.social_security?.start_age ?? 67} onChange={v => updateNestedConfig("social_security", { start_age: v } as any)} /></Field>
-              <Field label="SS Monthly"><Num prefix="$" step={100} value={config.social_security?.monthly_amount ?? 3500} onChange={v => updateNestedConfig("social_security", { monthly_amount: v } as any)} /></Field>
+              <Field label="SS Monthly ($)">
+                <LinkedNumberField variant="mobile"
+                  linked={config.social_security?.social_security_linked !== false}
+                  displayValue={config.social_security?.social_security_linked !== false
+                    ? estimateMonthlySocialSecurity(ip.gross_annual_salary, config.social_security?.start_age ?? 67)
+                    : (config.social_security?.monthly_amount ?? 0)}
+                  onOverride={() => updateNestedConfig("social_security", { social_security_linked: false, monthly_amount: estimateMonthlySocialSecurity(ip.gross_annual_salary, config.social_security?.start_age ?? 67) } as any)}
+                  onChange={v => updateNestedConfig("social_security", { monthly_amount: v, social_security_linked: false } as any)}
+                  onRelink={() => updateNestedConfig("social_security", { social_security_linked: true } as any)} />
+              </Field>
             </Two>
             <Two>
               <Field label="Medicare Age"><Num value={config.medicare?.start_age ?? 65} onChange={v => updateNestedConfig("medicare", { start_age: v } as any)} /></Field>
@@ -415,15 +420,23 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
                 onSelect={r => setNewInv(prev => ({ ...prev, symbol: r.symbol, name: r.name }))} />
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 8 }}>
-              <input type="number" inputMode="decimal" placeholder="Shares" value={newInv.shares} onChange={e => setNewInv({ ...newInv, shares: e.target.value })} style={inputStyle} />
-              <input type="number" inputMode="decimal" placeholder="Ret%" value={newInv.ret} onChange={e => setNewInv({ ...newInv, ret: e.target.value })} style={inputStyle} />
+              <div><span style={labelStyle}>Shares</span>
+                <input type="number" inputMode="decimal" placeholder="0" value={newInv.shares} onChange={e => setNewInv({ ...newInv, shares: e.target.value })} style={inputStyle} /></div>
+              <div><span style={labelStyle}>Expected Return %</span>
+                <LinkedNumberField variant="mobile" step={0.5}
+                  linked={newInv.retLinked}
+                  displayValue={newInv.retLinked ? 7 : (parseFloat(newInv.ret) || 0)}
+                  onOverride={() => setNewInv(p => ({ ...p, retLinked: false, ret: "7" }))}
+                  onChange={v => setNewInv(p => ({ ...p, ret: String(v), retLinked: false }))}
+                  onRelink={() => setNewInv(p => ({ ...p, retLinked: true, ret: "7" }))} /></div>
             </div>
             <button onClick={() => {
               const sh = parseFloat(newInv.shares);
               if (newInv.symbol && sh) {
-                const inv = { id: Date.now().toString(), name: newInv.name || newInv.symbol, symbol: newInv.symbol, shares: sh, cost_basis: 0, current_price: 0, expected_return: newInv.ret ? parseFloat(newInv.ret) : undefined };
+                const ret = newInv.retLinked ? 7 : (newInv.ret ? parseFloat(newInv.ret) : 7);
+                const inv = { id: Date.now().toString(), name: newInv.name || newInv.symbol, symbol: newInv.symbol, shares: sh, cost_basis: 0, current_price: 0, expected_return: ret };
                 updateNestedSnapshot("other_investments", [...(snapshot.other_investments || []), inv] as any);
-                setNewInv({ symbol: "", name: "", shares: "", ret: "" });
+                setNewInv({ symbol: "", name: "", shares: "", ret: "7", retLinked: true });
               }
             }} style={{ marginTop: 10, width: "100%", padding: "12px", borderRadius: 10, border: `1px solid ${C.warmLight}`, background: C.warmWash, color: C.warm, fontSize: 14, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
               <Plus size={15} /> Add Holding

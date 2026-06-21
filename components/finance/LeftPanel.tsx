@@ -5,7 +5,9 @@ import { useFinancialStore } from "@/store/useFinancialStore";
 import { C } from "@/config/colors";
 import { DEFAULT_SNAPSHOT, DEFAULT_SIM_CONFIG } from "@/config/sharedConfig";
 import TickerAutocomplete from "./TickerAutocomplete";
+import LinkedNumberField from "./LinkedNumberField";
 import { STATE_OPTIONS } from "@/engine/state_tax";
+import { estimateMonthlySocialSecurity } from "@/engine/social_security";
 import type { LivePrices } from "./FinancialDashboard";
 
 // ── Styled primitives ─────────────────────────────────────────────────────────
@@ -231,7 +233,8 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
   const [newInvSym,  setNewInvSym]  = useState("");
   const [newInvName, setNewInvName] = useState("");
   const [newInvSh,   setNewInvSh]   = useState("");
-  const [newInvRet,  setNewInvRet]  = useState("");
+  const [newInvRet,  setNewInvRet]  = useState("7");
+  const [newInvRetLinked, setNewInvRetLinked] = useState(true); // default 7% until overridden
 
   const cp = config.career_path;
   const ip = config.income_profile;
@@ -535,22 +538,16 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
                       <Input type="number" value={sp.empty_nest_year || 2038}
                         onChange={e => updateNestedConfig("spending", { empty_nest_year: +e.target.value })} /></div>
                     <div>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <FieldLabel>Monthly Spend</FieldLabel>
-                        {sp.empty_nest_linked === false && (
-                          <button
-                            onClick={() => updateNestedConfig("spending", { empty_nest_linked: true })}
-                            aria-label="Re-link to monthly spend" title="Re-link to monthly spend (−15%)"
-                            style={{ display: "flex", alignItems: "center", color: C.teal, background: "none", border: "none", cursor: "pointer", padding: 0, marginBottom: 4 }}>
-                            <RotateCcw size={11} />
-                          </button>
-                        )}
-                      </div>
-                      <Input type="number" step={250}
-                        value={sp.empty_nest_linked !== false ? Math.round(sp.monthly_lifestyle * 0.85) : (sp.empty_nest_monthly_spend ?? 0)}
-                        onChange={e => updateNestedConfig("spending", { empty_nest_monthly_spend: +e.target.value, empty_nest_linked: false })} />
+                      <FieldLabel>Monthly Spend</FieldLabel>
+                      <LinkedNumberField
+                        linked={sp.empty_nest_linked !== false}
+                        step={250}
+                        displayValue={sp.empty_nest_linked !== false ? Math.round(sp.monthly_lifestyle * 0.85) : (sp.empty_nest_monthly_spend ?? 0)}
+                        onOverride={() => updateNestedConfig("spending", { empty_nest_linked: false, empty_nest_monthly_spend: Math.round(sp.monthly_lifestyle * 0.85) })}
+                        onChange={v => updateNestedConfig("spending", { empty_nest_monthly_spend: v, empty_nest_linked: false })}
+                        onRelink={() => updateNestedConfig("spending", { empty_nest_linked: true })} />
                       {sp.empty_nest_linked !== false && (
-                        <div style={{ fontSize: 9, color: C.inkFaint, marginTop: 3 }}>Linked to monthly spend (−15%) · edit to change</div>
+                        <div style={{ fontSize: 9, color: C.inkFaint, marginTop: 3 }}>−15% of monthly spend · ✎ to override</div>
                       )}
                     </div>
                   </Row>
@@ -627,8 +624,18 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
                 <Input type="number" value={config.social_security?.start_age ?? 67}
                   onChange={e => updateNestedConfig("social_security", { start_age: +e.target.value } as any)} /></div>
               <div><FieldLabel>SS Monthly ($)</FieldLabel>
-                <Input type="number" value={config.social_security?.monthly_amount ?? 3500}
-                  onChange={e => updateNestedConfig("social_security", { monthly_amount: +e.target.value } as any)} /></div>
+                <LinkedNumberField
+                  linked={config.social_security?.social_security_linked !== false}
+                  displayValue={config.social_security?.social_security_linked !== false
+                    ? estimateMonthlySocialSecurity(ip.gross_annual_salary, config.social_security?.start_age ?? 67)
+                    : (config.social_security?.monthly_amount ?? 0)}
+                  onOverride={() => updateNestedConfig("social_security", { social_security_linked: false, monthly_amount: estimateMonthlySocialSecurity(ip.gross_annual_salary, config.social_security?.start_age ?? 67) } as any)}
+                  onChange={v => updateNestedConfig("social_security", { monthly_amount: v, social_security_linked: false } as any)}
+                  onRelink={() => updateNestedConfig("social_security", { social_security_linked: true } as any)} />
+                <div style={{ fontSize: 9, color: C.inkFaint, marginTop: 3 }}>
+                  {config.social_security?.social_security_linked !== false ? "Estimated from your income · ✎ to override" : "Manual · ↺ to re-estimate"}
+                </div>
+              </div>
             </Row>
             <Row>
               <div><FieldLabel>Medicare Age</FieldLabel>
@@ -734,16 +741,24 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
                 onSelect={r => { setNewInvSym(r.symbol); setNewInvName(r.name); }} />
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 6 }}>
-              <Input type="number" placeholder="Shares" value={newInvSh} onChange={e => setNewInvSh(e.target.value)} />
-              <Input type="number" placeholder="Ret %" value={newInvRet} onChange={e => setNewInvRet(e.target.value)} />
+              <div><FieldLabel>Shares</FieldLabel>
+                <Input type="number" placeholder="0" value={newInvSh} onChange={e => setNewInvSh(e.target.value)} /></div>
+              <div><FieldLabel>Expected Return %</FieldLabel>
+                <LinkedNumberField
+                  linked={newInvRetLinked} step={0.5}
+                  displayValue={newInvRetLinked ? 7 : (parseFloat(newInvRet) || 0)}
+                  onOverride={() => { setNewInvRetLinked(false); setNewInvRet("7"); }}
+                  onChange={v => { setNewInvRet(String(v)); setNewInvRetLinked(false); }}
+                  onRelink={() => { setNewInvRetLinked(true); setNewInvRet("7"); }} /></div>
             </div>
             <button onClick={() => {
               const sh = parseFloat(newInvSh);
               if (newInvSym && sh) {
-                const inv = { id: Date.now().toString(), name: newInvName || newInvSym, symbol: newInvSym, shares: sh, cost_basis: 0, current_price: 0, expected_return: newInvRet ? parseFloat(newInvRet) : undefined };
+                const ret = newInvRetLinked ? 7 : (newInvRet ? parseFloat(newInvRet) : 7);
+                const inv = { id: Date.now().toString(), name: newInvName || newInvSym, symbol: newInvSym, shares: sh, cost_basis: 0, current_price: 0, expected_return: ret };
                 const arr = [...(snapshot.other_investments || []), inv];
                 updateNestedSnapshot("other_investments", arr as any);
-                setNewInvSym(""); setNewInvName(""); setNewInvSh(""); setNewInvRet("");
+                setNewInvSym(""); setNewInvName(""); setNewInvSh(""); setNewInvRet("7"); setNewInvRetLinked(true);
               }
             }} style={{ width: "100%", padding: "6px 0", background: C.warmWash, border: `1px solid ${C.warmLight}`, color: C.warm, borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
               + Add Investment

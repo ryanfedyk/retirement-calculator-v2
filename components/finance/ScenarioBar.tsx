@@ -39,7 +39,10 @@ export default function ScenarioBar({ livePrices = {} }: { livePrices?: LivePric
               onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; }}
             >
               <span style={{ fontSize: 12, fontWeight: 700, color: C.ink }}>{s.title}</span>
-              <span style={{ fontSize: 10, fontWeight: 600, color: s.fiColor }}>FI {s.fiDelta}</span>
+              <span style={{ display: "flex", gap: 8, fontSize: 10, fontWeight: 600 }}>
+                <span style={{ color: s.nwColor }}>{s.nwDelta}</span>
+                <span style={{ color: s.fiColor }}>FI {s.fiDelta}</span>
+              </span>
             </button>
           ))}
         </div>

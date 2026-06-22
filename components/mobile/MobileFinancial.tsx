@@ -38,6 +38,7 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
   const { config, snapshot, scenarios } = useFinancialStore();
   const { children } = useHorizonProfile();
   const [view, setView] = useState<View>("wealth");
+  const [ageCap, setAgeCap] = useState<75 | 100>(100);
   const [insightTab, setInsightTab] = useState<"today" | "scenarios" | "ai">("today");
   const [compare, setCompare] = useState(false);
 
@@ -84,6 +85,12 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
       healthcare:      pt.healthcareCost || 0,
       mortgage:        pt.mortgagePayment || 0,
     })), [traj]);
+
+  const cappedChartData = useMemo(() => {
+    if (ageCap >= 100) return chartData;
+    const maxYear = birthYear + ageCap;
+    return chartData.filter(d => { const y = Number(String(d.date).split(" ")[1]); return !y || y <= maxYear; });
+  }, [chartData, ageCap, birthYear]);
 
   const cp = config.career_path;
   const findDate = (pred: (p: typeof traj[number]) => boolean) => traj.find(pred)?.date;
@@ -223,8 +230,21 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
           ))}
         </div>
 
+        {/* Age horizon toggle — subtle, in-app */}
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}>
+          <div style={{ display: "inline-flex", gap: 2, background: C.bg, borderRadius: 7, padding: 2 }}>
+            {([75, 100] as const).map(a => (
+              <button key={a} onClick={() => setAgeCap(a)} style={{
+                fontSize: 11, fontWeight: 600, padding: "4px 12px", borderRadius: 5, border: "none", cursor: "pointer",
+                background: ageCap === a ? C.bgCard : "transparent", color: ageCap === a ? C.ink : C.inkFaint,
+                boxShadow: ageCap === a ? `0 1px 2px ${C.border}` : "none",
+              }}>to {a}</button>
+            ))}
+          </div>
+        </div>
+
         <ResponsiveContainer width="100%" height={300}>
-          <AreaChart data={chartData} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
+          <AreaChart data={cappedChartData} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
             <defs>
               <linearGradient id="mWealth" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor={C.teal} stopOpacity={0.25} />

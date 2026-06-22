@@ -26,10 +26,11 @@ const Card = ({ children }: { children: React.ReactNode }) => (
 
 // Collapsible config section — progressive disclosure so the long config list
 // is scannable. Independently toggles; essentials open by default.
-const AccCard = ({ id, title, color, openIds, toggle, children }: {
+const AccCard = ({ id, title, color, openIds, toggle, children, hidden }: {
   id: string; title: string; color: string;
-  openIds: Set<string>; toggle: (id: string) => void; children: React.ReactNode;
+  openIds: Set<string>; toggle: (id: string) => void; children: React.ReactNode; hidden?: boolean;
 }) => {
+  if (hidden) return null;
   const open = openIds.has(id);
   return (
     <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 10, marginBottom: 10, overflow: "hidden" }}>
@@ -207,7 +208,13 @@ function InvestmentItem({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices }) {
+export default function LeftPanel({ livePrices = {}, variant = "sidebar" }: { livePrices?: LivePrices; variant?: "sidebar" | "finances" }) {
+  // "sidebar" = the per-scenario deep-dive (plan levers); "finances" = the
+  // shared, scenario-independent balance sheet ("Your finances"). The factual
+  // sections (assets, holdings, 529s) edit the global snapshot, so they're the
+  // same across every scenario — they live in the finances variant only.
+  const showFacts  = variant === "finances";
+  const showLevers = variant === "sidebar";
   const { config, snapshot, profile, updateNestedConfig, updateNestedSnapshot, updateConfig, setChildren, resetToDefaults } = useFinancialStore();
   const confirm = useConfirm();
   const kids = profile.children;
@@ -226,7 +233,7 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
   const sp = config.spending;
 
   // Accordion: essentials open by default; everything else collapsed.
-  const [openIds, setOpenIds] = useState<Set<string>>(new Set(["career", "market"]));
+  const [openIds, setOpenIds] = useState<Set<string>>(new Set(variant === "finances" ? ["assets", "holdings"] : ["career", "market"]));
   const toggle = (id: string) => setOpenIds(prev => {
     const next = new Set(prev);
     next.has(id) ? next.delete(id) : next.add(id);
@@ -236,30 +243,40 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
 
   return (
     <aside style={{
-      width: 300, flexShrink: 0, background: C.bgCard,
-      borderRight: `1px solid ${C.border}`,
+      width: showFacts ? "100%" : 300, flexShrink: 0, background: C.bgCard,
+      borderRight: showFacts ? "none" : `1px solid ${C.border}`,
+      flex: showFacts ? 1 : undefined, minHeight: showFacts ? 0 : undefined,
       overflowY: "auto", display: "flex", flexDirection: "column",
     }}>
       {/* Header */}
       <div style={{ padding: "16px 16px 12px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <Wallet size={14} color={C.teal} />
-          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: C.ink }}>Configuration</span>
+          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: C.ink }}>
+            {showFacts ? "Your finances" : "Scenario plan"}
+          </span>
+          {showFacts && (
+            <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: C.teal, background: C.tealWash, borderRadius: 5, padding: "2px 7px" }}>
+              shared across scenarios
+            </span>
+          )}
         </div>
-        <button
-          onClick={async () => {
-            if (await confirm({ title: "Start over?", message: "This clears your plan and balance sheet and walks you back through the quick setup. It can't be undone.", confirmLabel: "Start over", danger: true }))
-              resetToDefaults();
-          }}
-          style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: C.inkFaint, background: "none", border: "none", cursor: "pointer" }}>
-          <RotateCcw size={11} /> Reset
-        </button>
+        {showLevers && (
+          <button
+            onClick={async () => {
+              if (await confirm({ title: "Start over?", message: "This clears your plan and balance sheet and walks you back through the quick setup. It can't be undone.", confirmLabel: "Start over", danger: true }))
+                resetToDefaults();
+            }}
+            style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: C.inkFaint, background: "none", border: "none", cursor: "pointer" }}>
+            <RotateCcw size={11} /> Reset
+          </button>
+        )}
       </div>
 
       <div style={{ padding: "14px 16px", flex: 1 }}>
 
         {/* ── Assets & Liabilities ── */}
-        <AccCard {...acc("assets")} title="Assets & Liabilities" color={C.teal}>
+        <AccCard {...acc("assets")} hidden={!showFacts} title="Assets & Liabilities" color={C.teal}>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <div>
               <FieldLabel>Cash Savings</FieldLabel>
@@ -285,7 +302,7 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
         </AccCard>
 
         {/* ── Career Trajectory ── */}
-        <AccCard {...acc("career")} title="Career Trajectory" color={C.teal}>
+        <AccCard {...acc("career")} hidden={!showLevers} title="Career Trajectory" color={C.teal}>
 
           <div style={{ marginBottom: 14 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
@@ -362,7 +379,7 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
         </AccCard>
 
         {/* ── Income Modeling ── */}
-        <AccCard {...acc("income")} title="Income Modeling" color="#4aab92">
+        <AccCard {...acc("income")} hidden={!showLevers} title="Income Modeling" color="#4aab92">
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <div>
               <FieldLabel>Gross Annual Salary</FieldLabel>
@@ -419,7 +436,7 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
         </AccCard>
 
         {/* ── Additional Income ── */}
-        <AccCard {...acc("supplemental")} title="Additional Income" color="#4aab92">
+        <AccCard {...acc("supplemental")} hidden={!showLevers} title="Additional Income" color="#4aab92">
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <div><FieldLabel>Monthly Rental Income ($)</FieldLabel>
               <Input type="number" step={100} value={ip.monthly_rental_income ?? 0}
@@ -454,7 +471,7 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
         </AccCard>
 
         {/* ── Market & Lifestyle ── */}
-        <AccCard {...acc("market")} title="Market & Lifestyle" color={C.warm}>
+        <AccCard {...acc("market")} hidden={!showLevers} title="Market & Lifestyle" color={C.warm}>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <Row>
               <div><FieldLabel>Market Return (%)</FieldLabel>
@@ -533,7 +550,7 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
 
         {/* ── Divestment Strategy (only relevant with company stock) ── */}
         {config.use_equity_comp === true && (
-        <AccCard {...acc("divest")} title="Company Stock Divestment" color="#2a7a68">
+        <AccCard {...acc("divest")} hidden={!showLevers} title="Company Stock Divestment" color="#2a7a68">
           <div style={{ fontSize: 10, color: C.inkFaint, marginBottom: 10, lineHeight: 1.5 }}>
             How you sell down your concentrated company stock ({config.concentrated_symbol || "your ticker"}) over time to diversify.
           </div>
@@ -570,7 +587,7 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
         {/* Tax, Social Security & Medicare now live in Settings (profile menu). */}
 
         {/* ── Life Events ── */}
-        <AccCard {...acc("events")} title="Life Events" color="#c4784e">
+        <AccCard {...acc("events")} hidden={!showLevers} title="Life Events" color="#c4784e">
           <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
             {(config.life_events || []).map((evt, idx) => (
               <div key={idx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: C.bg, borderRadius: 7, padding: "8px 10px", border: `1px solid ${C.borderSoft}` }}>
@@ -610,7 +627,7 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
         {/* Family (kids & partner) now lives in Settings (profile menu). */}
 
         {/* ── Portfolio Holdings ── */}
-        <AccCard {...acc("holdings")} title="Portfolio Holdings" color="#c4784e">
+        <AccCard {...acc("holdings")} hidden={!showFacts} title="Portfolio Holdings" color="#c4784e">
           <div style={{ marginBottom: 8 }}>
             {(snapshot.other_investments || []).map((inv, idx) => (
               <InvestmentItem key={inv.id || idx} inv={inv} liveInfo={livePrices[inv.symbol.toUpperCase()]}
@@ -662,7 +679,7 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
 
         {/* ── Education (529) — only relevant with kids ── */}
         {kids.length > 0 && (
-        <AccCard {...acc("edu")} title="Education Assets (529)" color={C.teal}>
+        <AccCard {...acc("edu")} hidden={!showFacts} title="Education Assets (529)" color={C.teal}>
           <div style={{ marginBottom: 8 }}>
             {(snapshot.education_assets?.accounts || []).map((acc, idx) => (
               <div key={acc.id || idx} className="group" style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", background: C.bg, borderRadius: 6, border: `1px solid ${C.borderSoft}`, marginBottom: 6 }}>

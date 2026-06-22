@@ -4,8 +4,10 @@ import { Anchor, Wind, Clock, Compass } from "lucide-react";
 import { useHorizonProfile } from "@/config/horizonConfig";
 import { C } from "@/config/colors";
 import Header, { type AppView } from "@/components/Header";
+import { X } from "lucide-react";
 import CountdownStrip        from "@/components/CountdownStrip";
 import ScenariosHub          from "@/components/ScenariosHub";
+import LeftPanel             from "@/components/finance/LeftPanel";
 import { useIsMobile }       from "@/hooks/useIsMobile";
 import { useLivePrices }     from "@/hooks/useLivePrices";
 import MobileApp             from "@/components/mobile/MobileApp";
@@ -31,6 +33,7 @@ type NavId = typeof NAV[number]["id"];
 export default function DashboardShell() {
   const [appView, setAppView] = useState<AppView>("financial");
   const [scenarioOpen, setScenarioOpen] = useState(false);
+  const [financesOpen, setFinancesOpen] = useState(false);
   const [tab,   setTab]   = useState<NavId>("seasons");
   const [saved, setSaved] = useState<AdventureBlueprint[]>([]);
   const { retirementDate } = useRetirementDate();
@@ -46,7 +49,26 @@ export default function DashboardShell() {
       <div className="min-h-screen flex flex-col" style={{ background: C.bg }}>
         <Header view={appView} onViewChange={setAppView} mode="hub" />
         <SettingsPanel />
-        <ScenariosHub livePrices={prices.livePrices} onOpen={() => setScenarioOpen(true)} />
+        <ScenariosHub livePrices={prices.livePrices} onOpen={() => setScenarioOpen(true)} onEditFinances={() => setFinancesOpen(true)} />
+        {financesOpen && (
+          <div
+            onMouseDown={() => setFinancesOpen(false)}
+            style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(20,30,26,0.45)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "5vh 16px" }}
+          >
+            <div
+              onMouseDown={(e) => e.stopPropagation()}
+              style={{ position: "relative", width: "100%", maxWidth: 560, maxHeight: "90vh", background: C.bgCard, borderRadius: 16, overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 16px 48px rgba(0,0,0,0.25)" }}
+            >
+              <button
+                onClick={() => setFinancesOpen(false)} aria-label="Close"
+                style={{ position: "absolute", top: 12, right: 12, zIndex: 2, width: 30, height: 30, borderRadius: 8, border: "none", background: C.bg, color: C.inkSoft, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+              >
+                <X size={16} />
+              </button>
+              <LeftPanel variant="finances" livePrices={prices.livePrices} />
+            </div>
+          </div>
+        )}
       </div>
     );
   }

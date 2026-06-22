@@ -110,7 +110,7 @@ export function TodaysDelta({ trajectory, snapshot, symbol = "", price }: {
 }
 
 // ── 2. Momentum turnstile ─────────────────────────────────────────────────────
-export function MomentumTurnstile({ point, config }: { point: TrajectoryPoint; config: SimulationConfiguration }) {
+export function MomentumTurnstile({ point, config, embedded = false }: { point: TrajectoryPoint; config: SimulationConfiguration; embedded?: boolean }) {
   const [idx, setIdx] = useState(0);
   const cards = useMemo(() => buildMomentumCards(point, config), [point, config]);
 
@@ -120,6 +120,36 @@ export function MomentumTurnstile({ point, config }: { point: TrajectoryPoint; c
   }, [cards.length]);
 
   const card = cards[idx];
+
+  // Embedded — a translucent tray that drops inside the gradient FI hero card
+  // (white-on-gradient, compact: tag + dots + value + progress, no blurb).
+  if (embedded) {
+    return (
+      <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.22)" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "rgba(255,255,255,0.85)" }}>{card.tag}</span>
+          <div style={{ display: "flex", gap: 6 }}>
+            {cards.map((_, i) => (
+              <button key={i} onClick={() => setIdx(i)} aria-label={`Metric ${i + 1}`} style={{
+                width: i === idx ? 16 : 6, height: 6, borderRadius: 99, border: "none", cursor: "pointer", padding: 0,
+                background: i === idx ? "white" : "rgba(255,255,255,0.4)", transition: "all 0.25s",
+              }} />
+            ))}
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 6 }}>
+          <span style={{ fontSize: 26, fontWeight: 300, color: "white", letterSpacing: "-0.02em", fontVariantNumeric: "tabular-nums" }}>{card.value}</span>
+          <span style={{ fontSize: 12, color: "rgba(255,255,255,0.85)" }}>{card.unit}</span>
+        </div>
+        {card.pct != null && (
+          <div style={{ marginTop: 10, height: 5, borderRadius: 99, background: "rgba(255,255,255,0.25)" }}>
+            <div style={{ height: "100%", borderRadius: 99, background: "white", width: `${Math.min(100, card.pct)}%`, transition: "width 0.6s ease" }} />
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 14, padding: "16px 18px", minHeight: 192, display: "flex", flexDirection: "column" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>

@@ -167,6 +167,9 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
           <span>{fmtM(currentNW)} now</span>
           <span>{Math.round(progress)}% to {fmtM(swrTarget)}</span>
         </div>
+
+        {/* Rotating momentum metrics (Coast FI / Freedom ratio / Years funded) */}
+        {today && <MomentumTurnstile point={today} config={config} embedded />}
       </div>
 
       {/* Scenario levers — drive the trajectory live */}
@@ -277,10 +280,7 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
       </div>
 
       {insightTab === "today" && (
-        <>
-          <TodaysDelta trajectory={traj} snapshot={enrichedSnapshot} symbol={config.concentrated_symbol} price={livePrices[(config.concentrated_symbol ?? "").toUpperCase()]?.price ?? 0} />
-          {today && <MomentumTurnstile point={today} config={config} />}
-        </>
+        <TodaysDelta trajectory={traj} snapshot={enrichedSnapshot} symbol={config.concentrated_symbol} price={livePrices[(config.concentrated_symbol ?? "").toUpperCase()]?.price ?? 0} />
       )}
       {insightTab === "ai" && (
         <AiAnalysis config={config} snapshot={snapshot} trajectory={traj} />

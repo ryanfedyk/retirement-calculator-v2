@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { Sliders, RotateCcw, Wallet, Trash2, PlusCircle, ChevronDown, Pencil } from "lucide-react";
 import { useFinancialStore } from "@/store/useFinancialStore";
+import { useConfirm } from "@/components/ui/DialogProvider";
 import { C } from "@/config/colors";
 import { DEFAULT_SNAPSHOT, DEFAULT_SIM_CONFIG } from "@/config/sharedConfig";
 import TickerAutocomplete from "./TickerAutocomplete";
@@ -208,6 +209,7 @@ function InvestmentItem({
 
 export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices }) {
   const { config, snapshot, profile, updateNestedConfig, updateNestedSnapshot, updateConfig, setChildren, resetToDefaults } = useFinancialStore();
+  const confirm = useConfirm();
   const kids = profile.children;
   const thisYear = new Date().getFullYear();
   const age = thisYear - (config.birth_year || profile.birthYear || 1985);
@@ -245,8 +247,8 @@ export default function LeftPanel({ livePrices = {} }: { livePrices?: LivePrices
           <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: C.ink }}>Configuration</span>
         </div>
         <button
-          onClick={() => {
-            if (window.confirm("Start over?\n\nThis clears your plan and balance sheet and walks you back through the quick setup. It can't be undone."))
+          onClick={async () => {
+            if (await confirm({ title: "Start over?", message: "This clears your plan and balance sheet and walks you back through the quick setup. It can't be undone.", confirmLabel: "Start over", danger: true }))
               resetToDefaults();
           }}
           style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: C.inkFaint, background: "none", border: "none", cursor: "pointer" }}>

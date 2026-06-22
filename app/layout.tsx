@@ -3,6 +3,7 @@ import "./globals.css";
 import { AuthProvider } from "@/lib/auth/AuthProvider";
 import { CloudSyncProvider } from "@/lib/cloud/CloudSyncProvider";
 import { DialogProvider } from "@/components/ui/DialogProvider";
+import SelectOnFocus from "@/components/ui/SelectOnFocus";
 
 export const metadata: Metadata = {
   title: "Taper",
@@ -15,7 +16,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-full flex flex-col" style={{ background: "#ecf3ef", color: "#1a2e25" }}>
         <AuthProvider>
           <CloudSyncProvider>
-            <DialogProvider>{children}</DialogProvider>
+            <DialogProvider>
+              <SelectOnFocus />
+              {children}
+            </DialogProvider>
           </CloudSyncProvider>
         </AuthProvider>
       </body>

@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { LineChart, Compass, SlidersHorizontal, LogOut, Settings } from "lucide-react";
+import { LineChart, Compass, SlidersHorizontal, LogOut, Settings, ChevronLeft, ChevronDown } from "lucide-react";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/auth/AuthProvider";
 import type { LivePrices } from "@/components/finance/FinancialDashboard";
 import MobileFinancial from "./MobileFinancial";
 import MobileForecasting from "./MobileForecasting";
+import ScenariosHub from "@/components/ScenariosHub";
 import ConfigSheet from "./ConfigSheet";
 import SettingsPanel from "@/components/SettingsPanel";
 
@@ -16,6 +17,7 @@ type View = "financial" | "forecasting";
 export default function MobileApp() {
   const { snapshot } = useFinancialStore();
   const [view, setView] = useState<View>("financial");
+  const [scenarioOpen, setScenarioOpen] = useState(false);
   const [configOpen, setConfigOpen] = useState(false);
 
   // ── Live prices (shared with the chart) ─────────────────────────────────────
@@ -51,15 +53,25 @@ export default function MobileApp() {
         background: `${C.bgHeader}f2`, backdropFilter: "blur(10px)",
         borderBottom: `1px solid ${C.border}`,
         padding: "calc(10px + env(safe-area-inset-top)) 18px 10px",
-        display: "flex", alignItems: "center", justifyContent: "space-between",
+        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
       }}>
-        <div>
+        {scenarioOpen ? (
+          <button onClick={() => setScenarioOpen(false)} aria-label="Back to scenarios" style={{
+            display: "flex", alignItems: "center", gap: 3, padding: "6px 10px 6px 6px",
+            borderRadius: 9, border: `1px solid ${C.border}`, background: C.bgCard, cursor: "pointer",
+            color: C.inkSoft, fontSize: 13, fontWeight: 600, flexShrink: 0,
+          }}>
+            <ChevronLeft size={16} /> Scenarios
+          </button>
+        ) : (
           <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: "0.18em", color: C.ink }}>TAPER</div>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {view === "financial" && (
+        )}
+
+        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+          {scenarioOpen && <MobileScenarioSelect />}
+          {scenarioOpen && view === "financial" && (
             <button onClick={() => setConfigOpen(true)} aria-label="Adjust plan" style={{
-              width: 40, height: 40, borderRadius: "50%", border: `1px solid ${C.border}`,
+              width: 40, height: 40, borderRadius: "50%", border: `1px solid ${C.border}`, flexShrink: 0,
               background: C.bgCard, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
             }}>
               <SlidersHorizontal size={18} color={C.teal} />
@@ -69,37 +81,69 @@ export default function MobileApp() {
         </div>
       </header>
 
-      {/* Active view — bottom padding clears the fixed tab bar */}
-      <main style={{ flex: 1, paddingBottom: "calc(84px + env(safe-area-inset-bottom))" }}>
-        {view === "financial"
-          ? <MobileFinancial livePrices={livePrices} pricesUpdatedAt={pricesUpdatedAt} pricesFetching={pricesFetching} onRefreshPrices={fetchAllPrices} onOpenConfig={() => setConfigOpen(true)} />
-          : <MobileForecasting />}
+      {/* Body — hub landing, or the open scenario's deep-dive */}
+      <main style={{ flex: 1, display: "flex", flexDirection: "column", paddingBottom: scenarioOpen ? "calc(84px + env(safe-area-inset-bottom))" : "env(safe-area-inset-bottom)" }}>
+        {!scenarioOpen ? (
+          <ScenariosHub livePrices={livePrices} onOpen={() => { setView("financial"); setScenarioOpen(true); }} />
+        ) : view === "financial" ? (
+          <MobileFinancial livePrices={livePrices} pricesUpdatedAt={pricesUpdatedAt} pricesFetching={pricesFetching} onRefreshPrices={fetchAllPrices} onOpenConfig={() => setConfigOpen(true)} />
+        ) : (
+          <MobileForecasting />
+        )}
       </main>
 
       <ConfigSheet open={configOpen} onClose={() => setConfigOpen(false)} />
       <SettingsPanel />
 
-      {/* Bottom tab bar */}
-      <nav style={{
-        position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 50,
-        display: "flex", background: `${C.bgCard}f5`, backdropFilter: "blur(12px)",
-        borderTop: `1px solid ${C.border}`,
-        padding: "8px 12px calc(8px + env(safe-area-inset-bottom))",
-      }}>
-        {tabs.map(({ id, label, icon: Icon }) => {
-          const active = view === id;
-          return (
-            <button key={id} onClick={() => setView(id)} style={{
-              flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
-              padding: "6px 0", border: "none", background: "transparent", cursor: "pointer",
-              color: active ? C.teal : C.inkFaint, transition: "color 0.18s",
-            }}>
-              <Icon size={22} strokeWidth={active ? 2.4 : 1.8} />
-              <span style={{ fontSize: 10, fontWeight: active ? 700 : 500, letterSpacing: "0.04em" }}>{label}</span>
-            </button>
-          );
-        })}
-      </nav>
+      {/* Bottom tab bar — only while exploring a scenario */}
+      {scenarioOpen && (
+        <nav style={{
+          position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 50,
+          display: "flex", background: `${C.bgCard}f5`, backdropFilter: "blur(12px)",
+          borderTop: `1px solid ${C.border}`,
+          padding: "8px 12px calc(8px + env(safe-area-inset-bottom))",
+        }}>
+          {tabs.map(({ id, label, icon: Icon }) => {
+            const active = view === id;
+            return (
+              <button key={id} onClick={() => setView(id)} style={{
+                flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+                padding: "6px 0", border: "none", background: "transparent", cursor: "pointer",
+                color: active ? C.teal : C.inkFaint, transition: "color 0.18s",
+              }}>
+                <Icon size={22} strokeWidth={active ? 2.4 : 1.8} />
+                <span style={{ fontSize: 10, fontWeight: active ? 700 : 500, letterSpacing: "0.04em" }}>{label}</span>
+              </button>
+            );
+          })}
+        </nav>
+      )}
+    </div>
+  );
+}
+
+/** Compact active-scenario dropdown for the mobile deep-dive header. */
+function MobileScenarioSelect() {
+  const scenarios = useFinancialStore((s) => s.scenarios);
+  const activeScenarioId = useFinancialStore((s) => s.activeScenarioId);
+  const setActiveScenario = useFinancialStore((s) => s.setActiveScenario);
+
+  return (
+    <div style={{ position: "relative", display: "inline-flex", alignItems: "center", minWidth: 0 }}>
+      <select
+        value={activeScenarioId}
+        onChange={(e) => setActiveScenario(e.target.value)}
+        aria-label="Active scenario"
+        style={{
+          appearance: "none", WebkitAppearance: "none", MozAppearance: "none",
+          maxWidth: 150, border: `1px solid ${C.border}`, borderRadius: 9,
+          padding: "8px 28px 8px 11px", fontSize: 13, fontWeight: 700, color: C.ink,
+          background: C.bgCard, outline: "none", cursor: "pointer", textOverflow: "ellipsis",
+        }}
+      >
+        {scenarios.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+      </select>
+      <ChevronDown size={14} color={C.inkSoft} style={{ position: "absolute", right: 9, pointerEvents: "none" }} />
     </div>
   );
 }

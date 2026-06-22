@@ -10,12 +10,9 @@ import { useHorizonProfile } from "@/config/horizonConfig";
 import { TodaysDelta, MomentumTurnstile } from "@/components/finance/MotivationWidgets";
 import AiAnalysis from "@/components/finance/AiAnalysis";
 import PriceTicker from "@/components/finance/PriceTicker";
-import ScenarioBar from "@/components/finance/ScenarioBar";
 import ScenarioLevers from "@/components/finance/ScenarioLevers";
-import ScenarioCompare from "@/components/finance/ScenarioCompare";
 import FireMoments from "@/components/fx/FireMoments";
 import { isCoastFI } from "@/lib/fire/moments";
-import { GitCompare } from "lucide-react";
 import type { LivePrices } from "@/components/finance/FinancialDashboard";
 
 const fmtM = (v: number) => {
@@ -36,12 +33,11 @@ interface Props {
 }
 
 export default function MobileFinancial({ livePrices, pricesFetching, onRefreshPrices, onOpenConfig }: Props) {
-  const { config, snapshot, scenarios } = useFinancialStore();
+  const { config, snapshot } = useFinancialStore();
   const { children } = useHorizonProfile();
   const [view, setView] = useState<View>("wealth");
   const [ageCap, setAgeCap] = useState<75 | 100>(100);
   const [insightTab, setInsightTab] = useState<"today" | "ai">("today");
-  const [compare, setCompare] = useState(false);
 
   const googInfo      = livePrices["GOOG"] ?? livePrices["GOOGL"];
   const liveGoogPrice = googInfo?.price ?? 0;
@@ -173,31 +169,8 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
         </div>
       </div>
 
-      {/* Global scenario builder — switch / create scenarios + What-if shortcuts */}
-      <div style={{ margin: "0 -16px", borderTop: `1px solid ${C.border}` }}>
-        <ScenarioBar livePrices={livePrices} />
-      </div>
-
       {/* Scenario levers — drive the trajectory live */}
       <ScenarioLevers />
-
-      {/* Compare multiple scenarios on one chart */}
-      {scenarios.length > 1 && (
-        <div>
-          <button
-            onClick={() => setCompare((c) => !c)}
-            style={{
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 7, width: "100%",
-              padding: "11px 14px", borderRadius: 10, border: `1px solid ${compare ? C.teal : C.border}`,
-              background: compare ? `${C.teal}14` : C.bgCard, color: compare ? C.teal : C.inkSoft,
-              fontSize: 14, fontWeight: 600, cursor: "pointer", marginBottom: compare ? 12 : 0,
-            }}
-          >
-            <GitCompare size={16} /> {compare ? "Hide comparison" : `Compare ${scenarios.length} scenarios`}
-          </button>
-          {compare && <ScenarioCompare livePrices={livePrices} />}
-        </div>
-      )}
 
       {/* Portfolio price ticker (from the user's holdings) */}
       <PriceTicker

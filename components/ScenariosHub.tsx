@@ -66,8 +66,8 @@ export default function ScenariosHub({ livePrices, onOpen }: { livePrices: LiveP
   };
 
   return (
-    <main style={{ flex: 1, overflowY: "auto", background: C.bg }}>
-      <div className="max-w-7xl mx-auto" style={{ padding: "28px 32px 48px" }}>
+    <div style={{ flex: 1, overflowY: "auto", background: C.bg }}>
+      <div className="max-w-7xl mx-auto px-5 min-[700px]:px-8" style={{ paddingTop: 24, paddingBottom: 48 }}>
 
         {/* Heading */}
         <div style={{ marginBottom: 20 }}>
@@ -204,6 +204,6 @@ export default function ScenariosHub({ livePrices, onOpen }: { livePrices: LiveP
           </div>
         )}
       </div>
-    </main>
+    </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { LineChart, Compass, SlidersHorizontal, LogOut, Settings, ChevronLeft, ChevronDown } from "lucide-react";
+import { LineChart, Compass, SlidersHorizontal, LogOut, Settings, ChevronLeft, ChevronDown, Wallet } from "lucide-react";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
@@ -10,6 +10,7 @@ import MobileFinancial from "./MobileFinancial";
 import MobileForecasting from "./MobileForecasting";
 import ScenariosHub from "@/components/ScenariosHub";
 import ConfigSheet from "./ConfigSheet";
+import FinancesOverlay from "@/components/finance/FinancesOverlay";
 import SettingsPanel from "@/components/SettingsPanel";
 
 type View = "financial" | "forecasting";
@@ -69,6 +70,14 @@ export default function MobileApp() {
 
         <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
           {scenarioOpen && <MobileScenarioSelect />}
+          {scenarioOpen && (
+            <button onClick={() => useUIStore.getState().setFinancesOpen(true)} aria-label="Your finances" style={{
+              width: 40, height: 40, borderRadius: "50%", border: `1px solid ${C.border}`, flexShrink: 0,
+              background: C.bgCard, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
+            }}>
+              <Wallet size={18} color={C.teal} />
+            </button>
+          )}
           {scenarioOpen && view === "financial" && (
             <button onClick={() => setConfigOpen(true)} aria-label="Adjust plan" style={{
               width: 40, height: 40, borderRadius: "50%", border: `1px solid ${C.border}`, flexShrink: 0,
@@ -93,6 +102,7 @@ export default function MobileApp() {
       </main>
 
       <ConfigSheet open={configOpen} onClose={() => setConfigOpen(false)} />
+      <FinancesOverlay livePrices={livePrices} />
       <SettingsPanel />
 
       {/* Bottom tab bar — only while exploring a scenario */}

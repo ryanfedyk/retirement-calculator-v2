@@ -1,104 +1,23 @@
 "use client";
 import { useEffect, useState } from "react";
-import { X, ChevronDown, Trash2, Plus, RotateCcw } from "lucide-react";
+import { X, Trash2, Plus, RotateCcw, Wallet, ChevronRight } from "lucide-react";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
+import { useUIStore } from "@/store/useUIStore";
 import { useConfirm } from "@/components/ui/DialogProvider";
 import TickerAutocomplete from "@/components/finance/TickerAutocomplete";
 import LinkedNumberField from "@/components/finance/LinkedNumberField";
-
-const money = (n: number) => `$${Math.round(n).toLocaleString()}`;
-
-// ── Touch-friendly primitives (fontSize 16 avoids iOS auto-zoom) ───────────────
-const inputStyle: React.CSSProperties = {
-  width: "100%", boxSizing: "border-box", border: `1px solid ${C.border}`,
-  borderRadius: 10, padding: "11px 12px", fontSize: 16, color: C.ink,
-  background: C.bgCard, outline: "none",
-};
-const labelStyle: React.CSSProperties = {
-  fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em",
-  color: C.inkSoft, display: "block", marginBottom: 6,
-};
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return <div style={{ marginBottom: 14 }}><span style={labelStyle}>{label}</span>{children}</div>;
-}
-function Num({ value, onChange, step = 1, prefix }: { value: number; onChange: (v: number) => void; step?: number; prefix?: string }) {
-  // Local buffer while focused so the field can be fully cleared (a controlled
-  // value={0} otherwise snaps back to "0" and the leading zero can't be erased).
-  const [focused, setFocused] = useState(false);
-  const [text, setText] = useState<string>(String(value));
-  useEffect(() => { if (!focused) setText(String(value)); }, [value, focused]);
-  return (
-    <div style={{ position: "relative" }}>
-      {prefix && <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: C.inkFaint, fontSize: 16 }}>{prefix}</span>}
-      <input type="number" inputMode="decimal" step={step} value={focused ? text : String(value)}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        onChange={e => { setText(e.target.value); onChange(e.target.value === "" ? 0 : +e.target.value); }}
-        style={{ ...inputStyle, paddingLeft: prefix ? 26 : 12 }} />
-    </div>
-  );
-}
-function TextInput({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
-  return <input value={value} placeholder={placeholder} onChange={e => onChange(e.target.value)} style={inputStyle} />;
-}
-function Pick({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: [string, string][] }) {
-  return (
-    <select value={value} onChange={e => onChange(e.target.value)} style={{ ...inputStyle, appearance: "none" }}>
-      {options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-    </select>
-  );
-}
-function Toggle({ on, onChange, label, color = C.teal }: { on: boolean; onChange: (v: boolean) => void; label: string; color?: string }) {
-  return (
-    <button onClick={() => onChange(!on)} style={{
-      display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%",
-      padding: "13px 14px", borderRadius: 12, marginBottom: 8,
-      border: `1px solid ${on ? color : C.border}`, background: on ? `${color}14` : C.bgCard, cursor: "pointer",
-    }}>
-      <span style={{ fontSize: 14, fontWeight: 600, color: on ? color : C.inkMid }}>{label}</span>
-      <span style={{ width: 42, height: 24, borderRadius: 999, padding: 2, background: on ? color : C.border, display: "flex", justifyContent: on ? "flex-end" : "flex-start", transition: "all 0.2s" }}>
-        <span style={{ width: 20, height: 20, borderRadius: "50%", background: "white", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
-      </span>
-    </button>
-  );
-}
-function Two({ children }: { children: React.ReactNode }) {
-  return <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>{children}</div>;
-}
-
-// ── Accordion section ─────────────────────────────────────────────────────────
-function Section({ title, accent, openId, setOpenId, id, children }: {
-  title: string; accent: string; openId: string | null; setOpenId: (v: string | null) => void; id: string; children: React.ReactNode;
-}) {
-  const open = openId === id;
-  return (
-    <div style={{ borderRadius: 16, border: `1px solid ${C.border}`, background: C.bgCard, marginBottom: 10, overflow: "hidden" }}>
-      <button onClick={() => setOpenId(open ? null : id)} style={{
-        width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "16px", background: "transparent", border: "none", cursor: "pointer",
-      }}>
-        <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ width: 4, height: 18, borderRadius: 2, background: accent }} />
-          <span style={{ fontSize: 15, fontWeight: 600, color: C.ink }}>{title}</span>
-        </span>
-        <ChevronDown size={18} color={C.inkSoft} style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
-      </button>
-      {open && <div style={{ padding: "0 16px 18px" }}>{children}</div>}
-    </div>
-  );
-}
+import { money, inputStyle, Field, Num, TextInput, Toggle, Two, Section } from "./sheetUI";
 
 export default function ConfigSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { config, snapshot, profile, updateNestedConfig, updateNestedSnapshot, updateConfig, setChildren, resetToDefaults } = useFinancialStore();
+  const { config, profile, updateNestedConfig, updateConfig, resetToDefaults } = useFinancialStore();
+  const setFinancesOpen = useUIStore((s) => s.setFinancesOpen);
   const confirm = useConfirm();
   const kids = profile.children;
   const thisYear = new Date().getFullYear();
   const age = thisYear - (config.birth_year || profile.birthYear || 1985);
   const [openId, setOpenId] = useState<string | null>("quick");
   const [newEvent, setNewEvent] = useState({ name: "", year: 2030, cost: 50_000 });
-  const [newInv, setNewInv] = useState({ symbol: "", name: "", shares: "", ret: "7", retLinked: true });
 
   useEffect(() => {
     if (open) {
@@ -134,7 +53,10 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
             <div style={{ width: 40, height: 5, borderRadius: 999, background: C.border }} />
           </div>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <h2 style={{ fontSize: 20, fontWeight: 300, color: C.ink }}>Adjust your plan</h2>
+            <div>
+              <h2 style={{ fontSize: 20, fontWeight: 300, color: C.ink }}>Scenario plan</h2>
+              <span style={{ fontSize: 11, fontWeight: 600, color: C.inkFaint }}>Just this scenario</span>
+            </div>
             <div style={{ display: "flex", gap: 8 }}>
               <button onClick={async () => { if (await confirm({ title: "Start over?", message: "This clears your plan and balance sheet and walks you back through the quick setup. It can't be undone.", confirmLabel: "Start over", danger: true })) resetToDefaults(); }}
                 style={{ height: 34, padding: "0 12px", borderRadius: 999, border: `1px solid ${C.border}`, background: C.bgCard, display: "flex", alignItems: "center", gap: 5, cursor: "pointer", color: C.inkSoft, fontSize: 12 }}>
@@ -149,6 +71,20 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
 
         {/* Scrollable body */}
         <div style={{ flex: 1, overflowY: "auto", padding: "0 16px calc(28px + env(safe-area-inset-bottom))", WebkitOverflowScrolling: "touch" }}>
+
+          {/* Shortcut to the shared balance sheet — assets/holdings/529s live in
+              "Your finances" (shared across scenarios), not in this per-scenario plan. */}
+          <button onClick={() => { onClose(); setFinancesOpen(true); }}
+            style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "13px 14px", marginBottom: 10, borderRadius: 16, border: `1px solid ${C.border}`, background: C.bgCard, cursor: "pointer", textAlign: "left" }}>
+            <span style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 34, height: 34, borderRadius: 9, background: C.tealWash, flexShrink: 0 }}>
+              <Wallet size={17} color={C.teal} />
+            </span>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ display: "block", fontSize: 14, fontWeight: 600, color: C.ink }}>Your finances</span>
+              <span style={{ display: "block", fontSize: 11, color: C.inkFaint }}>Assets, holdings &amp; 529s · shared across scenarios</span>
+            </span>
+            <ChevronRight size={18} color={C.inkSoft} style={{ flexShrink: 0 }} />
+          </button>
 
           {/* ── Quick adjust (always-open feel) ── */}
           <Section title="Quick Adjust" accent={C.teal} {...sec("quick")}>
@@ -172,20 +108,6 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
             <Toggle label="Take a Sabbatical" color="#d98a3d" on={cp.use_sabbatical} onChange={v => updateNestedConfig("career_path", { use_sabbatical: v })} />
             <Toggle label="Model a Career Jump" color="#2a9d7f" on={cp.use_jump} onChange={v => updateNestedConfig("career_path", { use_jump: v })} />
             <Toggle label="Model a Bridge Job" color="#3a7d9c" on={cp.use_bridge} onChange={v => updateNestedConfig("career_path", { use_bridge: v })} />
-          </Section>
-
-          {/* ── Assets & Liabilities ── */}
-          <Section title="Assets & Liabilities" accent={C.teal} {...sec("assets")}>
-            <Field label="Cash Savings"><Num prefix="$" step={1000} value={snapshot.liquid_assets.cash_savings} onChange={v => updateNestedSnapshot("liquid_assets", { cash_savings: v })} /></Field>
-            <Two>
-              <Field label="401(k)"><Num prefix="$" step={1000} value={snapshot.retirement_assets.k401} onChange={v => updateNestedSnapshot("retirement_assets", { k401: v })} /></Field>
-              <Field label="Roth IRA"><Num prefix="$" step={1000} value={snapshot.retirement_assets.roth_ira} onChange={v => updateNestedSnapshot("retirement_assets", { roth_ira: v })} /></Field>
-            </Two>
-            <Field label="Traditional IRA"><Num prefix="$" step={1000} value={snapshot.retirement_assets.traditional_ira} onChange={v => updateNestedSnapshot("retirement_assets", { traditional_ira: v })} /></Field>
-            <Two>
-              <Field label="Mortgage Balance"><Num prefix="$" step={1000} value={snapshot.liabilities.mortgage_balance} onChange={v => updateNestedSnapshot("liabilities", { mortgage_balance: v })} /></Field>
-              <Field label="Consumer Debt"><Num prefix="$" step={500} value={snapshot.liabilities.consumer_debt} onChange={v => updateNestedSnapshot("liabilities", { consumer_debt: v })} /></Field>
-            </Two>
           </Section>
 
           {/* ── Career & Phases ── */}
@@ -347,61 +269,6 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
           </Section>
 
           {/* Family (kids & partner) now lives in Settings (profile menu). */}
-
-          {/* ── Portfolio Holdings ── */}
-          <Section title="Portfolio Holdings" accent="#c4784e" {...sec("holdings")}>
-            {(snapshot.other_investments || []).map((inv, idx) => (
-              <div key={inv.id || idx} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", borderRadius: 10, background: C.bgCard, border: `1px solid ${C.borderSoft}`, marginBottom: 8 }}>
-                <div><div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{inv.symbol}</div><div style={{ fontSize: 11, color: C.inkSoft }}>{inv.shares.toLocaleString(undefined, { maximumFractionDigits: 3 })} sh</div></div>
-                <button onClick={() => { const a = [...(snapshot.other_investments || [])]; a.splice(idx, 1); updateNestedSnapshot("other_investments", a as any); }}
-                  style={{ background: "none", border: "none", cursor: "pointer", color: C.inkFaint }}><Trash2 size={16} /></button>
-              </div>
-            ))}
-            <div style={{ marginTop: 4 }}>
-              <TickerAutocomplete placeholder="Search ticker or company" value={newInv.symbol} inputStyle={inputStyle}
-                onChange={v => setNewInv(prev => ({ ...prev, symbol: v }))}
-                onSelect={r => setNewInv(prev => ({ ...prev, symbol: r.symbol, name: r.name }))} />
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 8 }}>
-              <div><span style={labelStyle}>Shares</span>
-                <input type="number" inputMode="decimal" placeholder="0" value={newInv.shares} onChange={e => setNewInv({ ...newInv, shares: e.target.value })} style={inputStyle} /></div>
-              <div><span style={labelStyle}>Expected Return %</span>
-                <LinkedNumberField variant="mobile" step={0.5}
-                  linked={newInv.retLinked}
-                  displayValue={newInv.retLinked ? 7 : (parseFloat(newInv.ret) || 0)}
-                  onOverride={() => setNewInv(p => ({ ...p, retLinked: false, ret: "7" }))}
-                  onChange={v => setNewInv(p => ({ ...p, ret: String(v), retLinked: false }))}
-                  onRelink={() => setNewInv(p => ({ ...p, retLinked: true, ret: "7" }))} /></div>
-            </div>
-            <button onClick={() => {
-              const sh = parseFloat(newInv.shares);
-              if (newInv.symbol && sh) {
-                const ret = newInv.retLinked ? 7 : (newInv.ret ? parseFloat(newInv.ret) : 7);
-                const inv = { id: Date.now().toString(), name: newInv.name || newInv.symbol, symbol: newInv.symbol, shares: sh, cost_basis: 0, current_price: 0, expected_return: ret };
-                updateNestedSnapshot("other_investments", [...(snapshot.other_investments || []), inv] as any);
-                setNewInv({ symbol: "", name: "", shares: "", ret: "7", retLinked: true });
-              }
-            }} style={{ marginTop: 10, width: "100%", padding: "12px", borderRadius: 10, border: `1px solid ${C.warmLight}`, background: C.warmWash, color: C.warm, fontSize: 14, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-              <Plus size={15} /> Add Holding
-            </button>
-          </Section>
-
-          {/* ── Education (529) — only relevant with kids ── */}
-          {kids.length > 0 && (
-          <Section title="Education (529)" accent={C.teal} {...sec("edu")}>
-            {(snapshot.education_assets?.accounts || []).map((acc, idx) => (
-              <div key={acc.id || idx} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
-                <input value={acc.name} onChange={e => { const a = [...(snapshot.education_assets.accounts || [])]; a[idx] = { ...acc, name: e.target.value }; updateNestedSnapshot("education_assets", { accounts: a }); }} style={{ ...inputStyle, flex: 1 }} />
-                <input type="number" inputMode="decimal" value={acc.balance} onChange={e => { const a = [...(snapshot.education_assets.accounts || [])]; a[idx] = { ...acc, balance: +e.target.value }; updateNestedSnapshot("education_assets", { accounts: a }); }} style={{ ...inputStyle, width: 120, textAlign: "right" }} />
-                <button onClick={() => { const a = (snapshot.education_assets.accounts || []).filter((_, i) => i !== idx); updateNestedSnapshot("education_assets", { accounts: a }); }} style={{ background: "none", border: "none", cursor: "pointer", color: C.inkFaint }}><Trash2 size={16} /></button>
-              </div>
-            ))}
-            <button onClick={() => { const a = [...(snapshot.education_assets.accounts || []), { id: crypto.randomUUID(), name: "New 529", balance: 0 }]; updateNestedSnapshot("education_assets", { accounts: a }); }}
-              style={{ marginTop: 4, width: "100%", padding: "12px", borderRadius: 10, border: `1px dashed ${C.border}`, background: C.bgCard, color: C.inkSoft, fontSize: 14, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-              <Plus size={15} /> Add 529 Account
-            </button>
-          </Section>
-          )}
 
           <button onClick={onClose} style={{ marginTop: 8, width: "100%", padding: "16px", borderRadius: 16, border: "none", background: C.teal, color: "white", fontSize: 15, fontWeight: 600, cursor: "pointer", boxShadow: `0 4px 16px ${C.teal}55` }}>
             Done

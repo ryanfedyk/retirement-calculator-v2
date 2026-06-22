@@ -54,7 +54,9 @@ function MoneyField({ label, value, onChange, placeholder }: {
   );
 }
 
-type KidDraft = { name: string; year: string };
+type KidDraft = { name: string; month: string; year: string };
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 /**
  * Onboarding that captures the data that actually moves a retirement
@@ -64,10 +66,7 @@ type KidDraft = { name: string; year: string };
  */
 export default function OnboardingFlow() {
   const { user } = useAuth();
-  const {
-    updateProfile, updateConfig, updateCareerPath,
-    updateNestedSnapshot, updateNestedConfig, updateIncomeProfile, updateSpending, setChildren,
-  } = useFinancialStore();
+  const { updateProfile, updateConfig, updateNestedSnapshot, setChildren } = useFinancialStore();
 
   const [step, setStep] = useState(0);
 
@@ -111,45 +110,54 @@ export default function OnboardingFlow() {
   const onReveal = step === REVEAL;
 
   // ── Kid helpers ──
-  const addKid = () => setKids((k) => [...k, { name: "", year: "" }]);
+  // New kids start at a real, editable birthday (not ghosted placeholder) so the
+  // year stepper works immediately and nothing gets silently dropped.
+  const addKid = () => setKids((k) => [...k, { name: "", month: "0", year: String(CURRENT_YEAR - 8) }]);
   const removeKid = (i: number) => setKids((k) => k.filter((_, idx) => idx !== i));
   const updateKid = (i: number, patch: Partial<KidDraft>) =>
     setKids((k) => k.map((kid, idx) => (idx === i ? { ...kid, ...patch } : kid)));
 
-  const validKids = () => kids
-    .map((k) => ({ name: k.name.trim() || "Child", year: Number(k.year) }))
-    .filter((k) => k.year >= 1990 && k.year <= CURRENT_YEAR + 30)
-    .map((k) => ({ name: k.name, birthYear: k.year, birthMonth: 0 }));
+  const kidYearValid = (k: KidDraft) => { const y = Number(k.year); return y >= 1990 && y <= CURRENT_YEAR + 30; };
+  const kidsValid = kids.every(kidYearValid);
 
-  // ── Build a config+snapshot from the inputs, then find the earliest year
-  // they could retire and still stay solvent through the horizon — i.e. the
-  // earliest exit year for which the plan never trips the off-track warning.
-  const projection = useMemo(() => {
-    if (!essentialsValid || !onReveal) return undefined;
-    const baseCfg = structuredClone(DEFAULT_SIM_CONFIG);
-    baseCfg.birth_year = by;
-    const grossSalary = num(salary, baseCfg.income_profile.gross_annual_salary);
-    baseCfg.income_profile.gross_annual_salary = grossSalary;
-    baseCfg.income_profile.google_net_monthly = Math.round(grossSalary * 0.65 / 12);
-    baseCfg.income_profile.use_partner_income = hasPartner;
+  const validKids = () => kids
+    .filter(kidYearValid)
+    .map((k) => ({ name: k.name.trim() || "Child", birthYear: Number(k.year), birthMonth: Number(k.month) || 0 }));
+
+  // Build the full config + snapshot from the inputs (defaults fill the blanks).
+  // Used for BOTH the reveal projection and the committed plan, so the dashboard
+  // reproduces exactly what we showed on the reveal — no "retire 2040 / can't
+  // retire" contradiction.
+  const assemble = () => {
+    const cfg = structuredClone(DEFAULT_SIM_CONFIG);
+    cfg.birth_year = by;
+    const grossSalary = num(salary, cfg.income_profile.gross_annual_salary);
+    cfg.income_profile.gross_annual_salary = grossSalary;
+    cfg.income_profile.google_net_monthly = Math.round(grossSalary * 0.65 / 12);
+    cfg.income_profile.use_partner_income = hasPartner;
     if (hasPartner) {
-      baseCfg.income_profile.partner_gross_annual_salary = num(partnerSalary, 0);
+      cfg.income_profile.partner_gross_annual_salary = num(partnerSalary, 0);
       const pa = optNum(partnerAge);
-      if (pa !== undefined) baseCfg.income_profile.partner_birth_year = CURRENT_YEAR - pa;
+      if (pa !== undefined) cfg.income_profile.partner_birth_year = CURRENT_YEAR - pa;
     }
-    baseCfg.spending.monthly_lifestyle = num(monthlySpend, baseCfg.spending.monthly_lifestyle);
-    baseCfg.spending.mortgage_payment = num(housing, 0);
-    baseCfg.tax_assumptions.filing_status = filing as typeof baseCfg.tax_assumptions.filing_status;
-    baseCfg.tax_assumptions.state_of_residence = stateCode as typeof baseCfg.tax_assumptions.state_of_residence;
-    baseCfg.children = validKids().map((k) => ({ birthYear: k.birthYear }));
+    cfg.spending.monthly_lifestyle = num(monthlySpend, cfg.spending.monthly_lifestyle);
+    cfg.spending.mortgage_payment = num(housing, 0);
+    cfg.tax_assumptions.filing_status = filing as typeof cfg.tax_assumptions.filing_status;
+    cfg.tax_assumptions.state_of_residence = stateCode as typeof cfg.tax_assumptions.state_of_residence;
+    cfg.children = validKids().map((k) => ({ birthYear: k.birthYear }));
 
     const snap = structuredClone(DEFAULT_SNAPSHOT);
     snap.liquid_assets.cash_savings = num(savings, 0);
     snap.retirement_assets.k401 = num(k401, 0);
     snap.retirement_assets.roth_ira = num(roth, 0);
+    return { cfg, snap };
+  };
 
-    // Walk exit years from now outward; the first one that ends independent is
-    // the earliest date they can safely retire — what we'll seed and reveal.
+  // Find the earliest exit year for which the plan stays solvent through the
+  // horizon — i.e. the earliest date they can safely retire.
+  const projection = useMemo(() => {
+    if (!essentialsValid || !onReveal) return undefined;
+    const { cfg: baseCfg, snap } = assemble();
     const maxYear = by + 72;
     for (let exitYear = CURRENT_YEAR; exitYear <= maxYear; exitYear++) {
       const cfg = { ...baseCfg, career_path: { ...baseCfg.career_path, exit_year: exitYear } };
@@ -177,35 +185,23 @@ export default function OnboardingFlow() {
     if (!essentialsValid) { setStep(0); return; }
     const fiYear = projection?.fi ? projection.fiYear : by + 25;
 
+    // Write the SAME assembled config we simulated for the reveal, with the
+    // computed retirement year baked in, so the dashboard matches the reveal.
+    const { cfg, snap } = assemble();
+    cfg.career_path.exit_year = fiYear;
+    cfg.divestment_strategy.end_year = fiYear;
+
     updateProfile({ name: name.trim(), birthYear: by, retirementYear: fiYear, retirementMonth: 0, onboarded: true });
-    updateConfig({ birth_year: by });
-    updateCareerPath({ exit_year: fiYear });
-    updateNestedConfig("tax_assumptions", { filing_status: filing as any, state_of_residence: stateCode as any });
-
-    const cash = optNum(savings); if (cash !== undefined) updateNestedSnapshot("liquid_assets", { cash_savings: Math.max(0, cash) });
-    const k = optNum(k401); if (k !== undefined) updateNestedSnapshot("retirement_assets", { k401: Math.max(0, k) });
-    const r = optNum(roth); if (r !== undefined) updateNestedSnapshot("retirement_assets", { roth_ira: Math.max(0, r) });
-
-    const gross = optNum(salary);
-    if (gross !== undefined) updateIncomeProfile({ gross_annual_salary: Math.max(0, gross), google_net_monthly: Math.round(Math.max(0, gross) * 0.65 / 12) });
-
-    if (hasPartner) {
-      const pa = optNum(partnerAge);
-      updateIncomeProfile({
-        use_partner_income: true,
-        partner_gross_annual_salary: Math.max(0, num(partnerSalary, 0)),
-        ...(pa !== undefined ? { partner_birth_year: CURRENT_YEAR - pa } : {}),
-      });
-    }
-
-    const spend = optNum(monthlySpend); if (spend !== undefined) updateSpending({ monthly_lifestyle: Math.max(0, spend) });
-    const house = optNum(housing); if (house !== undefined) updateSpending({ mortgage_payment: Math.max(0, house) });
-
+    updateConfig(cfg);
+    updateNestedSnapshot("liquid_assets", { cash_savings: snap.liquid_assets.cash_savings });
+    updateNestedSnapshot("retirement_assets", { k401: snap.retirement_assets.k401, roth_ira: snap.retirement_assets.roth_ira });
     setChildren(validKids());
   };
 
-  const next = () => { if (essentialsValid) setStep((s) => Math.min(REVEAL, s + 1)); };
-  const skipToReveal = () => { if (essentialsValid) setStep(REVEAL); };
+  // Step gating: essentials on step 0; valid kid birthdays on the household step.
+  const canAdvance = essentialsValid && (step !== 1 || kidsValid);
+  const next = () => { if (canAdvance) setStep((s) => Math.min(REVEAL, s + 1)); };
+  const skipToReveal = () => { if (canAdvance) setStep(REVEAL); };
   const goBack = () => setStep((s) => Math.max(0, s - 1));
 
   return (
@@ -273,24 +269,35 @@ export default function OnboardingFlow() {
                   </div>
                 )}
 
-                {kids.map((kid, i) => (
-                  <div key={i} style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
-                    <div style={{ flex: 1.5 }}>
+                {kids.map((kid, i) => {
+                  const yearBad = !kidYearValid(kid);
+                  return (
+                  <div key={i}>
+                  <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+                    <div style={{ flex: 1.4 }}>
                       <label style={labelStyle}>Child name</label>
                       <input style={fieldStyle} type="text" placeholder="Child’s name" value={kid.name} onChange={(e) => updateKid(i, { name: e.target.value })} />
                     </div>
-                    <div style={{ flex: 1 }}>
-                      <label style={labelStyle}>Birth year</label>
-                      <input style={fieldStyle} type="number" inputMode="numeric" placeholder="2015" value={kid.year}
-                             onKeyDown={(e) => { if (kid.year === "" && (e.key === "ArrowUp" || e.key === "ArrowDown")) { e.preventDefault(); updateKid(i, { year: "2015" }); } }}
-                             onChange={(e) => updateKid(i, { year: e.target.value })} />
+                    <div style={{ flex: 0.9 }}>
+                      <label style={labelStyle}>Born</label>
+                      <select style={selectStyle} value={kid.month} onChange={(e) => updateKid(i, { month: e.target.value })}>
+                        {MONTHS.map((m, mi) => <option key={mi} value={mi}>{m}</option>)}
+                      </select>
+                    </div>
+                    <div style={{ flex: 0.8 }}>
+                      <label style={labelStyle}>Year</label>
+                      <input style={{ ...fieldStyle, ...(yearBad ? { borderColor: C.warm } : {}) }} type="number" inputMode="numeric" min={1990} max={CURRENT_YEAR + 30}
+                             value={kid.year} onChange={(e) => updateKid(i, { year: e.target.value })} />
                     </div>
                     <button onClick={() => removeKid(i)} aria-label="Remove child"
                       style={{ flexShrink: 0, height: 40, width: 40, display: "flex", alignItems: "center", justifyContent: "center", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 8, color: C.warm, cursor: "pointer" }}>
                       <Trash2 size={16} />
                     </button>
                   </div>
-                ))}
+                  {yearBad && <p style={{ fontSize: 12, color: C.warm, marginTop: 5 }}>Add a birth year so we can time college and benefits.</p>}
+                  </div>
+                  );
+                })}
                 <button onClick={addKid}
                   style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "11px 0", background: C.tealWash, border: `1px solid ${C.tealLight}`, borderRadius: 8, color: C.tealDark, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
                   <Plus size={15} /> {kids.length === 0 ? "Add a child" : "Add another child"}
@@ -373,8 +380,8 @@ export default function OnboardingFlow() {
               )}
               <div style={{ flex: 1 }} />
               {!onReveal && !isFirst && (
-                <button onClick={skipToReveal} disabled={!essentialsValid}
-                  style={{ background: "transparent", color: essentialsValid ? C.teal : C.inkFaint, border: `1px solid ${essentialsValid ? C.tealLight : C.border}`, borderRadius: 8, padding: "13px 16px", fontSize: 14, fontWeight: 600, cursor: essentialsValid ? "pointer" : "not-allowed" }}>
+                <button onClick={skipToReveal} disabled={!canAdvance}
+                  style={{ background: "transparent", color: canAdvance ? C.teal : C.inkFaint, border: `1px solid ${canAdvance ? C.tealLight : C.border}`, borderRadius: 8, padding: "13px 16px", fontSize: 14, fontWeight: 600, cursor: canAdvance ? "pointer" : "not-allowed" }}>
                   Skip ahead
                 </button>
               )}
@@ -384,8 +391,8 @@ export default function OnboardingFlow() {
                   Enter Taper →
                 </button>
               ) : (
-                <button onClick={next} disabled={!essentialsValid}
-                  style={{ background: C.teal, color: "#fff", border: "none", borderRadius: 8, padding: "13px 22px", fontSize: 14, fontWeight: 700, cursor: essentialsValid ? "pointer" : "not-allowed", opacity: essentialsValid ? 1 : 0.55, boxShadow: essentialsValid ? `0 2px 8px ${C.tealLight}` : "none" }}>
+                <button onClick={next} disabled={!canAdvance}
+                  style={{ background: C.teal, color: "#fff", border: "none", borderRadius: 8, padding: "13px 22px", fontSize: 14, fontWeight: 700, cursor: canAdvance ? "pointer" : "not-allowed", opacity: canAdvance ? 1 : 0.55, boxShadow: canAdvance ? `0 2px 8px ${C.tealLight}` : "none" }}>
                   {isFirst ? "Start →" : "Next →"}
                 </button>
               )}

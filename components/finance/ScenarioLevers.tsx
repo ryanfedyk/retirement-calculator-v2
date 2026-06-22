@@ -7,18 +7,20 @@ import { colTier } from "@/lib/fire/moments";
 
 const money = (n: number) => `$${Math.round(n).toLocaleString()}`;
 
-/** A small chip that reveals an explanatory tooltip on hover/focus. */
-function TipChip({ label, tip, color }: { label: string; tip: string; color: string }) {
+/** A small chip that reveals an explanatory tooltip on hover/focus. The acronym
+ * code is dropped on narrow screens (emoji stays) to protect the layout. */
+function TipChip({ emoji, code, tip, color }: { emoji: string; code: string; tip: string; color: string }) {
   const [show, setShow] = useState(false);
   return (
     <span
       tabIndex={0}
       onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}
       onFocus={() => setShow(true)} onBlur={() => setShow(false)}
-      style={{ position: "relative", display: "inline-flex", alignItems: "center", cursor: "help", outline: "none",
+      style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 3, cursor: "help", outline: "none",
         fontSize: 9, fontWeight: 800, letterSpacing: "0.04em", color, background: `${color}1a`, borderRadius: 5, padding: "1px 5px" }}
     >
-      {label}
+      <span aria-hidden>{emoji}</span>
+      <span className="hidden min-[520px]:inline">{code}</span>
       {show && (
         <span role="tooltip" style={{
           position: "absolute", bottom: "calc(100% + 7px)", left: "50%", transform: "translateX(-50%)",
@@ -96,7 +98,7 @@ export default function ScenarioLevers() {
         <Slider label="Monthly Spend" value={sp.monthly_lifestyle} display={money(sp.monthly_lifestyle)}
           min={3000} max={35000} step={250} accent={C.warm}
           badge={(() => { const t = colTier(sp.monthly_lifestyle); return (
-            <TipChip label={`${t.emoji} ${t.code}`} tip={t.label} color={t.color} />
+            <TipChip emoji={t.emoji} code={t.code} tip={t.label} color={t.color} />
           ); })()}
           onChange={v => updateNestedConfig("spending", { monthly_lifestyle: v })} />
         <Slider label="Market Return" value={ma.market_return_rate} display={`${ma.market_return_rate}%`}

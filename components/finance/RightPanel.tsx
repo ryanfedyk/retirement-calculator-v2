@@ -148,6 +148,7 @@ export default function RightPanel({ livePrices, pricesUpdatedAt, pricesFetching
   const [chartView, setChartView] = useState<ChartView>("wealth");
   const [insightTab, setInsightTab] = useState<"today" | "scenarios" | "ai">("today");
   const [compare, setCompare] = useState(false);
+  const [ageCap, setAgeCap] = useState<75 | 100>(100);
 
   // Year currently hovered on the chart — reveals subtle (secondary) milestones
   const [hoverYear, setHoverYear] = useState<string | null>(null);
@@ -211,6 +212,13 @@ export default function RightPanel({ livePrices, pricesUpdatedAt, pricesFetching
     healthcareCost:   pt.healthcareCost   || 0,
     mortgagePayment:  pt.mortgagePayment  || 0,
   })), [trajectoryData, earlierData, laterData]);
+
+  // Trim the trajectory to the selected age horizon (75 = focused, 100 = full).
+  const cappedChartData = useMemo(() => {
+    if (ageCap >= 100) return chartData;
+    const maxYear = birthYear + ageCap;
+    return chartData.filter((d) => { const y = Number(String(d.date).split(" ")[1]); return !y || y <= maxYear; });
+  }, [chartData, ageCap, birthYear]);
 
   // Reference lines for phases / milestones
   const findDate = (pred: (p: TrajectoryPoint) => boolean) => trajectoryData.find(pred)?.date;
@@ -413,8 +421,22 @@ export default function RightPanel({ livePrices, pricesUpdatedAt, pricesFetching
                "Wealth Trajectory"}
             </div>
             <div style={{ fontSize: 10, color: C.inkSoft, marginTop: 2 }}>
-              {chartView === "timeline" ? "Month-by-month phases & milestones" : "Nominal 30-year projection (future dollars)"}
+              {chartView === "timeline" ? "Month-by-month phases & milestones" : `Nominal projection to age ${ageCap} (future dollars)`}
             </div>
+            {chartView !== "timeline" && (
+              <div style={{ display: "inline-flex", gap: 2, background: C.bg, borderRadius: 6, padding: 2, marginTop: 6 }}>
+                {([75, 100] as const).map((a) => (
+                  <button key={a} onClick={() => setAgeCap(a)}
+                    style={{
+                      fontSize: 10, fontWeight: 600, padding: "2px 9px", borderRadius: 4, border: "none", cursor: "pointer",
+                      background: ageCap === a ? C.bgCard : "transparent", color: ageCap === a ? C.ink : C.inkFaint,
+                      boxShadow: ageCap === a ? `0 1px 2px ${C.border}` : "none",
+                    }}>
+                    to {a}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div style={{ display: "flex", background: C.bg, borderRadius: 8, padding: 3, gap: 2 }}>
@@ -438,7 +460,7 @@ export default function RightPanel({ livePrices, pricesUpdatedAt, pricesFetching
             <LifeCalendar data={trajectoryData} config={config} />
           ) : (
             <ResponsiveContainer width="100%" height={446}>
-              <AreaChart data={chartData} margin={{ top: 16, right: 16, left: 0, bottom: 0 }}
+              <AreaChart data={cappedChartData} margin={{ top: 16, right: 16, left: 0, bottom: 0 }}
                 onMouseMove={(s: any) => { if (s?.activeLabel) setHoverYear(yearOf(String(s.activeLabel))); }}
                 onMouseLeave={() => setHoverYear(null)}>
                 <defs>

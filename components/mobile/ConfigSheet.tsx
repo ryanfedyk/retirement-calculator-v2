@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { X, ChevronDown, Trash2, Plus, RotateCcw } from "lucide-react";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
+import { useConfirm } from "@/components/ui/DialogProvider";
 import TickerAutocomplete from "@/components/finance/TickerAutocomplete";
 import LinkedNumberField from "@/components/finance/LinkedNumberField";
 
@@ -91,6 +92,7 @@ function Section({ title, accent, openId, setOpenId, id, children }: {
 
 export default function ConfigSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { config, snapshot, profile, updateNestedConfig, updateNestedSnapshot, updateConfig, setChildren, resetToDefaults } = useFinancialStore();
+  const confirm = useConfirm();
   const kids = profile.children;
   const thisYear = new Date().getFullYear();
   const age = thisYear - (config.birth_year || profile.birthYear || 1985);
@@ -134,7 +136,7 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <h2 style={{ fontSize: 20, fontWeight: 300, color: C.ink }}>Adjust your plan</h2>
             <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={() => { if (confirm("Start over?\n\nThis clears your plan and balance sheet and walks you back through the quick setup. It can't be undone.")) resetToDefaults(); }}
+              <button onClick={async () => { if (await confirm({ title: "Start over?", message: "This clears your plan and balance sheet and walks you back through the quick setup. It can't be undone.", confirmLabel: "Start over", danger: true })) resetToDefaults(); }}
                 style={{ height: 34, padding: "0 12px", borderRadius: 999, border: `1px solid ${C.border}`, background: C.bgCard, display: "flex", alignItems: "center", gap: 5, cursor: "pointer", color: C.inkSoft, fontSize: 12 }}>
                 <RotateCcw size={13} /> Reset
               </button>

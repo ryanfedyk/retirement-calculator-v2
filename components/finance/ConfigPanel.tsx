@@ -1,6 +1,7 @@
 "use client";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
+import { useConfirm } from "@/components/ui/DialogProvider";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -70,6 +71,7 @@ const Section = ({ title, children }: { title: string; children: React.ReactNode
 
 export default function ConfigPanel() {
   const { config, snapshot, updateCareerPath, updateIncomeProfile, updateMarketAssumptions, updateSpending, resetToDefaults } = useFinancialStore();
+  const confirm = useConfirm();
   const cp = config.career_path;
   const ip = config.income_profile;
   const ma = config.market_assumptions;
@@ -141,7 +143,7 @@ export default function ConfigPanel() {
 
       {/* Reset */}
       <button
-        onClick={() => { if (window.confirm("Start over?\n\nThis clears your plan and balance sheet and walks you back through the quick setup. It can't be undone.")) resetToDefaults(); }}
+        onClick={async () => { if (await confirm({ title: "Start over?", message: "This clears your plan and balance sheet and walks you back through the quick setup. It can't be undone.", confirmLabel: "Start over", danger: true })) resetToDefaults(); }}
         style={{
           width: "100%", padding: "7px 0", background: "transparent",
           border: `1px solid ${C.border}`, borderRadius: 6,

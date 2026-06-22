@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth/AuthProvider";
 import { CloudSyncProvider } from "@/lib/cloud/CloudSyncProvider";
+import { DialogProvider } from "@/components/ui/DialogProvider";
 
 export const metadata: Metadata = {
   title: "Taper",
@@ -13,7 +14,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className="h-full">
       <body className="min-h-full flex flex-col" style={{ background: "#ecf3ef", color: "#1a2e25" }}>
         <AuthProvider>
-          <CloudSyncProvider>{children}</CloudSyncProvider>
+          <CloudSyncProvider>
+            <DialogProvider>{children}</DialogProvider>
+          </CloudSyncProvider>
         </AuthProvider>
       </body>
     </html>

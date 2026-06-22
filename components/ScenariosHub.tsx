@@ -7,7 +7,7 @@
  * tabs.
  */
 import { useMemo, useState, useRef, useEffect } from "react";
-import { Plus, Copy, Pencil, Trash2, Sparkles, Check, MoreVertical } from "lucide-react";
+import { Plus, Copy, Pencil, Trash2, Sparkles, Check, MoreVertical, Wallet } from "lucide-react";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { runSimulation, findIndependencePoint } from "@/engine/calculator";
 import { useScenarioSuggestions } from "@/hooks/useScenarioSuggestions";
@@ -65,7 +65,7 @@ function CardMenu({ canDelete, onRename, onDuplicate, onDelete }: {
   );
 }
 
-export default function ScenariosHub({ livePrices, onOpen }: { livePrices: LivePrices; onOpen: () => void }) {
+export default function ScenariosHub({ livePrices, onOpen, onEditFinances }: { livePrices: LivePrices; onOpen: () => void; onEditFinances?: () => void }) {
   const { scenarios, activeScenarioId, snapshot, setActiveScenario, addScenario, duplicateScenario, renameScenario, deleteScenario } = useFinancialStore();
   const suggestions = useScenarioSuggestions(livePrices);
   const confirm = useConfirm();
@@ -110,11 +110,32 @@ export default function ScenariosHub({ livePrices, onOpen }: { livePrices: LiveP
       <div className="max-w-7xl mx-auto px-5 min-[700px]:px-8" style={{ paddingTop: 24, paddingBottom: 48 }}>
 
         {/* Heading */}
-        <div style={{ marginBottom: 20 }}>
-          <h1 style={{ fontSize: 22, fontWeight: 800, color: C.ink, letterSpacing: "-0.01em" }}>Scenarios</h1>
-          <p style={{ fontSize: 13, color: C.inkSoft, marginTop: 4 }}>
-            Open one to explore and fine-tune it, spin up a new one, or compare them all. The scenario you open drives your countdown and both tabs.
-          </p>
+        <div style={{ marginBottom: 20, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+          <div>
+            <h1 style={{ fontSize: 22, fontWeight: 800, color: C.ink, letterSpacing: "-0.01em" }}>Scenarios</h1>
+            <p style={{ fontSize: 13, color: C.inkSoft, marginTop: 4, maxWidth: 560 }}>
+              Open one to explore and fine-tune it, spin up a new one, or compare them all. The scenario you open drives your countdown and both tabs.
+            </p>
+          </div>
+          {onEditFinances && (
+            <button
+              onClick={onEditFinances}
+              title="Edit your balance sheet — shared across every scenario"
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 8, flexShrink: 0,
+                padding: "10px 14px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.bgCard,
+                color: C.ink, fontSize: 13, fontWeight: 700, cursor: "pointer", transition: "border-color 0.15s",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.teal; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; }}
+            >
+              <Wallet size={15} color={C.teal} />
+              <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", lineHeight: 1.15 }}>
+                Your finances
+                <span style={{ fontSize: 10, fontWeight: 600, color: C.inkFaint }}>Shared across scenarios</span>
+              </span>
+            </button>
+          )}
         </div>
 
         {/* Scenario cards */}

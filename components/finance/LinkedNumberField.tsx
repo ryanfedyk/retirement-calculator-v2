@@ -9,9 +9,13 @@ import { C } from "@/config/colors";
  * and a pencil to take over; once overridden it's an editable input with a
  * counter-clockwise reset to revert to the auto value.
  */
+// Match the plain inputs these sit next to: LeftPanel's INPUT_STYLE on desktop
+// (12px / 5×8 padding / radius 5) and ConfigSheet's inputStyle on mobile
+// (16px / 11×12 padding / radius 10), so linked + editing states line up
+// exactly with the field beside them instead of reading oversized.
 const SIZES = {
-  desktop: { fontSize: 15, minHeight: 38, borderRadius: 8, padding: "10px 12px", iconSize: 13, iconRight: 8 },
-  mobile:  { fontSize: 16, minHeight: 44, borderRadius: 10, padding: "12px 13px", iconSize: 16, iconRight: 11 },
+  desktop: { fontSize: 12, minHeight: 28, borderRadius: 5, padding: "5px 8px",  padRight: 26, iconSize: 12, iconRight: 7 },
+  mobile:  { fontSize: 16, minHeight: 44, borderRadius: 10, padding: "11px 12px", padRight: 34, iconSize: 16, iconRight: 11 },
 } as const;
 
 export default function LinkedNumberField({
@@ -67,7 +71,7 @@ export default function LinkedNumberField({
         onChange={e => { setText(e.target.value); onChange(e.target.value === "" ? 0 : +e.target.value); }}
         style={{
           width: "100%", boxSizing: "border-box", border: `1px solid ${C.teal}`,
-          borderRadius: sz.borderRadius, padding: sz.padding, paddingRight: 34, fontSize: sz.fontSize,
+          borderRadius: sz.borderRadius, padding: sz.padding, paddingRight: sz.padRight, fontSize: sz.fontSize,
           color: C.ink, background: C.bg, outline: "none",
         }}
       />

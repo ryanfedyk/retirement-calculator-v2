@@ -216,13 +216,14 @@ export const runSimulation = (
   const startYear  = new Date().getFullYear();
   const startMonth = new Date().getMonth();
 
-  // The wealth trajectory runs from today through age 70. Independence (the FI
-  // target = 25× expenses) is a point-in-time check, so a plan that's solid by
-  // the 4% rule still reads as on-track here. A small floor keeps a usable
-  // window for users already near/over 70.
-  const END_AGE          = 70;
+  // The wealth trajectory runs from today through age 100 so the chart's
+  // "to 75 / to 100" horizon toggle has real data to show (and post-retirement
+  // drawdown is visible). Independence (the FI target = 25× expenses) is a
+  // point-in-time check that resolves at the same month regardless of how far
+  // the horizon runs. A small floor keeps a usable window near/over 100.
+  const END_AGE          = 100;
   const startAge         = startYear - (config.birth_year || 1980);
-  const monthsToSimulate = Math.min(720, Math.max(36, (END_AGE - startAge) * 12));
+  const monthsToSimulate = Math.min(1000, Math.max(36, (END_AGE - startAge) * 12));
 
   // ── Initial balances ───────────────────────────────────────────────────────
   let liquidCash  = snapshot.liquid_assets.vanguard_bridge + snapshot.liquid_assets.cash_savings;
@@ -280,7 +281,7 @@ export const runSimulation = (
   // effective annual yield (7%/12 monthly compounds to ~7.23%/yr).
   const monthlyRate = (annualPct: number) => Math.pow(1 + annualPct / 100, 1 / 12) - 1;
 
-  // ── Main simulation loop (runs through age 95; see monthsToSimulate) ───────
+  // ── Main simulation loop (runs through age 100; see monthsToSimulate) ──────
   for (let month = 0; month < monthsToSimulate; month++) {
 
     const totalMonths = startMonth + month;

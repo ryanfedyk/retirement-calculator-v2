@@ -6,8 +6,8 @@
  * becomes the active scenario, which drives the countdown and both deep-dive
  * tabs.
  */
-import { useMemo } from "react";
-import { Plus, Copy, Pencil, Trash2, ArrowRight, Sparkles, Check } from "lucide-react";
+import { useMemo, useState, useRef, useEffect } from "react";
+import { Plus, Copy, Pencil, Trash2, Sparkles, Check, MoreVertical } from "lucide-react";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { runSimulation, findIndependencePoint } from "@/engine/calculator";
 import { useScenarioSuggestions } from "@/hooks/useScenarioSuggestions";
@@ -19,11 +19,51 @@ import type { LivePrices } from "@/hooks/useLivePrices";
 const PALETTE = ["#2a7a68", "#d98a3d", "#3a7d9c", "#7a6da8", "#c45b6b", "#5a9e54", "#b8893a", "#4a8d9c"];
 const fmtM = (n: number) => `$${(n / 1_000_000).toFixed(2)}M`;
 
-const iconBtn: React.CSSProperties = {
-  display: "flex", alignItems: "center", justifyContent: "center",
-  width: 30, height: 30, borderRadius: 7, border: `1px solid ${C.border}`,
-  background: C.bgCard, color: C.inkSoft, cursor: "pointer",
-};
+/** Three-dot overflow menu on a scenario card: rename / duplicate / delete.
+ * Stops click propagation so using it never opens the scenario. */
+function CardMenu({ canDelete, onRename, onDuplicate, onDelete }: {
+  canDelete: boolean; onRename: () => void; onDuplicate: () => void; onDelete: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [open]);
+
+  const item = (Icon: typeof Pencil, label: string, fn: () => void, danger = false) => (
+    <button
+      onClick={(e) => { e.stopPropagation(); setOpen(false); fn(); }}
+      style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 11px", background: "transparent", border: "none", borderRadius: 7, cursor: "pointer", fontSize: 13, fontWeight: 600, color: danger ? C.warm : C.inkMid, textAlign: "left" }}
+      onMouseEnter={(e) => (e.currentTarget.style.background = C.bg)}
+      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+    >
+      <Icon size={14} /> {label}
+    </button>
+  );
+
+  return (
+    <div ref={ref} style={{ position: "relative", flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+      <button
+        aria-label="Scenario options" onClick={() => setOpen((o) => !o)}
+        style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: 7, border: "none", background: "transparent", color: C.inkSoft, cursor: "pointer" }}
+        onMouseEnter={(e) => (e.currentTarget.style.background = C.bg)}
+        onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+      >
+        <MoreVertical size={16} />
+      </button>
+      {open && (
+        <div style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", zIndex: 20, minWidth: 150, background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", padding: 5 }}>
+          {item(Pencil, "Rename", onRename)}
+          {item(Copy, "Duplicate", onDuplicate)}
+          {canDelete && item(Trash2, "Delete", onDelete, true)}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function ScenariosHub({ livePrices, onOpen }: { livePrices: LivePrices; onOpen: () => void }) {
   const { scenarios, activeScenarioId, snapshot, setActiveScenario, addScenario, duplicateScenario, renameScenario, deleteScenario } = useFinancialStore();
@@ -78,7 +118,7 @@ export default function ScenariosHub({ livePrices, onOpen }: { livePrices: LiveP
         </div>
 
         {/* Scenario cards */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 14 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 12 }}>
           {scenarios.map((sc, i) => {
             const active = sc.id === activeScenarioId;
             const color = PALETTE[i % PALETTE.length];
@@ -90,52 +130,47 @@ export default function ScenariosHub({ livePrices, onOpen }: { livePrices: LiveP
                 role="button" tabIndex={0}
                 onKeyDown={(e) => { if (e.key === "Enter") open(sc.id); }}
                 style={{
-                  position: "relative", cursor: "pointer", background: C.bgCard, borderRadius: 14,
+                  position: "relative", cursor: "pointer", background: C.bgCard, borderRadius: 12,
                   border: `1px solid ${active ? C.teal : C.border}`, boxShadow: active ? `0 0 0 1px ${C.teal}` : `0 1px 3px ${C.border}`,
-                  padding: 16, display: "flex", flexDirection: "column", gap: 12, transition: "border-color 0.15s",
+                  padding: 14, display: "flex", flexDirection: "column", gap: 12, transition: "border-color 0.15s",
                 }}
                 onMouseEnter={(e) => { if (!active) e.currentTarget.style.borderColor = C.teal; }}
                 onMouseLeave={(e) => { if (!active) e.currentTarget.style.borderColor = C.border; }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ width: 10, height: 10, borderRadius: "50%", background: color, flexShrink: 0 }} />
-                  <span style={{ fontSize: 15, fontWeight: 700, color: C.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sc.name}</span>
+                  <span style={{ width: 9, height: 9, borderRadius: "50%", background: color, flexShrink: 0 }} />
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 700, color: C.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sc.name}</span>
                   {active && (
-                    <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, fontWeight: 800, letterSpacing: "0.05em", color: "#fff", background: C.teal, borderRadius: 5, padding: "2px 6px" }}>
-                      <Check size={10} /> ACTIVE
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 8, fontWeight: 800, letterSpacing: "0.05em", color: "#fff", background: C.teal, borderRadius: 5, padding: "2px 5px", flexShrink: 0 }}>
+                      <Check size={9} /> ACTIVE
                     </span>
                   )}
+                  <CardMenu
+                    canDelete={scenarios.length > 1}
+                    onRename={() => rename(sc.id, sc.name)}
+                    onDuplicate={() => { setActiveScenario(sc.id); duplicateScenario(); }}
+                    onDelete={() => remove(sc.id, sc.name)}
+                  />
                 </div>
 
-                <div style={{ display: "flex", gap: 18 }}>
+                <div style={{ display: "flex", gap: 16 }}>
                   <div>
                     <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.inkFaint }}>FI date</div>
                     {st?.fiYear ? (
-                      <>
-                        <div style={{ fontSize: 24, fontWeight: 800, color: C.ink, lineHeight: 1.05 }}>{st.fiYear}</div>
-                        <div style={{ fontSize: 11, color: C.inkSoft }}>at age {st.fiAge}</div>
-                      </>
+                      <div style={{ display: "flex", alignItems: "baseline", gap: 5 }}>
+                        <span style={{ fontSize: 19, fontWeight: 800, color: C.ink, lineHeight: 1.1 }}>{st.fiYear}</span>
+                        <span style={{ fontSize: 10, color: C.inkSoft }}>age {st.fiAge}</span>
+                      </div>
                     ) : (
-                      <div style={{ fontSize: 14, fontWeight: 700, color: "#a23818", lineHeight: 1.3, marginTop: 2 }}>Off track</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "#a23818", lineHeight: 1.4 }}>Off track</div>
                     )}
                   </div>
                   <div>
                     <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.inkFaint }}>Exit year</div>
-                    <div style={{ fontSize: 24, fontWeight: 800, color: C.ink, lineHeight: 1.05 }}>{sc.config.career_path.exit_year}</div>
-                    <div style={{ fontSize: 11, color: C.inkSoft }}>{fmtM(st?.finalNW ?? 0)} by horizon</div>
-                  </div>
-                </div>
-
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: "auto" }}>
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700, color: C.teal }}>
-                    Open <ArrowRight size={14} />
-                  </span>
-                  <div style={{ marginLeft: "auto", display: "flex", gap: 6 }} onClick={(e) => e.stopPropagation()}>
-                    <button style={iconBtn} title="Duplicate" aria-label="Duplicate scenario" onClick={() => { setActiveScenario(sc.id); duplicateScenario(); }}><Copy size={13} /></button>
-                    <button style={iconBtn} title="Rename" aria-label="Rename scenario" onClick={() => rename(sc.id, sc.name)}><Pencil size={12} /></button>
-                    {scenarios.length > 1 && (
-                      <button style={{ ...iconBtn, color: C.warm }} title="Delete" aria-label="Delete scenario" onClick={() => remove(sc.id, sc.name)}><Trash2 size={13} /></button>
-                    )}
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 5 }}>
+                      <span style={{ fontSize: 19, fontWeight: 800, color: C.ink, lineHeight: 1.1 }}>{sc.config.career_path.exit_year}</span>
+                      <span style={{ fontSize: 10, color: C.inkSoft }}>{fmtM(st?.finalNW ?? 0)}</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -146,14 +181,14 @@ export default function ScenariosHub({ livePrices, onOpen }: { livePrices: LiveP
           <button
             onClick={() => { addScenario(); onOpen(); }}
             style={{
-              cursor: "pointer", background: "transparent", borderRadius: 14, border: `1.5px dashed ${C.border}`,
-              padding: 16, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-              gap: 8, color: C.inkSoft, minHeight: 150, transition: "all 0.15s",
+              cursor: "pointer", background: "transparent", borderRadius: 12, border: `1.5px dashed ${C.border}`,
+              padding: 14, display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "center",
+              gap: 8, color: C.inkSoft, transition: "all 0.15s",
             }}
             onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.teal; e.currentTarget.style.color = C.teal; }}
             onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.inkSoft; }}
           >
-            <Plus size={22} />
+            <Plus size={18} />
             <span style={{ fontSize: 13, fontWeight: 700 }}>New scenario</span>
           </button>
         </div>
@@ -164,34 +199,29 @@ export default function ScenariosHub({ livePrices, onOpen }: { livePrices: LiveP
             <Sparkles size={15} color={C.teal} />
             <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.inkSoft }}>Suggested scenarios</span>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 10 }}>
+          <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 4, WebkitOverflowScrolling: "touch", scrollSnapType: "x proximity" }}>
             {suggestions.map((s) => (
               <button
                 key={s.title}
                 onClick={s.build}
                 title={`Create a new scenario: ${s.title}`}
                 style={{
-                  display: "flex", flexDirection: "column", alignItems: "stretch", gap: 12, textAlign: "left",
-                  padding: "14px 16px", borderRadius: 12, border: `1px solid ${C.border}`, background: C.bgCard,
+                  flexShrink: 0, width: 168, scrollSnapAlign: "start",
+                  display: "flex", flexDirection: "column", alignItems: "stretch", gap: 6, textAlign: "left",
+                  padding: "10px 12px", borderRadius: 11, border: `1px solid ${C.border}`, background: C.bgCard,
                   cursor: "pointer", transition: "all 0.15s",
                 }}
                 onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.teal; }}
                 onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; }}
               >
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700, color: C.ink }}>
-                  <Plus size={13} color={C.teal} /> {s.title}
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700, color: C.ink }}>
+                  <Plus size={12} color={C.teal} style={{ flexShrink: 0 }} /> {s.title}
                 </span>
-                <span style={{ display: "flex", gap: 16 }}>
-                  <span style={{ flex: 1 }}>
-                    <span style={{ display: "block", fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.inkFaint }}>{s.nwLabel}</span>
-                    <span style={{ display: "block", fontSize: 16, fontWeight: 700, color: s.nwColor, fontVariantNumeric: "tabular-nums" }}>{s.nwDelta}</span>
-                  </span>
-                  <span style={{ flex: 1 }}>
-                    <span style={{ display: "block", fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.inkFaint }}>FI date</span>
-                    <span style={{ display: "block", fontSize: 16, fontWeight: 700, color: C.ink, fontVariantNumeric: "tabular-nums" }}>{s.fiDate}</span>
-                    <span style={{ display: "block", fontSize: 10, fontWeight: 600, color: s.fiColor }}>{s.fiDelta}</span>
-                  </span>
+                <span style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: s.nwColor, fontVariantNumeric: "tabular-nums" }}>{s.nwDelta}</span>
+                  <span style={{ fontSize: 11, color: C.inkSoft }}>· FI {s.fiDate}</span>
                 </span>
+                <span style={{ fontSize: 10, fontWeight: 600, color: s.fiColor }}>{s.fiDelta}</span>
               </button>
             ))}
           </div>

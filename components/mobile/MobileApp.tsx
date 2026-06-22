@@ -9,6 +9,7 @@ import type { LivePrices } from "@/components/finance/FinancialDashboard";
 import MobileFinancial from "./MobileFinancial";
 import MobileForecasting from "./MobileForecasting";
 import ScenariosHub from "@/components/ScenariosHub";
+import CountdownStrip from "@/components/CountdownStrip";
 import ConfigSheet from "./ConfigSheet";
 import FinancesOverlay from "@/components/finance/FinancesOverlay";
 import SettingsPanel from "@/components/SettingsPanel";
@@ -92,6 +93,8 @@ export default function MobileApp() {
 
       {/* Body — hub landing, or the open scenario's deep-dive */}
       <main style={{ flex: 1, display: "flex", flexDirection: "column", paddingBottom: scenarioOpen ? "calc(84px + env(safe-area-inset-bottom))" : "env(safe-area-inset-bottom)" }}>
+        {/* Countdown to the open scenario's retirement date — spans both deep-dive tabs (mirrors desktop) */}
+        {scenarioOpen && <CountdownStrip compact />}
         {!scenarioOpen ? (
           <ScenariosHub livePrices={livePrices} onOpen={() => { setView("financial"); setScenarioOpen(true); }} />
         ) : view === "financial" ? (

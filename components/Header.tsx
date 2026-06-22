@@ -1,10 +1,11 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
-import { Check, Cloud, LogOut, AlertCircle, Settings, ChevronLeft } from "lucide-react";
+import { Check, Cloud, LogOut, AlertCircle, Settings, ChevronLeft, ChevronDown } from "lucide-react";
 import { C } from "@/config/colors";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { useCloudSync } from "@/lib/cloud/CloudSyncProvider";
 import { useUIStore } from "@/store/useUIStore";
+import { useFinancialStore } from "@/store/useFinancialStore";
 
 export type AppView = "forecasting" | "financial";
 
@@ -13,11 +14,10 @@ interface Props {
   onViewChange: (v: AppView) => void;
   /** "hub" = scenarios landing (no view toggle); "scenario" = deep-dive (back + toggle). */
   mode: "hub" | "scenario";
-  scenarioName?: string;
   onBack?: () => void;
 }
 
-export default function Header({ view, onViewChange, mode, scenarioName, onBack }: Props) {
+export default function Header({ view, onViewChange, mode, onBack }: Props) {
   return (
     <header style={{
       background: C.bgHeader,
@@ -39,6 +39,7 @@ export default function Header({ view, onViewChange, mode, scenarioName, onBack 
               <div style={{ width: 1, height: 20, background: C.border }} />
               <button
                 onClick={onBack}
+                title="Back to all scenarios"
                 style={{
                   display: "flex", alignItems: "center", gap: 5, padding: "5px 10px 5px 6px",
                   borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, cursor: "pointer",
@@ -49,11 +50,7 @@ export default function Header({ view, onViewChange, mode, scenarioName, onBack 
               >
                 <ChevronLeft size={15} /> Scenarios
               </button>
-              {scenarioName && (
-                <span style={{ fontSize: 13, fontWeight: 700, color: C.ink, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {scenarioName}
-                </span>
-              )}
+              <ScenarioSelect />
             </>
           )}
         </div>
@@ -90,6 +87,33 @@ export default function Header({ view, onViewChange, mode, scenarioName, onBack 
         </div>
       </div>
     </header>
+  );
+}
+
+/** Switch the active scenario without leaving the deep-dive. The selection
+ * drives the countdown and both tabs (everything reads the active scenario). */
+function ScenarioSelect() {
+  const scenarios = useFinancialStore((s) => s.scenarios);
+  const activeScenarioId = useFinancialStore((s) => s.activeScenarioId);
+  const setActiveScenario = useFinancialStore((s) => s.setActiveScenario);
+
+  return (
+    <div style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
+      <select
+        value={activeScenarioId}
+        onChange={(e) => setActiveScenario(e.target.value)}
+        aria-label="Active scenario"
+        style={{
+          appearance: "none", WebkitAppearance: "none", MozAppearance: "none",
+          maxWidth: 220, border: `1px solid ${C.border}`, borderRadius: 8,
+          padding: "6px 28px 6px 11px", fontSize: 13, fontWeight: 700, color: C.ink,
+          background: C.bgCard, outline: "none", cursor: "pointer",
+        }}
+      >
+        {scenarios.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+      </select>
+      <ChevronDown size={14} color={C.inkSoft} style={{ position: "absolute", right: 9, pointerEvents: "none" }} />
+    </div>
   );
 }
 

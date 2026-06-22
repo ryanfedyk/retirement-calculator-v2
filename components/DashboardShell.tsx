@@ -2,7 +2,6 @@
 import { useState } from "react";
 import { Anchor, Wind, Clock, Compass } from "lucide-react";
 import { useHorizonProfile } from "@/config/horizonConfig";
-import { useFinancialStore } from "@/store/useFinancialStore";
 import { C } from "@/config/colors";
 import Header, { type AppView } from "@/components/Header";
 import CountdownStrip        from "@/components/CountdownStrip";
@@ -38,7 +37,6 @@ export default function DashboardShell() {
   const { user } = useHorizonProfile();
   const isMobile = useIsMobile();
   const prices = useLivePrices({ enabled: !isMobile });
-  const activeScenarioName = useFinancialStore((s) => s.scenarios.find((x) => x.id === s.activeScenarioId)?.name);
 
   if (isMobile) return <MobileApp />;
 
@@ -61,7 +59,6 @@ export default function DashboardShell() {
         view={appView}
         onViewChange={setAppView}
         mode="scenario"
-        scenarioName={activeScenarioName}
         onBack={() => setScenarioOpen(false)}
       />
       <SettingsPanel />

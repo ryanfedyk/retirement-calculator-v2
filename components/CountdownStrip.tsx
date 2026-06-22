@@ -44,7 +44,7 @@ function useCountdown() {
   return { days, hours, mins, secs, months, quarters, summers };
 }
 
-export default function CountdownStrip({ compact = false }: { compact?: boolean }) {
+export default function CountdownStrip() {
   const { days, hours, mins, secs, months, quarters, summers } = useCountdown();
 
   const pad = (n: number, len = 2) => String(n).padStart(len, "0");
@@ -53,15 +53,12 @@ export default function CountdownStrip({ compact = false }: { compact?: boolean 
     <div style={{
       background: C.bgHeader,
       borderBottom: `1px solid ${C.border}`,
-      padding: compact ? "8px 16px" : "7px 32px",
+      padding: "7px 32px",
       display: "flex",
       alignItems: "center",
       gap: 20,
     }}>
-      <div
-        className={compact ? "w-full flex items-center justify-center" : "max-w-7xl mx-auto w-full flex items-center gap-5"}
-        style={compact ? { flexWrap: "wrap", columnGap: 14, rowGap: 6 } : undefined}
-      >
+      <div className="max-w-7xl mx-auto w-full flex items-center gap-5">
         {/* Live */}
         <div style={{ display: "flex", alignItems: "baseline", gap: 2 }}>
           {([

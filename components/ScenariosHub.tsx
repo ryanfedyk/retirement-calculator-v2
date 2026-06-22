@@ -164,15 +164,15 @@ export default function ScenariosHub({ livePrices, onOpen }: { livePrices: LiveP
             <Sparkles size={15} color={C.teal} />
             <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.inkSoft }}>Suggested scenarios</span>
           </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 10 }}>
             {suggestions.map((s) => (
               <button
                 key={s.title}
                 onClick={s.build}
                 title={`Create a new scenario: ${s.title}`}
                 style={{
-                  display: "inline-flex", flexDirection: "column", alignItems: "flex-start", gap: 2,
-                  padding: "10px 14px", borderRadius: 11, border: `1px solid ${C.border}`, background: C.bgCard,
+                  display: "flex", flexDirection: "column", alignItems: "stretch", gap: 12, textAlign: "left",
+                  padding: "14px 16px", borderRadius: 12, border: `1px solid ${C.border}`, background: C.bgCard,
                   cursor: "pointer", transition: "all 0.15s",
                 }}
                 onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.teal; }}
@@ -181,7 +181,17 @@ export default function ScenariosHub({ livePrices, onOpen }: { livePrices: LiveP
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700, color: C.ink }}>
                   <Plus size={13} color={C.teal} /> {s.title}
                 </span>
-                <span style={{ fontSize: 11, fontWeight: 600, color: s.fiColor }}>FI {s.fiDelta}</span>
+                <span style={{ display: "flex", gap: 16 }}>
+                  <span style={{ flex: 1 }}>
+                    <span style={{ display: "block", fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.inkFaint }}>{s.nwLabel}</span>
+                    <span style={{ display: "block", fontSize: 16, fontWeight: 700, color: s.nwColor, fontVariantNumeric: "tabular-nums" }}>{s.nwDelta}</span>
+                  </span>
+                  <span style={{ flex: 1 }}>
+                    <span style={{ display: "block", fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.inkFaint }}>FI date</span>
+                    <span style={{ display: "block", fontSize: 16, fontWeight: 700, color: C.ink, fontVariantNumeric: "tabular-nums" }}>{s.fiDate}</span>
+                    <span style={{ display: "block", fontSize: 10, fontWeight: 600, color: s.fiColor }}>{s.fiDelta}</span>
+                  </span>
+                </span>
               </button>
             ))}
           </div>

@@ -17,10 +17,8 @@ import { getLifeEvents } from "@/lib/horizonUtils";
 import { useHorizonProfile } from "@/config/horizonConfig";
 import PriceTicker from "./PriceTicker";
 import ScenarioLevers from "./ScenarioLevers";
-import ScenarioCompare from "./ScenarioCompare";
 import FireMoments from "@/components/fx/FireMoments";
 import { isCoastFI } from "@/lib/fire/moments";
-import { GitCompare } from "lucide-react";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -143,11 +141,10 @@ interface Props {
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 export default function RightPanel({ livePrices, pricesUpdatedAt, pricesFetching, onRefreshPrices }: Props) {
-  const { snapshot, config, scenarios } = useFinancialStore();
+  const { snapshot, config } = useFinancialStore();
   const { children } = useHorizonProfile();
   const [chartView, setChartView] = useState<ChartView>("wealth");
   const [insightTab, setInsightTab] = useState<"today" | "ai">("today");
-  const [compare, setCompare] = useState(false);
   const [ageCap, setAgeCap] = useState<75 | 100>(100);
 
   // Year currently hovered on the chart — reveals subtle (secondary) milestones
@@ -321,24 +318,6 @@ export default function RightPanel({ livePrices, pricesUpdatedAt, pricesFetching
 
       {/* ── Scenario levers — the headline interaction ── */}
       <ScenarioLevers />
-
-      {/* ── Compare multiple scenarios on one chart ── */}
-      {scenarios.length > 1 && (
-        <div>
-          <button
-            onClick={() => setCompare((c) => !c)}
-            style={{
-              display: "inline-flex", alignItems: "center", gap: 7, padding: "8px 14px",
-              borderRadius: 8, border: `1px solid ${compare ? C.teal : C.border}`,
-              background: compare ? `${C.teal}14` : C.bgCard, color: compare ? C.teal : C.inkSoft,
-              fontSize: 13, fontWeight: 600, cursor: "pointer", marginBottom: compare ? 12 : 0,
-            }}
-          >
-            <GitCompare size={15} /> {compare ? "Hide comparison" : `Compare ${scenarios.length} scenarios`}
-          </button>
-          {compare && <ScenarioCompare livePrices={livePrices} />}
-        </div>
-      )}
 
       {/* ── Portfolio price ticker (from the user's holdings) ── */}
       <PriceTicker

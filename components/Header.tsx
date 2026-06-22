@@ -1,6 +1,6 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
-import { Check, Cloud, LogOut, AlertCircle, Settings } from "lucide-react";
+import { Check, Cloud, LogOut, AlertCircle, Settings, ChevronLeft } from "lucide-react";
 import { C } from "@/config/colors";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { useCloudSync } from "@/lib/cloud/CloudSyncProvider";
@@ -11,9 +11,13 @@ export type AppView = "forecasting" | "financial";
 interface Props {
   view: AppView;
   onViewChange: (v: AppView) => void;
+  /** "hub" = scenarios landing (no view toggle); "scenario" = deep-dive (back + toggle). */
+  mode: "hub" | "scenario";
+  scenarioName?: string;
+  onBack?: () => void;
 }
 
-export default function Header({ view, onViewChange }: Props) {
+export default function Header({ view, onViewChange, mode, scenarioName, onBack }: Props) {
   return (
     <header style={{
       background: C.bgHeader,
@@ -21,41 +25,66 @@ export default function Header({ view, onViewChange }: Props) {
       padding: "14px 32px",
     }}>
       <div className="max-w-7xl mx-auto flex items-center justify-between">
-        {/* Wordmark */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ width: 2, height: 28, borderRadius: 2, background: C.teal, flexShrink: 0 }} />
-          <div>
+        {/* Wordmark + (deep-dive) back-to-scenarios breadcrumb */}
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ width: 2, height: 28, borderRadius: 2, background: C.teal, flexShrink: 0 }} />
             <div style={{ color: C.ink, fontSize: 12, fontWeight: 600, letterSpacing: "0.2em", textTransform: "uppercase", lineHeight: 1 }}>
               Taper
             </div>
           </div>
+
+          {mode === "scenario" && (
+            <>
+              <div style={{ width: 1, height: 20, background: C.border }} />
+              <button
+                onClick={onBack}
+                style={{
+                  display: "flex", alignItems: "center", gap: 5, padding: "5px 10px 5px 6px",
+                  borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, cursor: "pointer",
+                  color: C.inkSoft, fontSize: 12, fontWeight: 600,
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = C.ink)}
+                onMouseLeave={(e) => (e.currentTarget.style.color = C.inkSoft)}
+              >
+                <ChevronLeft size={15} /> Scenarios
+              </button>
+              {scenarioName && (
+                <span style={{ fontSize: 13, fontWeight: 700, color: C.ink, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {scenarioName}
+                </span>
+              )}
+            </>
+          )}
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          {/* View toggle */}
-          <div style={{
-            display: "flex", background: C.bg, border: `1px solid ${C.border}`,
-            borderRadius: 20, padding: 3, gap: 2,
-          }}>
-            {(["financial", "forecasting"] as AppView[]).map(v => (
-              <button
-                key={v}
-                onClick={() => onViewChange(v)}
-                style={{
-                  padding: "5px 16px", borderRadius: 16,
-                  border: "none", cursor: "pointer",
-                  background: view === v ? C.bgCard : "transparent",
-                  boxShadow: view === v ? `0 1px 3px ${C.border}` : "none",
-                  color: view === v ? C.ink : C.inkSoft,
-                  fontSize: 10, fontWeight: view === v ? 600 : 400,
-                  letterSpacing: "0.1em", textTransform: "uppercase",
-                  transition: "all 0.15s",
-                }}
-              >
-                {v === "forecasting" ? "Forecasting" : "Financial"}
-              </button>
-            ))}
-          </div>
+          {/* View toggle — only when exploring a scenario */}
+          {mode === "scenario" && (
+            <div style={{
+              display: "flex", background: C.bg, border: `1px solid ${C.border}`,
+              borderRadius: 20, padding: 3, gap: 2,
+            }}>
+              {(["financial", "forecasting"] as AppView[]).map(v => (
+                <button
+                  key={v}
+                  onClick={() => onViewChange(v)}
+                  style={{
+                    padding: "5px 16px", borderRadius: 16,
+                    border: "none", cursor: "pointer",
+                    background: view === v ? C.bgCard : "transparent",
+                    boxShadow: view === v ? `0 1px 3px ${C.border}` : "none",
+                    color: view === v ? C.ink : C.inkSoft,
+                    fontSize: 10, fontWeight: view === v ? 600 : 400,
+                    letterSpacing: "0.1em", textTransform: "uppercase",
+                    transition: "all 0.15s",
+                  }}
+                >
+                  {v === "forecasting" ? "Forecasting" : "Financial"}
+                </button>
+              ))}
+            </div>
+          )}
 
           <AccountMenu />
         </div>

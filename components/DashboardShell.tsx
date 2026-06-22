@@ -2,10 +2,13 @@
 import { useState } from "react";
 import { Anchor, Wind, Clock, Compass } from "lucide-react";
 import { useHorizonProfile } from "@/config/horizonConfig";
+import { useFinancialStore } from "@/store/useFinancialStore";
 import { C } from "@/config/colors";
 import Header, { type AppView } from "@/components/Header";
 import CountdownStrip        from "@/components/CountdownStrip";
+import ScenariosHub          from "@/components/ScenariosHub";
 import { useIsMobile }       from "@/hooks/useIsMobile";
+import { useLivePrices }     from "@/hooks/useLivePrices";
 import MobileApp             from "@/components/mobile/MobileApp";
 import { useRetirementDate } from "@/hooks/useRetirementDate";
 import FlightMap             from "@/components/FlightMap";
@@ -28,27 +31,53 @@ type NavId = typeof NAV[number]["id"];
 
 export default function DashboardShell() {
   const [appView, setAppView] = useState<AppView>("financial");
+  const [scenarioOpen, setScenarioOpen] = useState(false);
   const [tab,   setTab]   = useState<NavId>("seasons");
   const [saved, setSaved] = useState<AdventureBlueprint[]>([]);
   const { retirementDate } = useRetirementDate();
   const { user } = useHorizonProfile();
   const isMobile = useIsMobile();
+  const prices = useLivePrices({ enabled: !isMobile });
+  const activeScenarioName = useFinancialStore((s) => s.scenarios.find((x) => x.id === s.activeScenarioId)?.name);
 
   if (isMobile) return <MobileApp />;
 
+  // ── Scenarios hub — top-level landing ──
+  if (!scenarioOpen) {
+    return (
+      <div className="min-h-screen flex flex-col" style={{ background: C.bg }}>
+        <Header view={appView} onViewChange={setAppView} mode="hub" />
+        <SettingsPanel />
+        <ScenariosHub livePrices={prices.livePrices} onOpen={() => setScenarioOpen(true)} />
+      </div>
+    );
+  }
+
+  // ── Scenario deep-dive ──
   return (
     <div className="min-h-screen flex flex-col" style={{ background: C.bg }}>
 
-      <Header view={appView} onViewChange={setAppView} />
+      <Header
+        view={appView}
+        onViewChange={setAppView}
+        mode="scenario"
+        scenarioName={activeScenarioName}
+        onBack={() => setScenarioOpen(false)}
+      />
       <SettingsPanel />
 
-      {/* Countdown — shown across both views */}
+      {/* Countdown — reflects the open scenario, across both deep-dive tabs */}
       <CountdownStrip />
 
       {/* ── Financial View ── */}
       {appView === "financial" && (
-        <div className="flex-1">
-          <FinancialDashboard />
+        <div className="flex-1" style={{ minHeight: 0 }}>
+          <FinancialDashboard
+            livePrices={prices.livePrices}
+            pricesUpdatedAt={prices.pricesUpdatedAt}
+            pricesFetching={prices.pricesFetching}
+            onRefreshPrices={prices.refresh}
+          />
         </div>
       )}
 

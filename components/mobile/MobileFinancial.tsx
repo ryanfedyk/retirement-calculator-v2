@@ -7,9 +7,10 @@ import { useFinancialStore } from "@/store/useFinancialStore";
 import { runSimulation, findIndependencePoint } from "@/engine/calculator";
 import { getLifeEvents } from "@/lib/horizonUtils";
 import { useHorizonProfile } from "@/config/horizonConfig";
-import { TodaysDelta, MomentumTurnstile, WhatIfChips } from "@/components/finance/MotivationWidgets";
+import { TodaysDelta, MomentumTurnstile } from "@/components/finance/MotivationWidgets";
 import AiAnalysis from "@/components/finance/AiAnalysis";
 import PriceTicker from "@/components/finance/PriceTicker";
+import ScenarioBar from "@/components/finance/ScenarioBar";
 import ScenarioLevers from "@/components/finance/ScenarioLevers";
 import ScenarioCompare from "@/components/finance/ScenarioCompare";
 import FireMoments from "@/components/fx/FireMoments";
@@ -39,7 +40,7 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
   const { children } = useHorizonProfile();
   const [view, setView] = useState<View>("wealth");
   const [ageCap, setAgeCap] = useState<75 | 100>(100);
-  const [insightTab, setInsightTab] = useState<"today" | "scenarios" | "ai">("today");
+  const [insightTab, setInsightTab] = useState<"today" | "ai">("today");
   const [compare, setCompare] = useState(false);
 
   const googInfo      = livePrices["GOOG"] ?? livePrices["GOOGL"];
@@ -172,6 +173,11 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
         </div>
       </div>
 
+      {/* Global scenario builder — switch / create scenarios + What-if shortcuts */}
+      <div style={{ margin: "0 -16px", borderTop: `1px solid ${C.border}` }}>
+        <ScenarioBar livePrices={livePrices} />
+      </div>
+
       {/* Scenario levers — drive the trajectory live */}
       <ScenarioLevers />
 
@@ -287,7 +293,7 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
 
       {/* Insights — progressive disclosure below the chart (mirrors desktop) */}
       <div style={{ display: "flex", gap: 6, background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 14, padding: 5 }}>
-        {([["today", "Today"], ["scenarios", "Scenarios"], ["ai", "AI Coach"]] as const).map(([id, label]) => (
+        {([["today", "Today"], ["ai", "AI Coach"]] as const).map(([id, label]) => (
           <button key={id} onClick={() => setInsightTab(id)} style={{
             flex: 1, padding: "10px 0", borderRadius: 10, border: "none", cursor: "pointer",
             fontSize: 12, fontWeight: 600,
@@ -302,9 +308,6 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
           <TodaysDelta trajectory={traj} snapshot={enrichedSnapshot} symbol={config.concentrated_symbol} price={livePrices[(config.concentrated_symbol ?? "").toUpperCase()]?.price ?? 0} />
           {today && <MomentumTurnstile point={today} config={config} />}
         </>
-      )}
-      {insightTab === "scenarios" && (
-        <WhatIfChips snapshot={enrichedSnapshot} config={config} liveGoogPrice={liveGoogPrice} />
       )}
       {insightTab === "ai" && (
         <AiAnalysis config={config} snapshot={snapshot} trajectory={traj} />

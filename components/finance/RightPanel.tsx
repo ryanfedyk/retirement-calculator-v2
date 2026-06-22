@@ -8,7 +8,7 @@ import { Flag, CheckCircle, TrendingUp, CalendarDays, Sparkles, AlertTriangle } 
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { runSimulation, findIndependencePoint } from "@/engine/calculator";
 import type { TrajectoryPoint } from "@/engine/calculator";
-import { TodaysDelta, MomentumTurnstile, WhatIfChips } from "./MotivationWidgets";
+import { TodaysDelta, MomentumTurnstile } from "./MotivationWidgets";
 import AiAnalysis from "./AiAnalysis";
 import { C } from "@/config/colors";
 import LifeCalendar from "./LifeCalendar";
@@ -146,7 +146,7 @@ export default function RightPanel({ livePrices, pricesUpdatedAt, pricesFetching
   const { snapshot, config, scenarios } = useFinancialStore();
   const { children } = useHorizonProfile();
   const [chartView, setChartView] = useState<ChartView>("wealth");
-  const [insightTab, setInsightTab] = useState<"today" | "scenarios" | "ai">("today");
+  const [insightTab, setInsightTab] = useState<"today" | "ai">("today");
   const [compare, setCompare] = useState(false);
   const [ageCap, setAgeCap] = useState<75 | 100>(100);
 
@@ -538,7 +538,7 @@ export default function RightPanel({ livePrices, pricesUpdatedAt, pricesFetching
 
       {/* ── Insights — progressive disclosure below the hero chart ── */}
       <div style={{ display: "flex", gap: 6, background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 10, padding: 4, alignSelf: "flex-start" }}>
-        {([["today", "Today"], ["scenarios", "Scenarios"], ["ai", "AI Coach"]] as const).map(([id, label]) => (
+        {([["today", "Today"], ["ai", "AI Coach"]] as const).map(([id, label]) => (
           <button key={id} onClick={() => setInsightTab(id)} style={{
             padding: "7px 16px", borderRadius: 7, border: "none", cursor: "pointer",
             fontSize: 12, fontWeight: 600,
@@ -553,10 +553,6 @@ export default function RightPanel({ livePrices, pricesUpdatedAt, pricesFetching
           <TodaysDelta trajectory={trajectoryData} snapshot={enrichedSnapshot} symbol={config.concentrated_symbol} price={livePrices[(config.concentrated_symbol ?? "").toUpperCase()]?.price ?? 0} />
           {todayPoint && <MomentumTurnstile point={todayPoint} config={config} />}
         </>
-      )}
-
-      {insightTab === "scenarios" && (
-        <WhatIfChips snapshot={enrichedSnapshot} config={config} liveGoogPrice={liveGoogPrice} />
       )}
 
       {/* ── AI Analysis ── */}

@@ -2,7 +2,6 @@
 import { useState } from "react";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { C } from "@/config/colors";
-import ScenarioSwitcher from "./ScenarioSwitcher";
 import { colTier } from "@/lib/fire/moments";
 
 const money = (n: number) => `$${Math.round(n).toLocaleString()}`;
@@ -89,7 +88,7 @@ export default function ScenarioLevers() {
     <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 18px", boxShadow: `0 1px 3px ${C.border}` }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
         <span style={{ width: 3, height: 15, borderRadius: 2, background: C.teal }} />
-        <ScenarioSwitcher />
+        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: C.ink }}>Tune this scenario</span>
       </div>
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: "14px 22px", marginBottom: 14 }}>

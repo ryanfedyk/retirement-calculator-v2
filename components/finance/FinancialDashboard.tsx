@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import LeftPanel  from "./LeftPanel";
 import RightPanel from "./RightPanel";
+import ScenarioBar from "./ScenarioBar";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
 
@@ -42,19 +43,19 @@ export default function FinancialDashboard() {
   useEffect(() => { fetchAllPrices(); }, [fetchAllPrices]);
 
   return (
-    <div style={{
-      display: "flex", height: "calc(100vh - 100px)",
-      overflow: "hidden", background: C.bg,
-    }}>
-      <LeftPanel
-        livePrices={livePrices}
-      />
-      <RightPanel
-        livePrices={livePrices}
-        pricesUpdatedAt={pricesUpdatedAt}
-        pricesFetching={pricesFetching}
-        onRefreshPrices={fetchAllPrices}
-      />
+    <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 100px)", background: C.bg }}>
+      <ScenarioBar livePrices={livePrices} />
+      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+        <LeftPanel
+          livePrices={livePrices}
+        />
+        <RightPanel
+          livePrices={livePrices}
+          pricesUpdatedAt={pricesUpdatedAt}
+          pricesFetching={pricesFetching}
+          onRefreshPrices={fetchAllPrices}
+        />
+      </div>
     </div>
   );
 }

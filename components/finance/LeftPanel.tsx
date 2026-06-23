@@ -1,8 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Sliders, RotateCcw, Wallet, Trash2, PlusCircle, ChevronDown, Pencil } from "lucide-react";
+import { Sliders, Wallet, Trash2, PlusCircle, ChevronDown, Pencil } from "lucide-react";
 import { useFinancialStore } from "@/store/useFinancialStore";
-import { useConfirm } from "@/components/ui/DialogProvider";
 import { C } from "@/config/colors";
 import { DEFAULT_SNAPSHOT, DEFAULT_SIM_CONFIG } from "@/config/sharedConfig";
 import TickerAutocomplete from "./TickerAutocomplete";
@@ -215,8 +214,7 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar" }: { li
   // same across every scenario — they live in the finances variant only.
   const showFacts  = variant === "finances";
   const showLevers = variant === "sidebar";
-  const { config, snapshot, profile, updateNestedConfig, updateNestedSnapshot, updateConfig, setChildren, resetToDefaults } = useFinancialStore();
-  const confirm = useConfirm();
+  const { config, snapshot, profile, updateNestedConfig, updateNestedSnapshot, updateConfig, setChildren } = useFinancialStore();
   const kids = profile.children;
   const thisYear = new Date().getFullYear();
   const age = thisYear - (config.birth_year || profile.birthYear || 1985);
@@ -261,16 +259,6 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar" }: { li
             </span>
           )}
         </div>
-        {showLevers && (
-          <button
-            onClick={async () => {
-              if (await confirm({ title: "Start over?", message: "This clears your plan and balance sheet and walks you back through the quick setup. It can't be undone.", confirmLabel: "Start over", danger: true }))
-                resetToDefaults();
-            }}
-            style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: C.inkFaint, background: "none", border: "none", cursor: "pointer" }}>
-            <RotateCcw size={11} /> Reset
-          </button>
-        )}
       </div>
 
       <div style={{ padding: "14px 16px", flex: 1 }}>

@@ -1,18 +1,16 @@
 "use client";
 import { useEffect, useState } from "react";
-import { X, Trash2, Plus, RotateCcw, Wallet, ChevronRight } from "lucide-react";
+import { X, Trash2, Plus, Wallet, ChevronRight } from "lucide-react";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
-import { useConfirm } from "@/components/ui/DialogProvider";
 import TickerAutocomplete from "@/components/finance/TickerAutocomplete";
 import LinkedNumberField from "@/components/finance/LinkedNumberField";
 import { money, inputStyle, Field, Num, TextInput, Toggle, Two, Section } from "./sheetUI";
 
 export default function ConfigSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { config, profile, updateNestedConfig, updateConfig, resetToDefaults } = useFinancialStore();
+  const { config, profile, updateNestedConfig, updateConfig } = useFinancialStore();
   const setFinancesOpen = useUIStore((s) => s.setFinancesOpen);
-  const confirm = useConfirm();
   const kids = profile.children;
   const thisYear = new Date().getFullYear();
   const age = thisYear - (config.birth_year || profile.birthYear || 1985);
@@ -58,10 +56,6 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
               <span style={{ fontSize: 11, fontWeight: 600, color: C.inkFaint }}>Just this scenario</span>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={async () => { if (await confirm({ title: "Start over?", message: "This clears your plan and balance sheet and walks you back through the quick setup. It can't be undone.", confirmLabel: "Start over", danger: true })) resetToDefaults(); }}
-                style={{ height: 34, padding: "0 12px", borderRadius: 999, border: `1px solid ${C.border}`, background: C.bgCard, display: "flex", alignItems: "center", gap: 5, cursor: "pointer", color: C.inkSoft, fontSize: 12 }}>
-                <RotateCcw size={13} /> Reset
-              </button>
               <button onClick={onClose} style={{ width: 34, height: 34, borderRadius: "50%", border: `1px solid ${C.border}`, background: C.bgCard, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
                 <X size={16} color={C.inkSoft} />
               </button>

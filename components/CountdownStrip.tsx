@@ -58,7 +58,7 @@ export default function CountdownStrip({ right }: { right?: React.ReactNode }) {
       alignItems: "center",
       gap: 20,
     }}>
-      <div className="max-w-7xl mx-auto w-full flex items-center gap-5">
+      <div className="max-w-7xl mx-auto w-full flex flex-wrap items-center gap-5">
         {/* Live */}
         <div style={{ display: "flex", alignItems: "baseline", gap: 2 }}>
           {([

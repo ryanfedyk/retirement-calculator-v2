@@ -60,12 +60,12 @@ const SummaryCard = ({
   children?: React.ReactNode;
 }) => (
   <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 10, padding: "16px 20px", display: "flex", flexDirection: "column", justifyContent: "space-between", minHeight: 110 }}>
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-      <div>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+      <div style={{ minWidth: 0 }}>
         <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: C.inkFaint, marginBottom: 6 }}>{label}</div>
-        <div style={{ fontSize: 22, fontWeight: 300, letterSpacing: "-0.02em", color: C.ink }}>{value}</div>
+        <div style={{ fontSize: 22, fontWeight: 300, letterSpacing: "-0.02em", color: C.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{value}</div>
       </div>
-      <div style={{ width: 34, height: 34, borderRadius: 8, background: iconBg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ width: 34, height: 34, flexShrink: 0, borderRadius: 8, background: iconBg, display: "flex", alignItems: "center", justifyContent: "center" }}>
         <Icon size={16} color={iconColor} />
       </div>
     </div>
@@ -332,7 +332,7 @@ export default function RightPanel({ livePrices }: Props) {
       )}
 
       {/* ── Summary cards ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12 }}>
         <SummaryCard
           label="Independence Date"
           value={indepPoint ? indepPoint.date : "30+ Yrs"}

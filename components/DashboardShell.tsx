@@ -21,6 +21,8 @@ import PriceTicker           from "@/components/finance/PriceTicker";
 import LifeEventsFab         from "@/components/forecasting/LifeEventsFab";
 import SettingsPanel         from "@/components/SettingsPanel";
 import { useFinancialStore } from "@/store/useFinancialStore";
+import { useUIStore } from "@/store/useUIStore";
+import { useBrowserBackNav } from "@/hooks/useBrowserBackNav";
 import type { AdventureBlueprint } from "@/types/horizon";
 
 const NAV = [
@@ -39,8 +41,24 @@ export default function DashboardShell() {
   const { retirementDate } = useRetirementDate();
   const { user } = useHorizonProfile();
   const { snapshot, config } = useFinancialStore();
+  const settingsOpen = useUIStore((s) => s.settingsOpen);
+  const setSettingsOpen = useUIStore((s) => s.setSettingsOpen);
+  const financesOpen = useUIStore((s) => s.financesOpen);
+  const setFinancesOpen = useUIStore((s) => s.setFinancesOpen);
   const isMobile = useIsMobile();
   const prices = useLivePrices({ enabled: !isMobile });
+
+  // Let the browser Back button step back through the in-memory navigation
+  // (close an overlay, then leave a scenario for the hub) instead of unloading
+  // the page. Ordered top-most first. Disabled on mobile, which has its own nav.
+  useBrowserBackNav({
+    enabled: !isMobile,
+    layers: [
+      { open: settingsOpen, close: () => setSettingsOpen(false) },
+      { open: financesOpen, close: () => setFinancesOpen(false) },
+      { open: scenarioOpen, close: () => setScenarioOpen(false) },
+    ],
+  });
 
   if (isMobile) return <MobileApp />;
 

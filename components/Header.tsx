@@ -24,7 +24,7 @@ export default function Header({ view, onViewChange, mode, onBack }: Props) {
       borderBottom: `1px solid ${C.border}`,
       padding: "14px 32px",
     }}>
-      <div className="max-w-7xl mx-auto flex items-center justify-between">
+      <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
         {/* Wordmark + (deep-dive) back-to-scenarios breadcrumb */}
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>

@@ -1,9 +1,10 @@
 "use client";
 import { useEffect } from "react";
-import { X, Trash2, Plus } from "lucide-react";
+import { X, Trash2, Plus, RotateCcw } from "lucide-react";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
+import { useConfirm } from "@/components/ui/DialogProvider";
 import { STATE_OPTIONS } from "@/engine/state_tax";
 import { estimateMonthlySocialSecurity } from "@/engine/social_security";
 import LinkedNumberField from "@/components/finance/LinkedNumberField";
@@ -79,7 +80,8 @@ const Section = ({ title, accent, children }: { title: string; accent: string; c
 export default function SettingsPanel() {
   const open = useUIStore(s => s.settingsOpen);
   const setOpen = useUIStore(s => s.setSettingsOpen);
-  const { config, profile, updateProfile, updateConfig, updateNestedConfig, setChildren } = useFinancialStore();
+  const { config, profile, updateProfile, updateConfig, updateNestedConfig, setChildren, resetToDefaults } = useFinancialStore();
+  const confirm = useConfirm();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
@@ -216,6 +218,24 @@ export default function SettingsPanel() {
               <Field label="Medicare Age"><Num value={config.medicare?.start_age ?? 65} onChange={v => updateNestedConfig("medicare", { start_age: v } as any)} /></Field>
               <Field label="Medicare $/mo"><Num prefix="$" step={25} value={config.medicare?.monthly_premium ?? 185} onChange={v => updateNestedConfig("medicare", { monthly_premium: v } as any)} /></Field>
             </Two>
+          </Section>
+
+          {/* ── Reset ── */}
+          <Section title="Reset" accent={C.warm}>
+            <div style={{ fontSize: 11, color: C.inkFaint, marginBottom: 12, lineHeight: 1.5 }}>
+              Clear your plan and balance sheet and walk back through the quick setup. This can&apos;t be undone.
+            </div>
+            <button
+              onClick={async () => {
+                if (await confirm({ title: "Start over?", message: "This clears your plan and balance sheet and walks you back through the quick setup. It can't be undone.", confirmLabel: "Start over", danger: true })) {
+                  resetToDefaults();
+                  setOpen(false);
+                }
+              }}
+              style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "11px", borderRadius: 10, border: "1px solid #e0b4a6", background: "#fdece8", color: "#a23818", fontSize: 14, fontWeight: 600, cursor: "pointer" }}
+            >
+              <RotateCcw size={15} /> Start over
+            </button>
           </Section>
         </div>
       </div>

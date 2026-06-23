@@ -7,7 +7,7 @@ import { useFinancialStore } from "@/store/useFinancialStore";
 import { runSimulation, findIndependencePoint } from "@/engine/calculator";
 import { getLifeEvents } from "@/lib/horizonUtils";
 import { useHorizonProfile } from "@/config/horizonConfig";
-import { TodaysDelta, MomentumTurnstile } from "@/components/finance/MotivationWidgets";
+import { TodaysDelta, MomentumCards } from "@/components/finance/MotivationWidgets";
 import AiAnalysis from "@/components/finance/AiAnalysis";
 import PriceTicker from "@/components/finance/PriceTicker";
 import ScenarioLevers from "@/components/finance/ScenarioLevers";
@@ -167,10 +167,10 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
           <span>{fmtM(currentNW)} now</span>
           <span>{Math.round(progress)}% to {fmtM(swrTarget)}</span>
         </div>
-
-        {/* Rotating momentum metrics (Coast FI / Freedom ratio / Years funded) */}
-        {today && <MomentumTurnstile point={today} config={config} embedded />}
       </div>
+
+      {/* Momentum metrics — swipe horizontally (Coast FI / Freedom ratio / Years funded) */}
+      {today && <MomentumCards point={today} config={config} />}
 
       {/* Scenario levers — drive the trajectory live */}
       <ScenarioLevers />

@@ -107,12 +107,6 @@ const Row = ({ children }: { children: React.ReactNode }) => (
   </div>
 );
 
-const Indent = ({ children }: { children: React.ReactNode }) => (
-  <div style={{ paddingLeft: 12, borderLeft: `2px solid ${C.tealLight}`, marginTop: 8 }}>
-    {children}
-  </div>
-);
-
 const SectionDivider = () => (
   <div style={{ borderTop: `1px solid ${C.borderSoft}`, margin: "12px 0" }} />
 );
@@ -216,8 +210,6 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar" }: { li
   const showLevers = variant === "sidebar";
   const { config, snapshot, profile, updateNestedConfig, updateNestedSnapshot, updateConfig, setChildren } = useFinancialStore();
   const kids = profile.children;
-  const thisYear = new Date().getFullYear();
-  const age = thisYear - (config.birth_year || profile.birthYear || 1985);
   const [newEvent, setNewEvent] = useState({ name: "", year: 2030, cost: 50_000 });
   const [newInvSym,  setNewInvSym]  = useState("");
   const [newInvName, setNewInvName] = useState("");
@@ -289,46 +281,28 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar" }: { li
           </div>
         </AccCard>
 
-        {/* ── Career Trajectory ── */}
-        <AccCard {...acc("career")} hidden={!showLevers} title="Career Trajectory" color={C.teal}>
-
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-              <span style={{ fontSize: 12, color: C.inkMid }}>Career Exit Year</span>
-              <span style={{ fontSize: 12, fontWeight: 700, fontVariantNumeric: "tabular-nums", color: C.teal, background: C.tealWash, padding: "1px 8px", borderRadius: 99 }}>
-                {cp.exit_year}
-              </span>
+        {/* ── Career Phases — details only; toggle phases on/off in "Tune this
+            scenario". Each phase's inputs appear here once it's enabled. ── */}
+        <AccCard {...acc("career")} hidden={!showLevers} title="Career Phases" color={C.teal}>
+          {!(cp.use_sabbatical || cp.use_jump || cp.use_bridge) && (
+            <div style={{ fontSize: 11, color: C.inkFaint, lineHeight: 1.5 }}>
+              Turn on a phase — Sabbatical, Career Jump, or Bridge — in <strong style={{ color: C.inkMid, fontWeight: 700 }}>Tune this scenario</strong> (top of the Financial view), then set its details here.
             </div>
-            <input type="range" min={2024} max={Math.max(2040, (config.birth_year || (thisYear - age)) + 75, cp.exit_year)} step={1} value={cp.exit_year}
-              style={{ width: "100%", accentColor: C.teal }}
-              onChange={e => {
-                const yr = parseInt(e.target.value);
-                updateNestedConfig("career_path", { exit_year: yr });
-                if (config.divestment_strategy.type === "progressive") {
-                  const w = config.divestment_strategy.end_year - config.divestment_strategy.start_year;
-                  updateNestedConfig("divestment_strategy", { start_year: yr, end_year: yr + w });
-                }
-              }}
-            />
-          </div>
+          )}
 
-          <SectionDivider />
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <Checkbox label="Take a Sabbatical?" checked={cp.use_sabbatical}
-              onChange={v => updateNestedConfig("career_path", { use_sabbatical: v })} />
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {cp.use_sabbatical && (
-              <Indent>
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#d98a3d", marginBottom: 6 }}>Sabbatical</div>
                 <FieldLabel>Duration (years)</FieldLabel>
                 <Input type="number" value={cp.sabbatical_duration}
                   onChange={e => updateNestedConfig("career_path", { sabbatical_duration: +e.target.value })} />
-              </Indent>
+              </div>
             )}
 
-            <Checkbox label="Model Career Jump?" checked={cp.use_jump}
-              onChange={v => updateNestedConfig("career_path", { use_jump: v })} />
             {cp.use_jump && (
-              <Indent>
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#2a9d7f", marginBottom: 6 }}>Career Jump</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   <div><FieldLabel>Duration (years)</FieldLabel>
                     <Input type="number" value={cp.jump_duration}
@@ -343,13 +317,12 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar" }: { li
                     <Input type="number" value={(ip.jump_grant_monthly || 0) * 12}
                       onChange={e => updateNestedConfig("income_profile", { jump_grant_monthly: +e.target.value / 12 })} /></div>
                 </div>
-              </Indent>
+              </div>
             )}
 
-            <Checkbox label="Model Bridge Role?" checked={cp.use_bridge}
-              onChange={v => updateNestedConfig("career_path", { use_bridge: v })} />
             {cp.use_bridge && (
-              <Indent>
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#3a7d9c", marginBottom: 6 }}>Bridge Role</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   <div><FieldLabel>Duration (years)</FieldLabel>
                     <Input type="number" value={cp.bridge_duration}
@@ -361,7 +334,7 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar" }: { li
                     checked={ip.bridge_has_health_insurance || false}
                     onChange={v => updateNestedConfig("income_profile", { bridge_has_health_insurance: v })} />
                 </div>
-              </Indent>
+              </div>
             )}
           </div>
         </AccCard>
@@ -458,38 +431,18 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar" }: { li
           </div>
         </AccCard>
 
-        {/* ── Market & Lifestyle ── */}
+        {/* ── Market & Lifestyle — Return & Monthly Spend are quick levers in
+            "Tune this scenario"; the finer assumptions & costs live here. ── */}
         <AccCard {...acc("market")} hidden={!showLevers} title="Market & Lifestyle" color={C.warm}>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <Row>
-              <div><FieldLabel>Market Return (%)</FieldLabel>
-                <Input type="number" step={0.1} value={ma.market_return_rate}
-                  onChange={e => updateNestedConfig("market_assumptions", { market_return_rate: +e.target.value })} /></div>
               <div><FieldLabel>Volatility Drag (%)</FieldLabel>
                 <Input type="number" step={0.1} value={ma.volatility_drag}
                   onChange={e => updateNestedConfig("market_assumptions", { volatility_drag: +e.target.value })} /></div>
-            </Row>
-            <Row>
               <div><FieldLabel>Inflation (%)</FieldLabel>
                 <Input type="number" step={0.25} value={ma.inflation_rate}
                   onChange={e => updateNestedConfig("market_assumptions", { inflation_rate: +e.target.value })} /></div>
-              <div />
             </Row>
-
-            <SectionDivider />
-
-            <div>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                <span style={{ fontSize: 12, color: C.inkMid }}>Monthly Spend</span>
-                <span style={{ fontSize: 12, fontWeight: 700, color: C.ink, fontVariantNumeric: "tabular-nums" }}>${sp.monthly_lifestyle.toLocaleString()}</span>
-              </div>
-              <input type="range" min={3000} max={35000} step={250} value={sp.monthly_lifestyle}
-                style={{ width: "100%", accentColor: C.warm, marginBottom: 6 }}
-                onChange={e => updateNestedConfig("spending", { monthly_lifestyle: +e.target.value })} />
-              <Input type="number" value={sp.monthly_lifestyle}
-                onChange={e => updateNestedConfig("spending", { monthly_lifestyle: +e.target.value })} />
-              <div style={{ fontSize: 9, color: C.inkFaint, marginTop: 3 }}>Everyday living costs — excludes rent/mortgage &amp; healthcare (set separately).</div>
-            </div>
 
             <SectionDivider />
 

@@ -13,11 +13,12 @@ const fmtM = (n: number) => `$${(n / 1_000_000).toFixed(2)}M`;
 const yearOf = (date: string) => date.split(" ").pop() ?? date;
 
 /**
- * Overlays every scenario's net-worth trajectory on one chart and lays out
- * their FI dates side by side, so you can see at a glance which plan gets you
- * there soonest.
+ * Overlays every scenario's net-worth trajectory on one chart. The per-scenario
+ * legend + FI dates live in the hub's scenario cards (which also toggle line
+ * visibility via `hiddenIds`), so this is chart-only to avoid listing scenarios
+ * twice.
  */
-export default function ScenarioCompare({ livePrices }: { livePrices: LivePrices }) {
+export default function ScenarioCompare({ livePrices, hiddenIds }: { livePrices: LivePrices; hiddenIds?: Set<string> }) {
   const { scenarios, snapshot } = useFinancialStore();
   const liveGoog = livePrices["GOOG"]?.price ?? livePrices["GOOGL"]?.price ?? 0;
 
@@ -32,18 +33,12 @@ export default function ScenarioCompare({ livePrices }: { livePrices: LivePrices
   const results = useMemo(() => scenarios.map((sc, i) => {
     const points = runSimulation(enriched, sc.config, liveGoog);
     const fi = findIndependencePoint(points);
-    const fiYear = fi ? Number((fi.date.match(/\d{4}/) || [])[0]) : undefined;
-    const birthYear = sc.config.birth_year ?? 1980;
     return {
       id: sc.id,
       name: sc.name,
       color: PALETTE[i % PALETTE.length],
       points,
       fiDate: fi?.date,
-      fiYear,
-      fiAge: fiYear ? fiYear - birthYear : undefined,
-      fiNumber: points[0]?.swrTarget ?? 0,
-      finalNW: points[points.length - 1]?.totalNetWorth ?? 0,
     };
   }), [scenarios, enriched, liveGoog]);
 
@@ -57,49 +52,14 @@ export default function ScenarioCompare({ livePrices }: { livePrices: LivePrices
     });
   }, [results]);
 
-  // Earliest FI first; off-track plans last.
-  const ranked = [...results].sort((a, b) => {
-    if (a.fiYear && b.fiYear) return a.fiYear - b.fiYear;
-    if (a.fiYear) return -1;
-    if (b.fiYear) return 1;
-    return 0;
-  });
-
   if (scenarios.length < 2) return null;
+
+  const visible = results.filter((r) => !hiddenIds?.has(r.id));
 
   return (
     <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 12, padding: 16 }}>
       <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: C.inkFaint, marginBottom: 12 }}>
         Scenario comparison
-      </div>
-
-      {/* Side-by-side FI dates */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 16 }}>
-        {ranked.map((r, idx) => (
-          <div key={r.id} style={{
-            flex: "1 1 150px", minWidth: 140, background: C.bg, border: `1px solid ${C.border}`,
-            borderLeft: `3px solid ${r.color}`, borderRadius: 8, padding: "10px 12px",
-          }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-              <span style={{ width: 9, height: 9, borderRadius: "50%", background: r.color, flexShrink: 0 }} />
-              <span style={{ fontSize: 12, fontWeight: 700, color: C.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</span>
-              {idx === 0 && r.fiYear && (
-                <span style={{ marginLeft: "auto", fontSize: 8, fontWeight: 800, letterSpacing: "0.05em", color: "#fff", background: r.color, borderRadius: 4, padding: "1px 5px" }}>SOONEST</span>
-              )}
-            </div>
-            {r.fiYear ? (
-              <>
-                <div style={{ fontSize: 22, fontWeight: 800, color: C.ink, lineHeight: 1 }}>{r.fiYear}</div>
-                <div style={{ fontSize: 11, color: C.inkSoft, marginTop: 3 }}>FI at age {r.fiAge} · {fmtM(r.fiNumber)} target</div>
-              </>
-            ) : (
-              <>
-                <div style={{ fontSize: 15, fontWeight: 700, color: "#a23818", lineHeight: 1.2 }}>Doesn’t reach FI</div>
-                <div style={{ fontSize: 11, color: C.inkSoft, marginTop: 3 }}>Ends at {fmtM(r.finalNW)}</div>
-              </>
-            )}
-          </div>
-        ))}
       </div>
 
       {/* Overlaid net-worth trajectories */}
@@ -116,17 +76,17 @@ export default function ScenarioCompare({ livePrices }: { livePrices: LivePrices
               return [fmtM(Number(value)), r?.name ?? name];
             }) as never}
           />
-          {/* FI markers per scenario */}
-          {results.map((r) => r.fiDate ? (
+          {/* FI markers per visible scenario */}
+          {visible.map((r) => r.fiDate ? (
             <ReferenceLine key={`fi-${r.id}`} x={r.fiDate} stroke={r.color} strokeDasharray="4 4" strokeOpacity={0.6} />
           ) : null)}
-          {results.map((r) => (
+          {visible.map((r) => (
             <Line key={r.id} type="monotone" dataKey={r.id} name={r.id} stroke={r.color} strokeWidth={2} dot={false} isAnimationActive={false} />
           ))}
         </LineChart>
       </ResponsiveContainer>
       <div style={{ fontSize: 10, color: C.inkFaint, marginTop: 8, textAlign: "center" }}>
-        Net worth over time · dashed lines mark each plan’s FI date
+        Net worth over time · dashed lines mark each plan’s FI date · toggle plans with the 👁 on each card below
       </div>
     </div>
   );

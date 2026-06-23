@@ -83,22 +83,20 @@ export default function Header({ view, onViewChange, mode, onBack }: Props) {
             </div>
           )}
 
-          {/* Your finances — the shared balance sheet, openable from the deep-dive too */}
-          {mode === "scenario" && (
-            <button
-              onClick={() => useUIStore.getState().setFinancesOpen(true)}
-              title="Your finances — shared across every scenario"
-              style={{
-                display: "flex", alignItems: "center", gap: 6, padding: "5px 12px",
-                borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, cursor: "pointer",
-                color: C.inkSoft, fontSize: 12, fontWeight: 600,
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = C.ink)}
-              onMouseLeave={(e) => (e.currentTarget.style.color = C.inkSoft)}
-            >
-              <Wallet size={14} color={C.teal} /> Finances
-            </button>
-          )}
+          {/* Your finances — the shared balance sheet, reachable from anywhere */}
+          <button
+            onClick={() => useUIStore.getState().setFinancesOpen(true)}
+            title="Your finances — shared across every scenario"
+            style={{
+              display: "flex", alignItems: "center", gap: 6, padding: "5px 12px",
+              borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, cursor: "pointer",
+              color: C.inkSoft, fontSize: 12, fontWeight: 600,
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = C.ink)}
+            onMouseLeave={(e) => (e.currentTarget.style.color = C.inkSoft)}
+          >
+            <Wallet size={14} color={C.teal} /> Finances
+          </button>
 
           <AccountMenu />
         </div>

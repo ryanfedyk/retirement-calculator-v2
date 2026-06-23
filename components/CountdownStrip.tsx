@@ -44,7 +44,7 @@ function useCountdown() {
   return { days, hours, mins, secs, months, quarters, summers };
 }
 
-export default function CountdownStrip() {
+export default function CountdownStrip({ right }: { right?: React.ReactNode }) {
   const { days, hours, mins, secs, months, quarters, summers } = useCountdown();
 
   const pad = (n: number, len = 2) => String(n).padStart(len, "0");
@@ -99,6 +99,9 @@ export default function CountdownStrip() {
             )}
           </div>
         ))}
+
+        {/* Optional right-aligned slot (e.g. the portfolio price ticker) */}
+        {right && <div style={{ marginLeft: "auto", minWidth: 0 }}>{right}</div>}
       </div>
     </div>
   );

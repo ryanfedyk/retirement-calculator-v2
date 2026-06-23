@@ -110,7 +110,7 @@ export function TodaysDelta({ trajectory, snapshot, symbol = "", price }: {
 }
 
 // ── 2. Momentum turnstile ─────────────────────────────────────────────────────
-export function MomentumTurnstile({ point, config, embedded = false }: { point: TrajectoryPoint; config: SimulationConfiguration; embedded?: boolean }) {
+export function MomentumTurnstile({ point, config }: { point: TrajectoryPoint; config: SimulationConfiguration }) {
   const [idx, setIdx] = useState(0);
   const cards = useMemo(() => buildMomentumCards(point, config), [point, config]);
 
@@ -120,35 +120,6 @@ export function MomentumTurnstile({ point, config, embedded = false }: { point: 
   }, [cards.length]);
 
   const card = cards[idx];
-
-  // Embedded — a translucent tray that drops inside the gradient FI hero card
-  // (white-on-gradient, compact: tag + dots + value + progress, no blurb).
-  if (embedded) {
-    return (
-      <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.22)" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "rgba(255,255,255,0.85)" }}>{card.tag}</span>
-          <div style={{ display: "flex", gap: 6 }}>
-            {cards.map((_, i) => (
-              <button key={i} onClick={() => setIdx(i)} aria-label={`Metric ${i + 1}`} style={{
-                width: i === idx ? 16 : 6, height: 6, borderRadius: 99, border: "none", cursor: "pointer", padding: 0,
-                background: i === idx ? "white" : "rgba(255,255,255,0.4)", transition: "all 0.25s",
-              }} />
-            ))}
-          </div>
-        </div>
-        <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 6 }}>
-          <span style={{ fontSize: 26, fontWeight: 300, color: "white", letterSpacing: "-0.02em", fontVariantNumeric: "tabular-nums" }}>{card.value}</span>
-          <span style={{ fontSize: 12, color: "rgba(255,255,255,0.85)" }}>{card.unit}</span>
-        </div>
-        {card.pct != null && (
-          <div style={{ marginTop: 10, height: 5, borderRadius: 99, background: "rgba(255,255,255,0.25)" }}>
-            <div style={{ height: "100%", borderRadius: 99, background: "white", width: `${Math.min(100, card.pct)}%`, transition: "width 0.6s ease" }} />
-          </div>
-        )}
-      </div>
-    );
-  }
 
   return (
     <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 14, padding: "16px 18px", minHeight: 192, display: "flex", flexDirection: "column" }}>
@@ -188,6 +159,35 @@ const navBtn: React.CSSProperties = {
   width: 26, height: 26, borderRadius: "50%", border: `1px solid ${C.border}`,
   background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
 };
+
+// Same momentum metrics, but as separate cards you swipe through horizontally
+// (one-at-a-time scroll snap with a peek of the next). Used on mobile.
+export function MomentumCards({ point, config }: { point: TrajectoryPoint; config: SimulationConfiguration }) {
+  const cards = useMemo(() => buildMomentumCards(point, config), [point, config]);
+  return (
+    <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 4, WebkitOverflowScrolling: "touch", scrollSnapType: "x mandatory" }}>
+      {cards.map(card => (
+        <div key={card.tag} style={{
+          flexShrink: 0, width: "82%", scrollSnapAlign: "start",
+          background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 14, padding: "16px 18px",
+          minHeight: 176, display: "flex", flexDirection: "column",
+        }}>
+          <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: C.inkSoft }}>{card.tag}</span>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginTop: 10 }}>
+            <span style={{ fontSize: 30, fontWeight: 300, color: card.color, letterSpacing: "-0.02em", fontVariantNumeric: "tabular-nums" }}>{card.value}</span>
+            <span style={{ fontSize: 13, color: C.inkMid }}>{card.unit}</span>
+          </div>
+          <p style={{ fontSize: 13, color: C.inkMid, marginTop: 6, lineHeight: 1.5 }}>{card.blurb}</p>
+          {card.pct != null && (
+            <div style={{ marginTop: "auto", height: 6, borderRadius: 99, background: C.bg }}>
+              <div style={{ height: "100%", borderRadius: 99, background: card.color, width: `${Math.min(100, card.pct)}%`, transition: "width 0.6s ease" }} />
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function buildMomentumCards(point: TrajectoryPoint, config: SimulationConfiguration) {
   const investable = point.investableAssets;

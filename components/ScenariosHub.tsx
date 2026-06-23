@@ -8,17 +8,17 @@
  * countdown and both deep-dive tabs.
  */
 import { useMemo, useState, useRef, useEffect } from "react";
-import { Plus, Copy, Trash2, Sparkles, MoreVertical, Wallet, Eye, EyeOff, ChevronRight } from "lucide-react";
+import { Plus, Copy, Trash2, Sparkles, MoreVertical, Wallet, Eye, EyeOff, ChevronRight, Pencil } from "lucide-react";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
+import { useIsMobile } from "@/hooks/useIsMobile";
 import { runSimulation, findIndependencePoint } from "@/engine/calculator";
 import { useScenarioSuggestions, type Suggestion } from "@/hooks/useScenarioSuggestions";
 import { useConfirm } from "@/components/ui/DialogProvider";
 import ScenarioCompare from "@/components/finance/ScenarioCompare";
-import { C } from "@/config/colors";
+import { C, SCENARIO_PALETTE as PALETTE } from "@/config/colors";
 import type { LivePrices } from "@/hooks/useLivePrices";
 
-const PALETTE = ["#2a7a68", "#d98a3d", "#3a7d9c", "#7a6da8", "#c45b6b", "#5a9e54", "#b8893a", "#4a8d9c"];
 const fmtM = (n: number) => `$${(n / 1_000_000).toFixed(2)}M`;
 const fmtBal = (v: number) => {
   const a = Math.abs(v);
@@ -32,10 +32,11 @@ const iconBtn: React.CSSProperties = {
   borderRadius: 7, border: "none", background: "transparent", color: C.inkSoft, cursor: "pointer", flexShrink: 0,
 };
 
-/** Three-dot overflow menu on a scenario card: duplicate / delete.
- * Stops click propagation so using it never opens the scenario. */
-function CardMenu({ canDelete, onDuplicate, onDelete }: {
-  canDelete: boolean; onDuplicate: () => void; onDelete: () => void;
+/** Three-dot overflow menu on a scenario card: rename / duplicate / delete.
+ * Stops click propagation so using it never opens the scenario. Rename is the
+ * primary way to edit a name on touch devices (where tap-to-edit is disabled). */
+function CardMenu({ canDelete, onRename, onDuplicate, onDelete }: {
+  canDelete: boolean; onRename?: () => void; onDuplicate: () => void; onDelete: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -69,6 +70,7 @@ function CardMenu({ canDelete, onDuplicate, onDelete }: {
       </button>
       {open && (
         <div style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", zIndex: 20, minWidth: 150, background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", padding: 5 }}>
+          {onRename && item(Pencil, "Rename", onRename)}
           {item(Copy, "Duplicate", onDuplicate)}
           {canDelete && item(Trash2, "Delete", onDelete, true)}
         </div>
@@ -77,10 +79,14 @@ function CardMenu({ canDelete, onDuplicate, onDelete }: {
   );
 }
 
-/** Scenario name that becomes editable in place on click (commit on Enter/blur,
- * Esc cancels). Click never bubbles up to open the scenario. */
-function EditableName({ name, onCommit }: { name: string; onCommit: (n: string) => void }) {
-  const [editing, setEditing] = useState(false);
+/** Scenario name. Editing is controlled by the parent so it can be triggered
+ * either by clicking the name (desktop) or via the overflow "Rename" item
+ * (touch). `clickToEdit` is off on touch, where an accidental tap shouldn't put
+ * the field into edit mode. Click never bubbles up to open the scenario. */
+function EditableName({ name, onCommit, editing, setEditing, clickToEdit }: {
+  name: string; onCommit: (n: string) => void;
+  editing: boolean; setEditing: (v: boolean) => void; clickToEdit: boolean;
+}) {
   const [val, setVal] = useState(name);
   useEffect(() => { if (!editing) setVal(name); }, [name, editing]);
 
@@ -103,32 +109,32 @@ function EditableName({ name, onCommit }: { name: string; onCommit: (n: string) 
 
   return (
     <span
-      onClick={(e) => { e.stopPropagation(); setEditing(true); }}
-      title="Click to rename"
-      style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 700, color: C.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "text" }}
+      onClick={clickToEdit ? (e) => { e.stopPropagation(); setEditing(true); } : undefined}
+      title={clickToEdit ? "Click to rename" : undefined}
+      style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 700, color: C.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: clickToEdit ? "text" : "default" }}
     >
       {name}
     </span>
   );
 }
 
-/** Suggested tweaks as a horizontally-scrolling strip of cards. Each card spins
- * the tweak into a real scenario on click. Scrolls sideways so the list can grow
- * without taking vertical space. */
+/** Suggested tweaks as a quiet, secondary strip — visually subordinate to the
+ * real scenario cards above (lighter "ghost" cards, muted text, smaller) so
+ * suggestions read as optional ideas, not as competing saved plans. */
 function SuggestionsStrip({ suggestions }: { suggestions: Suggestion[] }) {
   if (!suggestions.length) return null;
 
   return (
-    <div style={{ marginTop: 28 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 12 }}>
-        <Sparkles size={15} color={C.teal} />
-        <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.inkSoft }}>Suggested scenarios</span>
-        <span style={{ fontSize: 11, color: C.inkFaint }}>· scroll for more</span>
+    <div style={{ marginTop: 36 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+        <Sparkles size={13} color={C.inkFaint} />
+        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.inkFaint }}>Ideas to try</span>
+        <span style={{ fontSize: 10, color: C.inkFaint }}>· tap to add as a scenario</span>
       </div>
 
       <div
         style={{
-          display: "flex", gap: 12, overflowX: "auto", paddingBottom: 8,
+          display: "flex", gap: 10, overflowX: "auto", paddingBottom: 6,
           scrollSnapType: "x proximity", WebkitOverflowScrolling: "touch",
         }}
       >
@@ -138,27 +144,102 @@ function SuggestionsStrip({ suggestions }: { suggestions: Suggestion[] }) {
             onClick={s.build}
             title={`Create a new scenario: ${s.title}`}
             style={{
-              flex: "0 0 auto", width: 230, scrollSnapAlign: "start", textAlign: "left",
-              display: "flex", flexDirection: "column", gap: 10, padding: "16px 18px", borderRadius: 12,
-              border: `1px solid ${C.border}`, background: C.bgCard, cursor: "pointer", transition: "border-color 0.15s",
+              flex: "0 0 auto", width: 190, scrollSnapAlign: "start", textAlign: "left",
+              display: "flex", flexDirection: "column", gap: 6, padding: "11px 13px", borderRadius: 10,
+              border: `1px dashed ${C.border}`, background: "transparent", cursor: "pointer",
+              transition: "border-color 0.15s, background 0.15s",
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.teal; }}
-            onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.tealLight; e.currentTarget.style.background = C.bgCard; }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = "transparent"; }}
           >
-            <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 14, fontWeight: 700, color: C.ink, minWidth: 0 }}>
-              <Plus size={15} color={C.teal} style={{ flexShrink: 0 }} />
+            <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700, color: C.inkMid, minWidth: 0 }}>
+              <Plus size={13} color={C.inkFaint} style={{ flexShrink: 0 }} />
               <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</span>
             </span>
-            <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
-              <span style={{ fontSize: 18, fontWeight: 800, color: s.nwColor, fontVariantNumeric: "tabular-nums" }}>{s.nwDelta}</span>
-              <span style={{ fontSize: 11, color: C.inkSoft }}>· FI {s.fiDate}</span>
-            </div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: s.fiColor }}>{s.fiDelta}</div>
-            <div style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 700, color: C.teal, marginTop: 2 }}>
-              Create <ChevronRight size={13} />
+            <div style={{ display: "flex", alignItems: "baseline", gap: 5, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: s.nwColor, fontVariantNumeric: "tabular-nums" }}>{s.nwDelta}</span>
+              <span style={{ fontSize: 10, color: C.inkFaint }}>· FI {s.fiDate}</span>
             </div>
           </button>
         ))}
+      </div>
+    </div>
+  );
+}
+
+interface CardStat { fiYear?: number; fiAge?: number; finalNW: number }
+
+/** A saved scenario card — legend + control for the comparison chart, and the
+ * entry point into the deep-dive. Owns its own rename-editing state. */
+function ScenarioCard({
+  sc, color, st, hidden, multi, canDelete, isMobile,
+  onOpen, onToggleHidden, onRename, onDuplicate, onDelete,
+}: {
+  sc: { id: string; name: string; config: { career_path: { exit_year: number } } };
+  color: string; st?: CardStat; hidden: boolean; multi: boolean; canDelete: boolean; isMobile: boolean;
+  onOpen: () => void; onToggleHidden: () => void;
+  onRename: (n: string) => void; onDuplicate: () => void; onDelete: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  return (
+    <div
+      onClick={() => { if (!editing) onOpen(); }}
+      role="button" tabIndex={0}
+      onKeyDown={(e) => { if (e.key === "Enter" && !editing) onOpen(); }}
+      style={{
+        position: "relative", cursor: "pointer", background: C.bgCard, borderRadius: 12,
+        border: `1px solid ${C.border}`, boxShadow: `0 1px 3px ${C.border}`,
+        padding: "12px 14px 14px", display: "flex", flexDirection: "column", gap: 10,
+        opacity: hidden ? 0.55 : 1, transition: "border-color 0.15s, opacity 0.15s",
+        // On mobile the cards live in a horizontal strip — fix the width so a peek
+        // of the next card hints that the row scrolls.
+        ...(isMobile ? { flex: "0 0 auto", width: "78%", maxWidth: 320, scrollSnapAlign: "start" } : {}),
+      }}
+      onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.teal; }}
+      onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{ width: 9, height: 9, borderRadius: "50%", background: color, flexShrink: 0 }} />
+        <EditableName name={sc.name} onCommit={onRename} editing={editing} setEditing={setEditing} clickToEdit={!isMobile} />
+        {multi && (
+          <button
+            aria-label={hidden ? "Show on chart" : "Hide from chart"}
+            title={hidden ? "Show on chart" : "Hide from chart"}
+            onClick={(e) => { e.stopPropagation(); onToggleHidden(); }}
+            style={iconBtn}
+            onMouseEnter={(e) => (e.currentTarget.style.background = C.bg)}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+          >
+            {hidden ? <EyeOff size={15} /> : <Eye size={15} />}
+          </button>
+        )}
+        <CardMenu
+          canDelete={canDelete}
+          onRename={isMobile ? () => setEditing(true) : undefined}
+          onDuplicate={onDuplicate}
+          onDelete={onDelete}
+        />
+      </div>
+
+      {/* Stat pair — the secondary line (age / final NW) sits under the headline
+          number so it never wraps awkwardly in a narrow card. */}
+      <div style={{ display: "flex", gap: 16 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.inkFaint }}>FI date</div>
+          {st?.fiYear ? (
+            <>
+              <div style={{ fontSize: 19, fontWeight: 800, color: C.ink, lineHeight: 1.15 }}>{st.fiYear}</div>
+              <div style={{ fontSize: 10, color: C.inkSoft, whiteSpace: "nowrap" }}>age {st.fiAge}</div>
+            </>
+          ) : (
+            <div style={{ fontSize: 16, fontWeight: 800, color: C.inkSoft, lineHeight: 1.15 }}>Off track</div>
+          )}
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.inkFaint }}>Exit year</div>
+          <div style={{ fontSize: 19, fontWeight: 800, color: C.ink, lineHeight: 1.15 }}>{sc.config.career_path.exit_year}</div>
+          <div style={{ fontSize: 10, color: C.inkSoft, whiteSpace: "nowrap" }}>{fmtM(st?.finalNW ?? 0)}</div>
+        </div>
       </div>
     </div>
   );
@@ -169,6 +250,7 @@ export default function ScenariosHub({ livePrices, onOpen }: { livePrices: LiveP
   const setFinancesOpen = useUIStore((s) => s.setFinancesOpen);
   const suggestions = useScenarioSuggestions(livePrices);
   const confirm = useConfirm();
+  const isMobile = useIsMobile();
 
   // Which scenarios are hidden on the comparison chart (toggled via the 👁 on each card).
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
@@ -245,7 +327,10 @@ export default function ScenariosHub({ livePrices, onOpen }: { livePrices: LiveP
             <Stat label="Cash" value={fmtBal(snapshot.liquid_assets.cash_savings)} />
             <Stat label="401(k)" value={fmtBal(snapshot.retirement_assets.k401)} />
             <Stat label="Roth IRA" value={fmtBal(snapshot.retirement_assets.roth_ira)} />
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 700, color: C.teal }}>
+            {/* A self-contained chip so it reads as a deliberate action, not a
+                value floating between the stats' label and number rows. */}
+            <span aria-hidden style={{ width: 1, alignSelf: "stretch", minHeight: 30, background: C.border, flexShrink: 0 }} />
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 700, color: C.teal, background: C.tealWash, borderRadius: 8, padding: "7px 12px", flexShrink: 0 }}>
               Update <ChevronRight size={14} />
             </span>
           </div>
@@ -266,72 +351,31 @@ export default function ScenariosHub({ livePrices, onOpen }: { livePrices: LiveP
           </div>
         )}
 
-        {/* Scenario cards — legend + controls for the chart */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 12 }}>
-          {scenarios.map((sc, i) => {
-            const color = PALETTE[i % PALETTE.length];
-            const st = stats[sc.id];
-            const hidden = hiddenIds.has(sc.id);
-            return (
-              <div
-                key={sc.id}
-                onClick={() => open(sc.id)}
-                role="button" tabIndex={0}
-                onKeyDown={(e) => { if (e.key === "Enter") open(sc.id); }}
-                style={{
-                  position: "relative", cursor: "pointer", background: C.bgCard, borderRadius: 12,
-                  border: `1px solid ${C.border}`, boxShadow: `0 1px 3px ${C.border}`,
-                  padding: "12px 14px 14px", display: "flex", flexDirection: "column", gap: 10,
-                  opacity: hidden ? 0.55 : 1, transition: "border-color 0.15s, opacity 0.15s",
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.teal; }}
-                onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ width: 9, height: 9, borderRadius: "50%", background: color, flexShrink: 0 }} />
-                  <EditableName name={sc.name} onCommit={(n) => renameScenario(sc.id, n)} />
-                  {multi && (
-                    <button
-                      aria-label={hidden ? "Show on chart" : "Hide from chart"}
-                      title={hidden ? "Show on chart" : "Hide from chart"}
-                      onClick={(e) => { e.stopPropagation(); toggleHidden(sc.id); }}
-                      style={iconBtn}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = C.bg)}
-                      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                    >
-                      {hidden ? <EyeOff size={15} /> : <Eye size={15} />}
-                    </button>
-                  )}
-                  <CardMenu
-                    canDelete={scenarios.length > 1}
-                    onDuplicate={() => { setActiveScenario(sc.id); duplicateScenario(); }}
-                    onDelete={() => remove(sc.id, sc.name)}
-                  />
-                </div>
-
-                {/* Stat pair — the secondary line (age / final NW) sits under the
-                    headline number so it never wraps awkwardly in a narrow card. */}
-                <div style={{ display: "flex", gap: 16 }}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.inkFaint }}>FI date</div>
-                    {st?.fiYear ? (
-                      <>
-                        <div style={{ fontSize: 19, fontWeight: 800, color: C.ink, lineHeight: 1.15 }}>{st.fiYear}</div>
-                        <div style={{ fontSize: 10, color: C.inkSoft, whiteSpace: "nowrap" }}>age {st.fiAge}</div>
-                      </>
-                    ) : (
-                      <div style={{ fontSize: 16, fontWeight: 800, color: "#a23818", lineHeight: 1.15 }}>Off track</div>
-                    )}
-                  </div>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.inkFaint }}>Exit year</div>
-                    <div style={{ fontSize: 19, fontWeight: 800, color: C.ink, lineHeight: 1.15 }}>{sc.config.career_path.exit_year}</div>
-                    <div style={{ fontSize: 10, color: C.inkSoft, whiteSpace: "nowrap" }}>{fmtM(st?.finalNW ?? 0)}</div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+        {/* Scenario cards — legend + controls for the chart. A grid on desktop;
+            a horizontal scroll strip on mobile (saves vertical space, and the
+            peek of the next card signals the row scrolls). */}
+        <div
+          style={isMobile
+            ? { display: "flex", gap: 12, overflowX: "auto", paddingBottom: 6, scrollSnapType: "x proximity", WebkitOverflowScrolling: "touch" }
+            : { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 12 }}
+        >
+          {scenarios.map((sc, i) => (
+            <ScenarioCard
+              key={sc.id}
+              sc={sc}
+              color={PALETTE[i % PALETTE.length]}
+              st={stats[sc.id]}
+              hidden={hiddenIds.has(sc.id)}
+              multi={multi}
+              canDelete={scenarios.length > 1}
+              isMobile={isMobile}
+              onOpen={() => open(sc.id)}
+              onToggleHidden={() => toggleHidden(sc.id)}
+              onRename={(n) => renameScenario(sc.id, n)}
+              onDuplicate={() => { setActiveScenario(sc.id); duplicateScenario(); }}
+              onDelete={() => remove(sc.id, sc.name)}
+            />
+          ))}
 
           {/* New scenario card */}
           <button
@@ -340,6 +384,7 @@ export default function ScenariosHub({ livePrices, onOpen }: { livePrices: LiveP
               cursor: "pointer", background: "transparent", borderRadius: 12, border: `1.5px dashed ${C.border}`,
               padding: 14, display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "center",
               gap: 8, color: C.inkSoft, transition: "all 0.15s",
+              ...(isMobile ? { flex: "0 0 auto", width: "55%", maxWidth: 240, scrollSnapAlign: "start" } : {}),
             }}
             onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.teal; e.currentTarget.style.color = C.teal; }}
             onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.inkSoft; }}

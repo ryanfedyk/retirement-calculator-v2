@@ -5,10 +5,11 @@ import {
 } from "recharts";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { runSimulation, findIndependencePoint } from "@/engine/calculator";
-import { C } from "@/config/colors";
+import { C, SCENARIO_PALETTE as PALETTE } from "@/config/colors";
 import type { LivePrices } from "./FinancialDashboard";
 
-const PALETTE = ["#2a7a68", "#d98a3d", "#3a7d9c", "#7a6da8", "#c45b6b", "#5a9e54", "#b8893a", "#4a8d9c"];
+// The hub comparison chart shows the near/mid term where the plans diverge most.
+const HUB_CHART_YEARS = 30;
 const fmtM = (n: number) => `$${(n / 1_000_000).toFixed(2)}M`;
 const yearOf = (date: string) => date.split(" ").pop() ?? date;
 
@@ -43,9 +44,16 @@ export default function ScenarioCompare({ livePrices, hiddenIds }: { livePrices:
   }), [scenarios, enriched, liveGoog]);
 
   // All scenarios share birth year + snapshot, so they run the same horizon.
+  // Cap the hub chart to the first HUB_CHART_YEARS (a chronological prefix, so
+  // point indices still line up across scenarios).
   const chartData = useMemo(() => {
     const base = results[0]?.points ?? [];
-    return base.map((p, idx) => {
+    const maxYear = new Date().getFullYear() + HUB_CHART_YEARS;
+    const capped = base.filter((p) => {
+      const y = Number(String(p.date).split(" ").pop());
+      return !y || y <= maxYear;
+    });
+    return capped.map((p, idx) => {
       const row: Record<string, number | string> = { date: p.date };
       for (const r of results) row[r.id] = r.points[idx]?.totalNetWorth ?? 0;
       return row;

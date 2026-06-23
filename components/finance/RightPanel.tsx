@@ -4,7 +4,7 @@ import {
   ResponsiveContainer, AreaChart, Area, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine,
 } from "recharts";
-import { Flag, CheckCircle, TrendingUp, CalendarDays, Sparkles, AlertTriangle } from "lucide-react";
+import { Flag, CheckCircle, TrendingUp, CalendarDays, Sparkles, AlertTriangle, X } from "lucide-react";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { runSimulation, findIndependencePoint } from "@/engine/calculator";
 import type { TrajectoryPoint } from "@/engine/calculator";
@@ -53,20 +53,37 @@ const RefLabel = (props: any) => {
 // ── Summary cards ─────────────────────────────────────────────────────────────
 
 const SummaryCard = ({
-  label, value, sub, icon: Icon, iconBg, iconColor, children,
+  label, value, sub, icon: Icon, iconBg, iconColor, children, onDismiss,
 }: {
   label: string; value: string; sub: string;
   icon: React.ElementType; iconBg: string; iconColor: string;
   children?: React.ReactNode;
+  onDismiss?: () => void;
 }) => (
-  <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 10, padding: "16px 20px", display: "flex", flexDirection: "column", justifyContent: "space-between", minHeight: 110 }}>
+  // flex: grow to fill the row on wide screens, but never shrink below 240px —
+  // so the group becomes a horizontal scroll strip when space is tight.
+  <div style={{ flex: "1 0 240px", background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 10, padding: "16px 20px", display: "flex", flexDirection: "column", justifyContent: "space-between", minHeight: 110 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: C.inkFaint, marginBottom: 6 }}>{label}</div>
         <div style={{ fontSize: 22, fontWeight: 300, letterSpacing: "-0.02em", color: C.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{value}</div>
       </div>
-      <div style={{ width: 34, height: 34, flexShrink: 0, borderRadius: 8, background: iconBg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <Icon size={16} color={iconColor} />
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 6, flexShrink: 0 }}>
+        <div style={{ width: 34, height: 34, borderRadius: 8, background: iconBg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Icon size={16} color={iconColor} />
+        </div>
+        {onDismiss && (
+          <button
+            onClick={onDismiss}
+            aria-label={`Dismiss ${label}`}
+            title="Dismiss"
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 20, height: 20, marginRight: -6, marginTop: -6, border: "none", background: "transparent", borderRadius: 6, color: C.inkFaint, cursor: "pointer" }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = C.bg; e.currentTarget.style.color = C.inkSoft; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = C.inkFaint; }}
+          >
+            <X size={14} />
+          </button>
+        )}
       </div>
     </div>
     {children ?? <div style={{ fontSize: 10, color: C.inkFaint, marginTop: 8 }}>{sub}</div>}
@@ -142,6 +159,9 @@ export default function RightPanel({ livePrices }: Props) {
   const [chartView, setChartView] = useState<ChartView>("wealth");
   const [insightTab, setInsightTab] = useState<"today" | "ai">("today");
   const [ageCap, setAgeCap] = useState<75 | 100>(100);
+  // Summary cards the user has dismissed this session (they return on reload).
+  const [dismissedCards, setDismissedCards] = useState<Set<string>>(new Set());
+  const dismissCard = (id: string) => setDismissedCards((prev) => new Set(prev).add(id));
 
   // Year currently hovered on the chart — reveals subtle (secondary) milestones
   const [hoverYear, setHoverYear] = useState<string | null>(null);
@@ -331,42 +351,54 @@ export default function RightPanel({ livePrices }: Props) {
         </div>
       )}
 
-      {/* ── Summary cards ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12 }}>
-        <SummaryCard
-          label="Independence Date"
-          value={indepPoint ? indepPoint.date : "30+ Yrs"}
-          sub={indepPoint ? "You are on track to reach FI." : "Adjust strategy to reach FI."}
-          icon={Flag}
-          iconBg={indepPoint ? C.tealWash : C.borderSoft}
-          iconColor={indepPoint ? C.teal : C.inkFaint}
-        />
-        <SummaryCard
-          label="FI Number (Rule of 25)"
-          value={`$${(swrTarget / 1_000_000).toFixed(2)}M`}
-          sub={`25× expenses net of rental & SS, at a 4% withdrawal rate`}
-          icon={CheckCircle}
-          iconBg={C.tealWash}
-          iconColor={C.teal}
-        />
-        <SummaryCard
-          label="Portfolio Strength"
-          value={`${progress.toFixed(0)}%`}
-          sub=""
-          icon={TrendingUp}
-          iconBg={C.warmWash}
-          iconColor={C.warm}
-        >
-          <div style={{ marginTop: 8 }}>
-            <div style={{ height: 4, borderRadius: 99, background: C.borderSoft }}>
-              <div style={{ height: "100%", borderRadius: 99, background: C.teal, width: `${progress}%`, transition: "width 0.8s ease" }} />
-            </div>
-            <div style={{ fontSize: 10, color: C.inkFaint, marginTop: 4 }}>
-              ${(currentNW / 1_000_000).toFixed(2)}M of ${(swrTarget / 1_000_000).toFixed(2)}M target
-            </div>
-          </div>
-        </SummaryCard>
-      </div>
+      {/* ── Summary cards ── Financial Independence first; a horizontal scroll
+          strip when space is tight, and each card is dismissable. */}
+      {(dismissedCards.size < 3) && (
+        <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 4 }}>
+          {!dismissedCards.has("independence") && (
+            <SummaryCard
+              label="Financial Independence"
+              value={indepPoint ? indepPoint.date : "30+ Yrs"}
+              sub={indepPoint ? "You are on track to reach FI." : "Adjust strategy to reach FI."}
+              icon={Flag}
+              iconBg={indepPoint ? C.tealWash : C.borderSoft}
+              iconColor={indepPoint ? C.teal : C.inkFaint}
+              onDismiss={() => dismissCard("independence")}
+            />
+          )}
+          {!dismissedCards.has("finumber") && (
+            <SummaryCard
+              label="FI Number (Rule of 25)"
+              value={`$${(swrTarget / 1_000_000).toFixed(2)}M`}
+              sub={`25× expenses net of rental & SS, at a 4% withdrawal rate`}
+              icon={CheckCircle}
+              iconBg={C.tealWash}
+              iconColor={C.teal}
+              onDismiss={() => dismissCard("finumber")}
+            />
+          )}
+          {!dismissedCards.has("strength") && (
+            <SummaryCard
+              label="Portfolio Strength"
+              value={`${progress.toFixed(0)}%`}
+              sub=""
+              icon={TrendingUp}
+              iconBg={C.warmWash}
+              iconColor={C.warm}
+              onDismiss={() => dismissCard("strength")}
+            >
+              <div style={{ marginTop: 8 }}>
+                <div style={{ height: 4, borderRadius: 99, background: C.borderSoft }}>
+                  <div style={{ height: "100%", borderRadius: 99, background: C.teal, width: `${progress}%`, transition: "width 0.8s ease" }} />
+                </div>
+                <div style={{ fontSize: 10, color: C.inkFaint, marginTop: 4 }}>
+                  ${(currentNW / 1_000_000).toFixed(2)}M of ${(swrTarget / 1_000_000).toFixed(2)}M target
+                </div>
+              </div>
+            </SummaryCard>
+          )}
+        </div>
+      )}
 
       {/* ── Main chart (the hero) ── */}
       <div style={{

@@ -17,8 +17,10 @@ import ReclaimedTimeCalculator from "@/components/ReclaimedTimeCalculator";
 import AdventureGenerator    from "@/components/AdventureGenerator";
 import DailyDeflationWidget  from "@/components/DailyDeflationWidget";
 import FinancialDashboard    from "@/components/finance/FinancialDashboard";
+import PriceTicker           from "@/components/finance/PriceTicker";
 import LifeEventsFab         from "@/components/forecasting/LifeEventsFab";
 import SettingsPanel         from "@/components/SettingsPanel";
+import { useFinancialStore } from "@/store/useFinancialStore";
 import type { AdventureBlueprint } from "@/types/horizon";
 
 const NAV = [
@@ -36,6 +38,7 @@ export default function DashboardShell() {
   const [saved, setSaved] = useState<AdventureBlueprint[]>([]);
   const { retirementDate } = useRetirementDate();
   const { user } = useHorizonProfile();
+  const { snapshot, config } = useFinancialStore();
   const isMobile = useIsMobile();
   const prices = useLivePrices({ enabled: !isMobile });
 
@@ -66,18 +69,26 @@ export default function DashboardShell() {
       <SettingsPanel />
       <FinancesOverlay livePrices={prices.livePrices} />
 
-      {/* Countdown — reflects the open scenario, across both deep-dive tabs */}
-      <CountdownStrip />
+      {/* Countdown — reflects the open scenario, across both deep-dive tabs.
+          The portfolio price ticker rides on the same line to save a widget. */}
+      <CountdownStrip
+        right={
+          <PriceTicker
+            holdings={snapshot.other_investments}
+            livePrices={prices.livePrices}
+            concentratedSymbol={config.use_equity_comp ? config.concentrated_symbol : ""}
+            pricesUpdatedAt={prices.pricesUpdatedAt}
+            pricesFetching={prices.pricesFetching}
+            onRefreshPrices={prices.refresh}
+            align="end"
+          />
+        }
+      />
 
       {/* ── Financial View ── */}
       {appView === "financial" && (
         <div className="flex-1" style={{ minHeight: 0 }}>
-          <FinancialDashboard
-            livePrices={prices.livePrices}
-            pricesUpdatedAt={prices.pricesUpdatedAt}
-            pricesFetching={prices.pricesFetching}
-            onRefreshPrices={prices.refresh}
-          />
+          <FinancialDashboard livePrices={prices.livePrices} />
         </div>
       )}
 

@@ -10,21 +10,13 @@ import type { LivePrices } from "@/hooks/useLivePrices";
 
 interface Props {
   livePrices: LivePrices;
-  pricesUpdatedAt: Date | null;
-  pricesFetching: boolean;
-  onRefreshPrices: () => void;
 }
 
-export default function FinancialDashboard({ livePrices, pricesUpdatedAt, pricesFetching, onRefreshPrices }: Props) {
+export default function FinancialDashboard({ livePrices }: Props) {
   return (
     <div style={{ display: "flex", height: "calc(100vh - 100px)", overflow: "hidden", background: C.bg }}>
       <LeftPanel livePrices={livePrices} />
-      <RightPanel
-        livePrices={livePrices}
-        pricesUpdatedAt={pricesUpdatedAt}
-        pricesFetching={pricesFetching}
-        onRefreshPrices={onRefreshPrices}
-      />
+      <RightPanel livePrices={livePrices} />
     </div>
   );
 }

@@ -15,7 +15,6 @@ import LifeCalendar from "./LifeCalendar";
 import type { LivePrices } from "./FinancialDashboard";
 import { getLifeEvents } from "@/lib/horizonUtils";
 import { useHorizonProfile } from "@/config/horizonConfig";
-import PriceTicker from "./PriceTicker";
 import ScenarioLevers from "./ScenarioLevers";
 import FireMoments from "@/components/fx/FireMoments";
 import { isCoastFI } from "@/lib/fire/moments";
@@ -132,15 +131,12 @@ const ChartTooltip = ({ active, payload, label, birthYear, perYear }: any) => {
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 interface Props {
-  livePrices:       LivePrices;
-  pricesUpdatedAt:  Date | null;
-  pricesFetching:   boolean;
-  onRefreshPrices:  () => void;
+  livePrices: LivePrices;
 }
 
 // ── Main ─────────────────────────────────────────────────────────────────────
 
-export default function RightPanel({ livePrices, pricesUpdatedAt, pricesFetching, onRefreshPrices }: Props) {
+export default function RightPanel({ livePrices }: Props) {
   const { snapshot, config } = useFinancialStore();
   const { children } = useHorizonProfile();
   const [chartView, setChartView] = useState<ChartView>("wealth");
@@ -319,17 +315,6 @@ export default function RightPanel({ livePrices, pricesUpdatedAt, pricesFetching
       {/* ── Scenario levers — the headline interaction ── */}
       <ScenarioLevers />
 
-      {/* ── Portfolio price ticker (from the user's holdings) ── */}
-      <PriceTicker
-        holdings={snapshot.other_investments}
-        livePrices={livePrices}
-        concentratedSymbol={config.use_equity_comp ? config.concentrated_symbol : ""}
-        pricesUpdatedAt={pricesUpdatedAt}
-        pricesFetching={pricesFetching}
-        onRefreshPrices={onRefreshPrices}
-        align="end"
-      />
-
       {/* ── Off-track warning — this plan never reaches FI by age 70 ── */}
       {!indepPoint && (
         <div style={{
@@ -391,45 +376,48 @@ export default function RightPanel({ livePrices, pricesUpdatedAt, pricesFetching
         transition: "height 0.3s ease",
       }}>
         {/* Chart header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px", borderBottom: `1px solid ${C.borderSoft}`, flexShrink: 0 }}>
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: C.ink }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "16px 20px", borderBottom: `1px solid ${C.borderSoft}`, flexShrink: 0 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: C.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {chartView === "timeline" ? "Life & Career Timeline" :
                chartView === "income"   ? "Income Breakdown" :
                chartView === "expenses" ? "Expense Breakdown" :
                "Wealth Trajectory"}
             </div>
-            <div style={{ fontSize: 10, color: C.inkSoft, marginTop: 2 }}>
+            <div style={{ fontSize: 10, color: C.inkSoft, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {chartView === "timeline" ? "Month-by-month phases & milestones" : `Nominal projection to age ${ageCap} (future dollars)`}
             </div>
-            {chartView !== "timeline" && (
-              <div style={{ display: "inline-flex", gap: 2, background: C.bg, borderRadius: 6, padding: 2, marginTop: 6 }}>
-                {([75, 100] as const).map((a) => (
-                  <button key={a} onClick={() => setAgeCap(a)}
-                    style={{
-                      fontSize: 10, fontWeight: 600, padding: "2px 9px", borderRadius: 4, border: "none", cursor: "pointer",
-                      background: ageCap === a ? C.bgCard : "transparent", color: ageCap === a ? C.ink : C.inkFaint,
-                      boxShadow: ageCap === a ? `0 1px 2px ${C.border}` : "none",
-                    }}>
-                    to {a}
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
 
-          <div style={{ display: "flex", background: C.bg, borderRadius: 8, padding: 3, gap: 2 }}>
-            {(["wealth", "income", "expenses"] as ChartView[]).map(v => (
-              <TabBtn key={v} active={chartView === v} onClick={() => setChartView(v)}>
-                {v.charAt(0).toUpperCase() + v.slice(1)}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+            {/* Age horizon — a compact toggle nestled in the controls row (adds no height) */}
+            {chartView !== "timeline" && (
+              <button
+                onClick={() => setAgeCap((a) => (a === 100 ? 75 : 100))}
+                title="Toggle the projection horizon"
+                aria-label={`Projection horizon: to age ${ageCap}. Toggle.`}
+                style={{
+                  fontSize: 10, fontWeight: 600, padding: "5px 10px", borderRadius: 6, cursor: "pointer",
+                  border: `1px solid ${C.border}`, background: C.bg, color: C.inkMid, whiteSpace: "nowrap",
+                }}
+              >
+                to age {ageCap}
+              </button>
+            )}
+
+            <div style={{ display: "flex", background: C.bg, borderRadius: 8, padding: 3, gap: 2 }}>
+              {(["wealth", "income", "expenses"] as ChartView[]).map(v => (
+                <TabBtn key={v} active={chartView === v} onClick={() => setChartView(v)}>
+                  {v.charAt(0).toUpperCase() + v.slice(1)}
+                </TabBtn>
+              ))}
+              <div style={{ width: 1, background: C.border, margin: "4px 2px" }} />
+              <TabBtn active={chartView === "timeline"} onClick={() => setChartView("timeline")}>
+                <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <CalendarDays size={11} /> Timeline
+                </span>
               </TabBtn>
-            ))}
-            <div style={{ width: 1, background: C.border, margin: "4px 2px" }} />
-            <TabBtn active={chartView === "timeline"} onClick={() => setChartView("timeline")}>
-              <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <CalendarDays size={11} /> Timeline
-              </span>
-            </TabBtn>
+            </div>
           </div>
         </div>
 
@@ -538,10 +526,6 @@ export default function RightPanel({ livePrices, pricesUpdatedAt, pricesFetching
       {insightTab === "ai" && (
         <AiAnalysis config={config} snapshot={snapshot} trajectory={trajectoryData} />
       )}
-
-      <style>{`
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-      `}</style>
     </main>
   );
 }

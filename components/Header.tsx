@@ -63,8 +63,8 @@ export default function Header({ view, onViewChange, mode, onBack }: Props) {
 
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           {/* View toggle — which view of this scenario. Icons + a "View" label so
-              it reads as one switch, and so "Financial" isn't mistaken for the
-              shared "Balance Sheet" button beside it. */}
+              it reads as one switch. The view is named "Trajectory" (not
+              "Financial") so it doesn't echo the "Finances" button beside it. */}
           {mode === "scenario" && (
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: C.inkFaint }}>View</span>
@@ -72,7 +72,7 @@ export default function Header({ view, onViewChange, mode, onBack }: Props) {
                 display: "flex", background: C.bg, border: `1px solid ${C.border}`,
                 borderRadius: 20, padding: 3, gap: 2,
               }}>
-                {([["financial", "Financial", LineChart], ["forecasting", "Forecasting", Compass]] as const).map(([v, label, Icon]) => (
+                {([["financial", "Trajectory", LineChart], ["forecasting", "Reclaim", Compass]] as const).map(([v, label, Icon]) => (
                   <button
                     key={v}
                     onClick={() => onViewChange(v)}
@@ -93,11 +93,11 @@ export default function Header({ view, onViewChange, mode, onBack }: Props) {
             </div>
           )}
 
-          {/* Shared balance sheet — reachable from anywhere. Named "Balance Sheet"
-              (not "Finances") so it's clearly distinct from the "Financial" view. */}
+          {/* Shared finances — the balance sheet, reachable from anywhere. Now that
+              the view is "Trajectory" (not "Financial"), "Finances" reads clearly. */}
           <button
             onClick={() => useUIStore.getState().setFinancesOpen(true)}
-            title="Your balance sheet — assets & liabilities shared across every scenario"
+            title="Your finances — the balance sheet shared across every scenario"
             style={{
               display: "flex", alignItems: "center", gap: 6, padding: "5px 12px",
               borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, cursor: "pointer",
@@ -106,7 +106,7 @@ export default function Header({ view, onViewChange, mode, onBack }: Props) {
             onMouseEnter={(e) => (e.currentTarget.style.color = C.ink)}
             onMouseLeave={(e) => (e.currentTarget.style.color = C.inkSoft)}
           >
-            <Wallet size={14} color={C.teal} /> Balance Sheet
+            <Wallet size={14} color={C.teal} /> Finances
           </button>
 
           <AccountMenu />

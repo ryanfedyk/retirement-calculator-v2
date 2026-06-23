@@ -8,7 +8,7 @@
  * countdown and both deep-dive tabs.
  */
 import { useMemo, useState, useRef, useEffect } from "react";
-import { Plus, Copy, Trash2, Sparkles, MoreVertical, Wallet, Eye, EyeOff, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Copy, Trash2, Sparkles, MoreVertical, Wallet, Eye, EyeOff, ChevronRight } from "lucide-react";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
 import { runSimulation, findIndependencePoint } from "@/engine/calculator";
@@ -112,59 +112,52 @@ function EditableName({ name, onCommit }: { name: string; onCommit: (n: string) 
   );
 }
 
-/** Suggested tweaks, one at a time — keeps the detail visible without the long
- * horizontal strip. Tap the card to spin the tweak into a real scenario. */
-function SuggestionsTurnstile({ suggestions }: { suggestions: Suggestion[] }) {
-  const [idx, setIdx] = useState(0);
+/** Suggested tweaks as a horizontally-scrolling strip of cards. Each card spins
+ * the tweak into a real scenario on click. Scrolls sideways so the list can grow
+ * without taking vertical space. */
+function SuggestionsStrip({ suggestions }: { suggestions: Suggestion[] }) {
   if (!suggestions.length) return null;
-  const i = idx % suggestions.length;
-  const s = suggestions[i];
-  const go = (d: number) => setIdx((p) => (p + d + suggestions.length) % suggestions.length);
 
   return (
     <div style={{ marginTop: 28 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 12 }}>
         <Sparkles size={15} color={C.teal} />
         <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.inkSoft }}>Suggested scenarios</span>
-        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 11, color: C.inkFaint, fontVariantNumeric: "tabular-nums" }}>{i + 1}/{suggestions.length}</span>
-          <button aria-label="Previous suggestion" onClick={() => go(-1)} style={iconBtn} onMouseEnter={(e) => (e.currentTarget.style.background = C.bgCard)} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}><ChevronLeft size={16} /></button>
-          <button aria-label="Next suggestion" onClick={() => go(1)} style={iconBtn} onMouseEnter={(e) => (e.currentTarget.style.background = C.bgCard)} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}><ChevronRight size={16} /></button>
-        </div>
+        <span style={{ fontSize: 11, color: C.inkFaint }}>· scroll for more</span>
       </div>
 
-      <button
-        onClick={s.build}
-        title={`Create a new scenario: ${s.title}`}
+      <div
         style={{
-          width: "100%", textAlign: "left", display: "flex", alignItems: "center", justifyContent: "space-between",
-          gap: 16, flexWrap: "wrap", padding: "16px 18px", borderRadius: 12, border: `1px solid ${C.border}`,
-          background: C.bgCard, cursor: "pointer", transition: "border-color 0.15s",
+          display: "flex", gap: 12, overflowX: "auto", paddingBottom: 8,
+          scrollSnapType: "x proximity", WebkitOverflowScrolling: "touch",
         }}
-        onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.teal; }}
-        onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; }}
       >
-        <div style={{ minWidth: 0 }}>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 15, fontWeight: 700, color: C.ink }}>
-            <Plus size={15} color={C.teal} style={{ flexShrink: 0 }} /> {s.title}
-          </span>
-          <div style={{ fontSize: 11, color: C.inkSoft, marginTop: 4 }}>Tap to create this scenario</div>
-        </div>
-        <div style={{ textAlign: "right", flexShrink: 0 }}>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 6, justifyContent: "flex-end" }}>
-            <span style={{ fontSize: 16, fontWeight: 800, color: s.nwColor, fontVariantNumeric: "tabular-nums" }}>{s.nwDelta}</span>
-            <span style={{ fontSize: 11, color: C.inkSoft }}>· FI {s.fiDate}</span>
-          </div>
-          <div style={{ fontSize: 11, fontWeight: 600, color: s.fiColor, marginTop: 2 }}>{s.fiDelta}</div>
-        </div>
-      </button>
-
-      <div style={{ display: "flex", justifyContent: "center", gap: 6, marginTop: 12 }}>
-        {suggestions.map((_, j) => (
-          <button key={j} aria-label={`Suggestion ${j + 1}`} onClick={() => setIdx(j)} style={{
-            width: j === i ? 18 : 6, height: 6, borderRadius: 99, border: "none", cursor: "pointer",
-            background: j === i ? C.teal : C.border, transition: "all 0.25s", padding: 0,
-          }} />
+        {suggestions.map((s, j) => (
+          <button
+            key={j}
+            onClick={s.build}
+            title={`Create a new scenario: ${s.title}`}
+            style={{
+              flex: "0 0 auto", width: 230, scrollSnapAlign: "start", textAlign: "left",
+              display: "flex", flexDirection: "column", gap: 10, padding: "16px 18px", borderRadius: 12,
+              border: `1px solid ${C.border}`, background: C.bgCard, cursor: "pointer", transition: "border-color 0.15s",
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.teal; }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; }}
+          >
+            <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 14, fontWeight: 700, color: C.ink, minWidth: 0 }}>
+              <Plus size={15} color={C.teal} style={{ flexShrink: 0 }} />
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</span>
+            </span>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 18, fontWeight: 800, color: s.nwColor, fontVariantNumeric: "tabular-nums" }}>{s.nwDelta}</span>
+              <span style={{ fontSize: 11, color: C.inkSoft }}>· FI {s.fiDate}</span>
+            </div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: s.fiColor }}>{s.fiDelta}</div>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 700, color: C.teal, marginTop: 2 }}>
+              Create <ChevronRight size={13} />
+            </div>
+          </button>
         ))}
       </div>
     </div>
@@ -223,22 +216,15 @@ export default function ScenariosHub({ livePrices, onOpen }: { livePrices: LiveP
     <div style={{ flex: 1, overflowY: "auto", background: C.bg }}>
       <div className="max-w-7xl mx-auto px-5 min-[700px]:px-8" style={{ paddingTop: 24, paddingBottom: 48 }}>
 
-        {/* Heading */}
-        <div style={{ marginBottom: 16 }}>
-          <h1 style={{ fontSize: 22, fontWeight: 800, color: C.ink, letterSpacing: "-0.01em" }}>Scenarios</h1>
-          <p style={{ fontSize: 13, color: C.inkSoft, marginTop: 4, maxWidth: 560 }}>
-            Compare your plans, fine-tune one by opening it, or spin up a new one. The scenario you open drives your countdown and both tabs.
-          </p>
-        </div>
-
-        {/* Your finances snapshot — opens the shared balance sheet */}
+        {/* Your finances snapshot — opens the shared balance sheet. Sits above the
+            Scenarios heading because it's the shared balance sheet, not a scenario. */}
         <button
           onClick={() => setFinancesOpen(true)}
           title="Edit your balance sheet — shared across every scenario"
           style={{
             width: "100%", textAlign: "left", display: "flex", alignItems: "center", justifyContent: "space-between",
             gap: 16, flexWrap: "wrap", padding: "14px 18px", borderRadius: 12, border: `1px solid ${C.border}`,
-            background: C.bgCard, cursor: "pointer", marginBottom: 20, transition: "border-color 0.15s",
+            background: C.bgCard, cursor: "pointer", marginBottom: 24, transition: "border-color 0.15s",
           }}
           onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.teal; }}
           onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; }}
@@ -264,6 +250,14 @@ export default function ScenariosHub({ livePrices, onOpen }: { livePrices: LiveP
             </span>
           </div>
         </button>
+
+        {/* Heading */}
+        <div style={{ marginBottom: 16 }}>
+          <h1 style={{ fontSize: 22, fontWeight: 800, color: C.ink, letterSpacing: "-0.01em" }}>Scenarios</h1>
+          <p style={{ fontSize: 13, color: C.inkSoft, marginTop: 4, maxWidth: 560 }}>
+            Compare your plans, fine-tune one by opening it, or spin up a new one. The scenario you open drives your countdown and both tabs.
+          </p>
+        </div>
 
         {/* Comparison chart on top — the cards below are its legend */}
         {multi && (
@@ -315,24 +309,24 @@ export default function ScenariosHub({ livePrices, onOpen }: { livePrices: LiveP
                   />
                 </div>
 
+                {/* Stat pair — the secondary line (age / final NW) sits under the
+                    headline number so it never wraps awkwardly in a narrow card. */}
                 <div style={{ display: "flex", gap: 16 }}>
-                  <div>
+                  <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.inkFaint }}>FI date</div>
                     {st?.fiYear ? (
-                      <div style={{ display: "flex", alignItems: "baseline", gap: 5 }}>
-                        <span style={{ fontSize: 19, fontWeight: 800, color: C.ink, lineHeight: 1.1 }}>{st.fiYear}</span>
-                        <span style={{ fontSize: 10, color: C.inkSoft }}>age {st.fiAge}</span>
-                      </div>
+                      <>
+                        <div style={{ fontSize: 19, fontWeight: 800, color: C.ink, lineHeight: 1.15 }}>{st.fiYear}</div>
+                        <div style={{ fontSize: 10, color: C.inkSoft, whiteSpace: "nowrap" }}>age {st.fiAge}</div>
+                      </>
                     ) : (
-                      <div style={{ fontSize: 13, fontWeight: 700, color: "#a23818", lineHeight: 1.4 }}>Off track</div>
+                      <div style={{ fontSize: 16, fontWeight: 800, color: "#a23818", lineHeight: 1.15 }}>Off track</div>
                     )}
                   </div>
-                  <div>
+                  <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.inkFaint }}>Exit year</div>
-                    <div style={{ display: "flex", alignItems: "baseline", gap: 5 }}>
-                      <span style={{ fontSize: 19, fontWeight: 800, color: C.ink, lineHeight: 1.1 }}>{sc.config.career_path.exit_year}</span>
-                      <span style={{ fontSize: 10, color: C.inkSoft }}>{fmtM(st?.finalNW ?? 0)}</span>
-                    </div>
+                    <div style={{ fontSize: 19, fontWeight: 800, color: C.ink, lineHeight: 1.15 }}>{sc.config.career_path.exit_year}</div>
+                    <div style={{ fontSize: 10, color: C.inkSoft, whiteSpace: "nowrap" }}>{fmtM(st?.finalNW ?? 0)}</div>
                   </div>
                 </div>
               </div>
@@ -355,8 +349,8 @@ export default function ScenariosHub({ livePrices, onOpen }: { livePrices: LiveP
           </button>
         </div>
 
-        {/* Suggested scenarios — turnstile */}
-        <SuggestionsTurnstile suggestions={suggestions} />
+        {/* Suggested scenarios — sideways-scrolling strip */}
+        <SuggestionsStrip suggestions={suggestions} />
       </div>
     </div>
   );

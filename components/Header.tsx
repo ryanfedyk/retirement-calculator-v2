@@ -1,6 +1,6 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
-import { Check, Cloud, LogOut, AlertCircle, Settings, ChevronLeft, ChevronDown, Wallet } from "lucide-react";
+import { Check, Cloud, LogOut, AlertCircle, Settings, ChevronRight, ChevronDown, Wallet, LineChart, Compass } from "lucide-react";
 import { C } from "@/config/colors";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { useCloudSync } from "@/lib/cloud/CloudSyncProvider";
@@ -37,56 +37,67 @@ export default function Header({ view, onViewChange, mode, onBack }: Props) {
           {mode === "scenario" && (
             <>
               <div style={{ width: 1, height: 20, background: C.border }} />
-              <button
-                onClick={onBack}
-                title="Back to all scenarios"
-                style={{
-                  display: "flex", alignItems: "center", gap: 5, padding: "5px 10px 5px 6px",
-                  borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, cursor: "pointer",
-                  color: C.inkSoft, fontSize: 12, fontWeight: 600,
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = C.ink)}
-                onMouseLeave={(e) => (e.currentTarget.style.color = C.inkSoft)}
-              >
-                <ChevronLeft size={15} /> Scenarios
-              </button>
-              <ScenarioSelect />
+              {/* Breadcrumb: "Scenarios › [active scenario ▾]". Clicking the root
+                  goes back to the hub; the dropdown switches the active scenario.
+                  The hierarchy makes "leave" vs "switch" unambiguous. */}
+              <nav aria-label="Breadcrumb" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <button
+                  onClick={onBack}
+                  title="Back to all scenarios"
+                  style={{
+                    display: "flex", alignItems: "center", padding: "5px 4px",
+                    border: "none", background: "transparent", cursor: "pointer",
+                    color: C.inkSoft, fontSize: 12, fontWeight: 600,
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.color = C.ink)}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = C.inkSoft)}
+                >
+                  Scenarios
+                </button>
+                <ChevronRight size={14} color={C.inkFaint} style={{ flexShrink: 0 }} />
+                <ScenarioSelect />
+              </nav>
             </>
           )}
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          {/* View toggle — only when exploring a scenario */}
+          {/* View toggle — which view of this scenario. Icons + a "View" label so
+              it reads as one switch. The view is named "Trajectory" (not
+              "Financial") so it doesn't echo the "Finances" button beside it. */}
           {mode === "scenario" && (
-            <div style={{
-              display: "flex", background: C.bg, border: `1px solid ${C.border}`,
-              borderRadius: 20, padding: 3, gap: 2,
-            }}>
-              {(["financial", "forecasting"] as AppView[]).map(v => (
-                <button
-                  key={v}
-                  onClick={() => onViewChange(v)}
-                  style={{
-                    padding: "5px 16px", borderRadius: 16,
-                    border: "none", cursor: "pointer",
-                    background: view === v ? C.bgCard : "transparent",
-                    boxShadow: view === v ? `0 1px 3px ${C.border}` : "none",
-                    color: view === v ? C.ink : C.inkSoft,
-                    fontSize: 10, fontWeight: view === v ? 600 : 400,
-                    letterSpacing: "0.1em", textTransform: "uppercase",
-                    transition: "all 0.15s",
-                  }}
-                >
-                  {v === "forecasting" ? "Forecasting" : "Financial"}
-                </button>
-              ))}
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: C.inkFaint }}>View</span>
+              <div style={{
+                display: "flex", background: C.bg, border: `1px solid ${C.border}`,
+                borderRadius: 20, padding: 3, gap: 2,
+              }}>
+                {([["financial", "Trajectory", LineChart], ["forecasting", "Reclaim", Compass]] as const).map(([v, label, Icon]) => (
+                  <button
+                    key={v}
+                    onClick={() => onViewChange(v)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 5, padding: "5px 13px", borderRadius: 16,
+                      border: "none", cursor: "pointer",
+                      background: view === v ? C.bgCard : "transparent",
+                      boxShadow: view === v ? `0 1px 3px ${C.border}` : "none",
+                      color: view === v ? C.ink : C.inkSoft,
+                      fontSize: 12, fontWeight: view === v ? 600 : 500,
+                      transition: "all 0.15s",
+                    }}
+                  >
+                    <Icon size={13} /> {label}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
-          {/* Your finances — the shared balance sheet, reachable from anywhere */}
+          {/* Shared finances — the balance sheet, reachable from anywhere. Now that
+              the view is "Trajectory" (not "Financial"), "Finances" reads clearly. */}
           <button
             onClick={() => useUIStore.getState().setFinancesOpen(true)}
-            title="Your finances — shared across every scenario"
+            title="Your finances — the balance sheet shared across every scenario"
             style={{
               display: "flex", alignItems: "center", gap: 6, padding: "5px 12px",
               borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, cursor: "pointer",

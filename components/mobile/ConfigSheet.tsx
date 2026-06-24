@@ -194,6 +194,12 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
                 <Field label="LTC Years"><Num step={1} value={sp.ltc_years ?? 3} onChange={v => updateNestedConfig("spending", { ltc_years: v })} /></Field>
               </Two>
             )}
+            {config.tax_assumptions.filing_status === "married_joint" && (
+              <Two>
+                <Field label="Survivor: First-Death Age (0=off)"><Num step={1} value={config.mortality?.first_death_age ?? 0} onChange={v => updateNestedConfig("mortality", { first_death_age: v })} /></Field>
+                <Field label="Survivor Spend %"><Num suffix="%" step={5} value={Math.round((config.mortality?.survivor_spending_factor ?? 0.75) * 100)} onChange={v => updateNestedConfig("mortality", { survivor_spending_factor: v / 100 })} /></Field>
+              </Two>
+            )}
             {kids.length > 0 && (
               <>
                 <Toggle label="Model an Empty-Nest Phase" on={sp.use_empty_nest !== false} onChange={v => updateNestedConfig("spending", { use_empty_nest: v })} />

@@ -165,6 +165,10 @@ export const DEFAULT_SIM_CONFIG: SimulationConfiguration = {
     start_age:       65,
     monthly_premium: 250,
   },
+  mortality: {
+    first_death_age:         0,    // 0 = survivor transition not modeled
+    survivor_spending_factor: 0.75,
+  },
   tax_optimization: {
     enable_aca_optimization:       true,
     aca_family_size:               1,

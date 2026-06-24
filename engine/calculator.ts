@@ -129,6 +129,13 @@ export interface SimulationConfiguration {
     start_age: number;
     monthly_premium: number;
   };
+  // Survivor transition for couples: when one spouse dies, the household drops to
+  // one Social Security benefit (the larger survives), files as single, and spends
+  // less. Only applies to married_joint; first_death_age = 0 disables it.
+  mortality?: {
+    first_death_age?: number;           // primary's age at the first death (0 = off)
+    survivor_spending_factor?: number;  // survivor spend as a fraction of the couple's (default 0.75)
+  };
   life_events: Array<{
     name: string;
     year: number;
@@ -383,6 +390,10 @@ export const runSimulation = (
   const magiByYear = new Map<number, number>();
   let magiThisYear = 0;
 
+  const baseFiling = config.tax_assumptions.filing_status;
+  const firstDeathAge = config.mortality?.first_death_age ?? 0;
+  const survivorSpendFactor = config.mortality?.survivor_spending_factor ?? 0.75;
+
   // ── Main simulation loop (runs through age 100; see monthsToSimulate) ──────
   for (let month = 0; month < monthsToSimulate; month++) {
 
@@ -398,6 +409,11 @@ export const runSimulation = (
     const currentDate = new Date(currentYear, monthOfYear, 1);
     const yearsPassed = month / 12;
     const currentAge  = currentYear - (config.birth_year || 1980);
+
+    // Survivor transition: once a couple passes the modeled first-death age, the
+    // household files single, keeps the larger SS benefit, and spends less.
+    const survivorMode = baseFiling === 'married_joint' && firstDeathAge > 0 && currentAge >= firstDeathAge;
+    const effectiveFiling = survivorMode ? 'single' : baseFiling;
 
     const effectiveMarketReturn = toReal(Math.max(0, config.market_assumptions.market_return_rate - config.market_assumptions.volatility_drag));
     // Kept for nominal contracts (the mortgage) and for deflating any nominal
@@ -536,7 +552,7 @@ export const runSimulation = (
     const annualW2Gross = annualBaseSalary + annualTargetBonus + annualPartnerGross + annualParttimeGross + annualRSUValue + annualJumpGrantValue;
 
     const taxInput = {
-      filingStatus:          config.tax_assumptions.filing_status,
+      filingStatus:          effectiveFiling,
       state:                 config.tax_assumptions.state_of_residence,
       grossIncome:           annualW2Gross,
       preTaxDeductions:      annualK401 + allowanceDeduction,
@@ -614,7 +630,7 @@ export const runSimulation = (
         if (monthlyConversion > 100) {
           // Tax: treat conversion as additional ordinary income stacked on rental
           const baseConvTax = calculateTaxRaw({
-            filingStatus: config.tax_assumptions.filing_status,
+            filingStatus: effectiveFiling,
             state: config.tax_assumptions.state_of_residence,
             grossIncome: 0,
             ficaExemptIncome: annualRentalGross,
@@ -623,7 +639,7 @@ export const runSimulation = (
             longTermCapitalGains: 0, shortTermCapitalGains: 0,
           });
           const withConvTax = calculateTaxRaw({
-            filingStatus: config.tax_assumptions.filing_status,
+            filingStatus: effectiveFiling,
             state: config.tax_assumptions.state_of_residence,
             grossIncome: 0,
             ficaExemptIncome: annualRentalGross + monthlyConversion * 12,
@@ -654,9 +670,10 @@ export const runSimulation = (
     const emptyNestSpend = config.spending.empty_nest_linked !== false
       ? config.spending.monthly_lifestyle * 0.85
       : (config.spending.empty_nest_monthly_spend ?? config.spending.monthly_lifestyle * 0.85);
-    const baseMonthlySpend = (useEmptyNest && currentYear >= emptyNestYear && emptyNestSpend)
+    const baseMonthlySpend = ((useEmptyNest && currentYear >= emptyNestYear && emptyNestSpend)
       ? emptyNestSpend
-      : config.spending.monthly_lifestyle;
+      : config.spending.monthly_lifestyle)
+      * (survivorMode ? survivorSpendFactor : 1); // a survivor household spends less
 
     let expense = baseMonthlySpend; // already in today's dollars (real model)
 
@@ -667,42 +684,49 @@ export const runSimulation = (
     let taxableSSForMagi = 0;
     if (config.social_security) {
       const claimAge = config.social_security.start_age;
-      let ssMonthly = 0;
 
       // Primary: linked (default) → estimate from income; else manual amount.
       // Years worked (assuming a career start at ~22) scales the benefit down for
       // early retirees, whose 35-year earnings average includes zero years.
       const primaryYearsWorked = config.career_path.exit_year - ((config.birth_year ?? 1980) + 22);
+      let primaryBenefit = 0;
       if (currentAge >= claimAge) {
-        ssMonthly += config.social_security.social_security_linked !== false
+        primaryBenefit = config.social_security.social_security_linked !== false
           ? estimateMonthlySocialSecurity(ip.gross_annual_salary, claimAge, primaryYearsWorked)
           : config.social_security.monthly_amount;
       }
 
       // Partner: starts when the partner reaches the claim age (from their own
       // birth year), estimated from their income unless overridden.
+      let partnerBenefit = 0;
       if (ip.use_partner_income && ip.partner_birth_year) {
         const partnerAge = currentYear - ip.partner_birth_year;
         if (partnerAge >= claimAge) {
-          ssMonthly += config.social_security.partner_ss_linked !== false
+          partnerBenefit = config.social_security.partner_ss_linked !== false
             ? estimateMonthlySocialSecurity(ip.partner_gross_annual_salary || 0, claimAge)
             : (config.social_security.partner_monthly_amount || 0);
         }
       }
 
+      // After a death the survivor keeps the LARGER of the two benefits; while
+      // both are alive the household collects both.
+      const ssMonthly = survivorMode
+        ? Math.max(primaryBenefit, partnerBenefit)
+        : primaryBenefit + partnerBenefit;
+
       if (ssMonthly > 0) {
       const grossSSAnnual = ssMonthly * 12; // SS is inflation-indexed → flat in real terms
       // Graduated taxable portion (0–85%) by provisional income, not a flat 85%.
-      const taxableSSAnnual = taxableSocialSecurity(grossSSAnnual, annualRentalGross + annualW2Gross, config.tax_assumptions.filing_status);
+      const taxableSSAnnual = taxableSocialSecurity(grossSSAnnual, annualRentalGross + annualW2Gross, effectiveFiling);
       taxableSSForMagi = taxableSSAnnual;
 
       const ssBaseTax = calculateTaxRaw({
-        filingStatus: config.tax_assumptions.filing_status, state: "NONE",
+        filingStatus: effectiveFiling, state: "NONE",
         grossIncome: 0, ficaExemptIncome: annualRentalGross,
         longTermCapitalGains: 0, shortTermCapitalGains: 0,
       });
       const ssWithTax = calculateTaxRaw({
-        filingStatus: config.tax_assumptions.filing_status, state: "NONE",
+        filingStatus: effectiveFiling, state: "NONE",
         grossIncome: 0, ficaExemptIncome: annualRentalGross + taxableSSAnnual,
         longTermCapitalGains: 0, shortTermCapitalGains: 0,
       });
@@ -724,7 +748,7 @@ export const runSimulation = (
     const bridgeCovered = (phase === 'BRIDGE') && !!ip.bridge_has_health_insurance;
     const hasEmployerCoverage = phase === 'GOOGLE' || phase === 'JUMP' || partnerIsWorking || bridgeCovered;
 
-    const adults = config.tax_assumptions.filing_status === 'married_joint' ? 2 : 1;
+    const adults = effectiveFiling === 'married_joint' ? 2 : 1;
 
     // Self-paid healthcare cost — what the household WOULD pay without employer
     // coverage. Computed every year (even while employed) because the FI target
@@ -750,7 +774,7 @@ export const runSimulation = (
     const irmaaMagi = magiByYear.get(currentYear - 2)
       ?? (Math.max(0, annualW2Gross - annualK401) + annualRentalGross + taxableSSForMagi);
     const irmaaSurcharge = adultsOnMed > 0
-      ? irmaaMonthlySurcharge(irmaaMagi, config.tax_assumptions.filing_status)
+      ? irmaaMonthlySurcharge(irmaaMagi, effectiveFiling)
       : 0;
 
     let selfPaidHealthcare: number;
@@ -872,8 +896,8 @@ export const runSimulation = (
         const annualLTCG = capGain * 12;
 
         const annualOrd  = annualW2Gross + annualRentalGross;
-        const baseTax    = calculateTaxRaw({ filingStatus: config.tax_assumptions.filing_status, state: config.tax_assumptions.state_of_residence, grossIncome: annualW2Gross, preTaxDeductions: annualK401, ficaExemptIncome: annualRentalGross, itemizedDeductions: totalItemizedFed, nyItemizedDeductions: totalItemizedNY, longTermCapitalGains: 0, shortTermCapitalGains: 0 });
-        const withSaleTax = calculateTaxRaw({ filingStatus: config.tax_assumptions.filing_status, state: config.tax_assumptions.state_of_residence, grossIncome: annualW2Gross, preTaxDeductions: annualK401, ficaExemptIncome: annualRentalGross, itemizedDeductions: totalItemizedFed, nyItemizedDeductions: totalItemizedNY, longTermCapitalGains: annualLTCG, shortTermCapitalGains: 0 });
+        const baseTax    = calculateTaxRaw({ filingStatus: effectiveFiling, state: config.tax_assumptions.state_of_residence, grossIncome: annualW2Gross, preTaxDeductions: annualK401, ficaExemptIncome: annualRentalGross, itemizedDeductions: totalItemizedFed, nyItemizedDeductions: totalItemizedNY, longTermCapitalGains: 0, shortTermCapitalGains: 0 });
+        const withSaleTax = calculateTaxRaw({ filingStatus: effectiveFiling, state: config.tax_assumptions.state_of_residence, grossIncome: annualW2Gross, preTaxDeductions: annualK401, ficaExemptIncome: annualRentalGross, itemizedDeductions: totalItemizedFed, nyItemizedDeductions: totalItemizedNY, longTermCapitalGains: annualLTCG, shortTermCapitalGains: 0 });
 
         divestmentProceeds = grossSale - (withSaleTax.totalTax - baseTax.totalTax) / 12;
         magiThisYear += capGain; // realized LTCG counts toward MAGI
@@ -888,8 +912,8 @@ export const runSimulation = (
         const avgBasis      = totalSh > 0 ? totalBasis / totalSh : 0;
         const gain          = Math.max(0, grossProceeds - currentGoogShares * avgBasis);
 
-        const baseTax     = calculateTaxRaw({ filingStatus: config.tax_assumptions.filing_status, state: config.tax_assumptions.state_of_residence, grossIncome: annualW2Gross, preTaxDeductions: annualK401, ficaExemptIncome: annualRentalGross, itemizedDeductions: totalItemizedFed, nyItemizedDeductions: totalItemizedNY, longTermCapitalGains: 0,    shortTermCapitalGains: 0 });
-        const withSaleTax = calculateTaxRaw({ filingStatus: config.tax_assumptions.filing_status, state: config.tax_assumptions.state_of_residence, grossIncome: annualW2Gross, preTaxDeductions: annualK401, ficaExemptIncome: annualRentalGross, itemizedDeductions: totalItemizedFed, nyItemizedDeductions: totalItemizedNY, longTermCapitalGains: gain, shortTermCapitalGains: 0 });
+        const baseTax     = calculateTaxRaw({ filingStatus: effectiveFiling, state: config.tax_assumptions.state_of_residence, grossIncome: annualW2Gross, preTaxDeductions: annualK401, ficaExemptIncome: annualRentalGross, itemizedDeductions: totalItemizedFed, nyItemizedDeductions: totalItemizedNY, longTermCapitalGains: 0,    shortTermCapitalGains: 0 });
+        const withSaleTax = calculateTaxRaw({ filingStatus: effectiveFiling, state: config.tax_assumptions.state_of_residence, grossIncome: annualW2Gross, preTaxDeductions: annualK401, ficaExemptIncome: annualRentalGross, itemizedDeductions: totalItemizedFed, nyItemizedDeductions: totalItemizedNY, longTermCapitalGains: gain, shortTermCapitalGains: 0 });
 
         divestmentProceeds = grossProceeds - (withSaleTax.totalTax - baseTax.totalTax);
         magiThisYear += gain; // realized LTCG counts toward MAGI
@@ -908,7 +932,7 @@ export const runSimulation = (
     if (monthOfYear === 0 && currentAge >= RMD_START_AGE && tradBalance > 0) {
       const rmdGross = tradBalance / rmdDivisor(currentAge);
       const rmdTaxInput = {
-        filingStatus:         config.tax_assumptions.filing_status,
+        filingStatus:         effectiveFiling,
         state:                config.tax_assumptions.state_of_residence,
         grossIncome:          annualW2Gross,
         preTaxDeductions:     annualK401,
@@ -1083,7 +1107,7 @@ export const runSimulation = (
     // gross balances and triggered FI years early for pre-tax-heavy savers.
     const RETIRE_LTCG_RATE = 0.15; // federal long-term capital-gains midpoint
     const deferredTaxRate = calculateTaxRaw({
-      filingStatus:     config.tax_assumptions.filing_status,
+      filingStatus:     effectiveFiling,
       state:            config.tax_assumptions.state_of_residence,
       grossIncome:      0,
       ficaExemptIncome: netAnnualNeed, // ordinary withdrawal, no FICA

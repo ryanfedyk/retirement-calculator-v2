@@ -435,3 +435,50 @@ describe("ACA subsidy in early retirement (#11)", () => {
     expect(lowT[36].healthcareCost).toBeLessThan(2_000); // heavily subsidized at low income
   });
 });
+
+describe("survivor transition for couples (#14)", () => {
+  it("drops to one SS benefit and lower spending after the first death", () => {
+    const cfg = baseConfig();
+    cfg.tax_assumptions.filing_status = "married_joint";
+    cfg.birth_year = YEAR - 65;          // both 65, retired and claiming
+    cfg.career_path.exit_year = YEAR;
+    cfg.career_path.use_sabbatical = false;
+    cfg.career_path.use_jump = false;
+    cfg.career_path.use_bridge = false;
+    cfg.income_profile.gross_annual_salary = 120_000;       // career earnings → PIA
+    cfg.income_profile.use_partner_income = true;
+    cfg.income_profile.partner_gross_annual_salary = 120_000;
+    cfg.income_profile.partner_birth_year = YEAR - 65;
+    cfg.social_security.start_age = 65;
+    cfg.spending.monthly_lifestyle = 5_000;
+    cfg.spending.healthcare_premium = 0;
+    cfg.spending.mortgage_payment = 0;
+    cfg.medicare.monthly_premium = 0;
+    cfg.market_assumptions.inflation_rate = 0;
+    cfg.mortality = { first_death_age: 75, survivor_spending_factor: 0.75 };
+
+    const traj = runSimulation(baseSnap(), cfg, 200);
+    const at = (yr: number) => traj.find(p => p.date.includes(String(yr)))!;
+    const before = at(YEAR + 5);   // age 70, both alive
+    const after  = at(YEAR + 13);  // age 78, survivor
+
+    // Spending falls to the survivor factor (0.75).
+    expect(after.lifestyleExpense).toBeCloseTo(before.lifestyleExpense * 0.75, -2);
+    // Two roughly-equal benefits collapse to one → survivor SS is well below the couple's.
+    expect(after.socialSecurityNet).toBeLessThan(before.socialSecurityNet * 0.7);
+  });
+
+  it("leaves a single filer unaffected by the mortality setting", () => {
+    const cfg = baseConfig();
+    cfg.tax_assumptions.filing_status = "single";
+    cfg.birth_year = YEAR - 65;
+    cfg.career_path.exit_year = YEAR;
+    cfg.spending.monthly_lifestyle = 5_000;
+    cfg.market_assumptions.inflation_rate = 0;
+    cfg.mortality = { first_death_age: 75, survivor_spending_factor: 0.75 };
+    const traj = runSimulation(baseSnap(), cfg, 200);
+    const at = (yr: number) => traj.find(p => p.date.includes(String(yr)))!;
+    // No couple → no survivor transition → spending unchanged across age 75.
+    expect(at(YEAR + 13).lifestyleExpense).toBeCloseTo(at(YEAR + 5).lifestyleExpense, -1);
+  });
+});

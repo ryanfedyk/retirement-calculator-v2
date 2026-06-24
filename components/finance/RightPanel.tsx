@@ -388,7 +388,7 @@ export default function RightPanel({ livePrices }: Props) {
                "Wealth Trajectory"}
             </div>
             <div style={{ fontSize: 10, color: C.inkSoft, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-              {chartView === "timeline" ? "Month-by-month phases & milestones" : `Nominal projection to age ${ageCap} (future dollars)`}
+              {chartView === "timeline" ? "Month-by-month phases & milestones" : `Projection to age ${ageCap} · in today's dollars`}
             </div>
           </div>
 

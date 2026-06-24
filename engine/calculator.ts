@@ -217,8 +217,9 @@ export const runSimulation = (
   const JUMP_EQUITY_GROWTH = 0.08;
   // Rental growth is market-specific, so it's user-configurable. Default 3%
   // (≈ long-run inflation) rather than a hard-coded high number, since rents
-  // vary widely by metro.
-  const RENTAL_GROWTH_RATE = (ip.rental_income_growth_rate ?? 3) / 100;
+  // vary widely by metro. Stored as a NOMINAL percent; converted to a real
+  // rate at the use site (the whole model runs in today's dollars).
+  const RENTAL_GROWTH_PCT = ip.rental_income_growth_rate ?? 3;
 
   const startYear  = new Date().getFullYear();
   const startMonth = new Date().getMonth();
@@ -288,6 +289,16 @@ export const runSimulation = (
   // effective annual yield (7%/12 monthly compounds to ~7.23%/yr).
   const monthlyRate = (annualPct: number) => Math.pow(1 + annualPct / 100, 1 / 12) - 1;
 
+  // ── Everything below runs in REAL (today's-dollar) terms ──────────────────
+  // The whole projection is expressed in today's purchasing power, so the
+  // displayed figures are interpretable ("what would that be worth now?") and —
+  // crucially — the fixed 2025 tax brackets/limits stay correct year over year
+  // instead of causing phantom bracket-creep against nominally-inflating income.
+  // `toReal` strips inflation out of a nominal growth rate via the Fisher
+  // relation: (1 + nominal) / (1 + inflation) − 1.
+  const inflationPct = config.market_assumptions.inflation_rate || 0;
+  const toReal = (nominalPct: number) => ((1 + nominalPct / 100) / (1 + inflationPct / 100) - 1) * 100;
+
   // ── Main simulation loop (runs through age 100; see monthsToSimulate) ──────
   for (let month = 0; month < monthsToSimulate; month++) {
 
@@ -298,28 +309,32 @@ export const runSimulation = (
     const yearsPassed = month / 12;
     const currentAge  = currentYear - (config.birth_year || 1980);
 
-    const effectiveMarketReturn = Math.max(0, config.market_assumptions.market_return_rate - config.market_assumptions.volatility_drag);
+    const effectiveMarketReturn = toReal(Math.max(0, config.market_assumptions.market_return_rate - config.market_assumptions.volatility_drag));
+    // Kept for nominal contracts (the mortgage) and for deflating any nominal
+    // future obligations back into today's dollars.
     const inflationMultiplier   = Math.pow(1 + config.market_assumptions.inflation_rate / 100, yearsPassed);
 
-    // ── Asset growth (true geometric monthly compounding) ────────────────────
+    // ── Asset growth — REAL geometric monthly compounding ─────────────────────
     const marketMo = monthlyRate(effectiveMarketReturn);
-    currentGoogPrice      *= (1 + monthlyRate(config.market_assumptions.goog_growth_rate));
-    currentJumpStockValue *= (1 + monthlyRate(JUMP_EQUITY_GROWTH * 100));
+    currentGoogPrice      *= (1 + monthlyRate(toReal(config.market_assumptions.goog_growth_rate)));
+    currentJumpStockValue *= (1 + monthlyRate(toReal(JUMP_EQUITY_GROWTH * 100)));
     liquidCash   *= (1 + marketMo);
     tradBalance  *= (1 + marketMo);
     rothBalance  *= (1 + marketMo);
-    current529   *= (1 + monthlyRate(config.market_assumptions.market_return_rate));
+    current529   *= (1 + monthlyRate(toReal(config.market_assumptions.market_return_rate)));
 
     let totalOtherInvestmentsValue = 0;
     for (const inv of currentOtherInvestments) {
-      inv.currentValue *= (1 + monthlyRate(Math.max(0, inv.expectedReturn - config.market_assumptions.volatility_drag)));
+      inv.currentValue *= (1 + monthlyRate(toReal(Math.max(0, inv.expectedReturn - config.market_assumptions.volatility_drag))));
       totalOtherInvestmentsValue += inv.currentValue;
     }
 
     // ── Phase determination ────────────────────────────────────────────────
     let phase: 'GOOGLE' | 'SABBATICAL' | 'JUMP' | 'BRIDGE' | 'RETIRED' = 'GOOGLE';
-    const nominalIncomeGrowth    = (ip.income_growth_rate || 0) / 100;
-    const salaryGrowthMultiplier = Math.pow(1 + nominalIncomeGrowth, yearsPassed);
+    // Real raise = nominal raise net of inflation, so a salary that just keeps
+    // pace with inflation is flat in today's dollars.
+    const realIncomeGrowth       = toReal(ip.income_growth_rate || 0) / 100;
+    const salaryGrowthMultiplier = Math.pow(1 + realIncomeGrowth, yearsPassed);
 
     let annualBaseSalary  = 0;
     let annualTargetBonus = 0;
@@ -336,7 +351,7 @@ export const runSimulation = (
       annualTargetBonus = annualBaseSalary * ((ip.jump_bonus_rate || 0) / 100);
     } else if (currentYear < bridgeEndYear) {
       phase = 'BRIDGE';
-      annualBaseSalary = bridgeGrossAnnual * inflationMultiplier;
+      annualBaseSalary = bridgeGrossAnnual; // flat in real terms
     } else {
       phase = 'RETIRED';
     }
@@ -352,7 +367,7 @@ export const runSimulation = (
 
     // ── Rental income (FICA-exempt, ordinary income tax) ──────────────────
     const rentalIncome     = (ip.monthly_rental_income || 0)
-      * Math.pow(1 + RENTAL_GROWTH_RATE, Math.floor(yearsPassed));
+      * Math.pow(1 + toReal(RENTAL_GROWTH_PCT) / 100, Math.floor(yearsPassed));
     const annualRentalGross = rentalIncome * 12;
 
     // ── Part-time work income (earned → W2/FICA, ordinary income tax) ──────
@@ -372,8 +387,8 @@ export const runSimulation = (
       for (let i = 0; i < 4; i++) {
         const grantYear      = Math.floor(yearsPassed) - i;
         const grantTimeYears = Math.max(0, grantYear);
-        const priceAtGrant   = Math.max(0.1, live_price * Math.pow(1 + config.market_assumptions.goog_growth_rate / 100, grantTimeYears));
-        const grantValueAtTime = grantValue * Math.pow(1 + nominalIncomeGrowth, grantTimeYears);
+        const priceAtGrant   = Math.max(0.1, live_price * Math.pow(1 + toReal(config.market_assumptions.goog_growth_rate) / 100, grantTimeYears));
+        const grantValueAtTime = grantValue * Math.pow(1 + realIncomeGrowth, grantTimeYears);
         monthlyEquityVestUnits += (grantValueAtTime / priceAtGrant) / 48;
       }
     }
@@ -401,7 +416,9 @@ export const runSimulation = (
       ? Math.min(1, FED_MORTGAGE_CAP / Math.max(1, currentMortgage))
       : 0;
     const annualMortgageInterest    = hasMortgageNow ? currentMortgage * (mortgageRate / 100) : 0;
-    const deductibleInterestFed     = annualMortgageInterest * deductibleMortgagePct;
+    // The mortgage is a nominal contract; its interest is deflated into today's
+    // dollars so it stacks correctly against the (real) income the tax engine sees.
+    const deductibleInterestFed     = (annualMortgageInterest * deductibleMortgagePct) / inflationMultiplier;
     const saltCapFed                = 10_000;
     const userItemized              = config.tax_assumptions.itemized_deductions ?? 0;
     const totalItemizedFed          = deductibleInterestFed + saltCapFed + userItemized;
@@ -530,7 +547,7 @@ export const runSimulation = (
       ? emptyNestSpend
       : config.spending.monthly_lifestyle;
 
-    let expense = baseMonthlySpend * inflationMultiplier;
+    let expense = baseMonthlySpend; // already in today's dollars (real model)
 
     // Social Security — up to 85% of benefits are federally taxable; NY exempts
     // SS entirely (so we compute federal-only by passing state 'NONE'). The
@@ -559,7 +576,7 @@ export const runSimulation = (
       }
 
       if (ssMonthly > 0) {
-      const grossSSAnnual = ssMonthly * inflationMultiplier * 12;
+      const grossSSAnnual = ssMonthly * 12; // SS is inflation-indexed → flat in real terms
       const taxableSSAnnual = grossSSAnnual * 0.85; // max inclusion for higher-income retirees
 
       const ssBaseTax = calculateTax({
@@ -609,7 +626,7 @@ export const runSimulation = (
         c => currentYear - c.birthYear < CHILD_OFF_PLAN_AGE
       ).length;
       const preMedAdults   = adults - adultsOnMed;
-      selfPaidHealthcare = (medCost + perCapita * (preMedAdults + coveredKids)) * inflationMultiplier;
+      selfPaidHealthcare = medCost + perCapita * (preMedAdults + coveredKids); // today's dollars
     }
 
     // Actual out-of-pocket healthcare expense this month (0 while employer-covered).
@@ -622,7 +639,7 @@ export const runSimulation = (
       // retirement, six-figure withdrawals push MAGI above the subsidy range.
       if (phase === 'SABBATICAL' && (opt?.enable_aca_optimization ?? true)) {
         const baseFamilySize = Math.max(1, opt?.aca_family_size ?? 4);
-        const fpl            = getFPL(baseFamilySize) * inflationMultiplier;
+        const fpl            = getFPL(baseFamilySize);
         const magiForACA     = annualRentalGross + socialSecurityIncome * 12 * 0.85;
         const maxContribPct  = acaMaxContributionPct(magiForACA / fpl);
         const maxMonthly     = (magiForACA * maxContribPct) / 12;
@@ -637,7 +654,10 @@ export const runSimulation = (
     // the payment stops rather than running on until the payoff date.
     const hasMortgage = currentDate < mortgagePayoffDate && currentMortgage > 0;
     if (hasMortgage) {
-      expense += config.spending.mortgage_payment;
+      // The fixed nominal payment shrinks in real terms as inflation erodes it —
+      // a genuine benefit of fixed-rate debt — so deflate the cash outflow. The
+      // balance/interest amortize in their own (nominal) terms.
+      expense += config.spending.mortgage_payment / inflationMultiplier;
       if (currentMortgage > 0) {
         const mRate = (mortgageRate / 100) / 12;
         const interest  = currentMortgage * mRate;
@@ -651,16 +671,17 @@ export const runSimulation = (
     if (config.life_events) {
       for (const event of config.life_events) {
         if (event.year === currentYear && monthOfYear === 0) {
-          const inflatedCost = event.cost * inflationMultiplier;
+          // event.cost is entered in today's dollars → used as-is in the real model.
+          const eventCost = event.cost;
           if (event.name.toLowerCase().includes('college')) {
-            if (current529 >= inflatedCost) {
-              current529 -= inflatedCost;
+            if (current529 >= eventCost) {
+              current529 -= eventCost;
             } else {
-              expense += inflatedCost - current529;
+              expense += eventCost - current529;
               current529 = 0;
             }
           } else {
-            expense += inflatedCost;
+            expense += eventCost;
           }
         }
       }
@@ -670,7 +691,8 @@ export const runSimulation = (
     if (snapshot.liabilities.upcoming_capital_calls > 0 && snapshot.liabilities.capital_calls_due_date) {
       const due = new Date(snapshot.liabilities.capital_calls_due_date);
       if (currentDate.getFullYear() === due.getFullYear() && currentDate.getMonth() === due.getMonth()) {
-        expense += snapshot.liabilities.upcoming_capital_calls;
+        // A known future nominal obligation → deflate into today's dollars.
+        expense += snapshot.liabilities.upcoming_capital_calls / inflationMultiplier;
       }
     }
 
@@ -824,7 +846,9 @@ export const runSimulation = (
     // ── Derived values ────────────────────────────────────────────────────
     const totalRetirement  = tradBalance + rothBalance;
     const currentGoogValue = Math.max(0, currentGoogShares * currentGoogPrice);
-    const totalLiabilities = currentMortgage + currentConsumerDebt;
+    // Deflate the (nominal) mortgage balance for display so liabilities read in
+    // the same today's-dollar terms as the rest of the trajectory.
+    const totalLiabilities = currentMortgage / inflationMultiplier + currentConsumerDebt;
 
     // Net worth excludes the mortgage: the offsetting primary-residence asset
     // isn't tracked in the model, so subtracting the mortgage alone would
@@ -843,12 +867,12 @@ export const runSimulation = (
     // mortgage is finite and excluded). Passive income (rental + Social Security,
     // net of tax) is subtracted because it permanently offsets expenses, lowering
     // the nest egg you need.
-    const SWR = 0.04; // 4% safe withdrawal rate (Rule of 25 → ×25)
-    // baseMonthlySpend is in today's dollars (inflate it); currentHealthcareCost
-    // is ALREADY inflation-adjusted above, so it must not be inflated again.
-    // Use SELF-PAID healthcare (not the employer-covered $0) so the target
-    // reflects what retirement actually costs — otherwise FI triggers years early.
-    const annualExpenses      = (baseMonthlySpend * inflationMultiplier + selfPaidHealthcare) * 12;
+    const SWR = 0.04; // 4% safe withdrawal rate (Rule of 25 → ×25); inherently a
+                      // REAL rule, so applying it to the real need below is exact.
+    // Everything is already in today's dollars. Use SELF-PAID healthcare (not the
+    // employer-covered $0) so the target reflects what retirement actually costs —
+    // otherwise FI triggers years early.
+    const annualExpenses      = (baseMonthlySpend + selfPaidHealthcare) * 12;
     const annualPassiveIncome = (monthlyRentalNet + socialSecurityIncome) * 12; // rental + SS, net
     const netAnnualNeed       = Math.max(0, annualExpenses - annualPassiveIncome);
     const swrTargetValue      = netAnnualNeed / SWR; // the FI Number (25× the net need)
@@ -919,8 +943,8 @@ export const runSimulation = (
       rentalIncome:       Math.round(rentalIncome * 12),
       healthcareCost:     Math.round(currentHealthcareCost * 12),
       accumulatedReturns: 0,
-      mortgagePayment:    Math.round((hasMortgage ? config.spending.mortgage_payment : 0) * 12),
-      lifestyleExpense:   Math.round(baseMonthlySpend * inflationMultiplier * 12),
+      mortgagePayment:    Math.round((hasMortgage ? config.spending.mortgage_payment / inflationMultiplier : 0) * 12),
+      lifestyleExpense:   Math.round(baseMonthlySpend * 12),
       socialSecurityIncome: Math.round(socialSecurityIncome * 12),
       educationAssets:    Math.round(current529),
     });

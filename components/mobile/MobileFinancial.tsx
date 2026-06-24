@@ -223,6 +223,11 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
           </div>
         </div>
 
+        {/* Basis note — the whole projection is in today's purchasing power */}
+        <div style={{ textAlign: "center", fontSize: 10, color: C.inkFaint, marginBottom: 8 }}>
+          in today&rsquo;s dollars
+        </div>
+
         <ResponsiveContainer width="100%" height={300}>
           <AreaChart data={cappedChartData} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
             <defs>

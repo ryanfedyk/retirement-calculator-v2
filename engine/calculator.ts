@@ -82,6 +82,7 @@ export interface SimulationConfiguration {
     volatility_drag: number;
     return_volatility?: number; // Annual std-dev of market returns (%), for Monte Carlo; default 15
     healthcare_inflation_premium?: number; // Real healthcare growth above CPI (%/yr); default 2
+    taxable_dividend_drag?: number; // Annual tax drag on taxable accounts (%/yr); default 0.4
   };
   tax_assumptions: {
     filing_status: 'single' | 'married_joint' | 'married_separate' | 'head_household';
@@ -373,16 +374,21 @@ export const runSimulation = (
     // each bucket grows at its own deterministic real rate.
     const sampledRealPct = marketReturnPath ? marketReturnPath[month] : undefined;
     const marketMo = monthlyRate(sampledRealPct ?? effectiveMarketReturn);
+    // Taxable accounts lose ~a few tenths of a point a year to tax on dividends /
+    // distributions (qualified divs + fund payouts), unlike sheltered 401k/IRA/
+    // Roth/529. Apply that drag to the taxable buckets only.
+    const taxableDrag = config.market_assumptions.taxable_dividend_drag ?? 0.4;
+    const taxableMo = monthlyRate((sampledRealPct ?? effectiveMarketReturn) - taxableDrag);
     currentGoogPrice      *= (1 + monthlyRate(toReal(config.market_assumptions.goog_growth_rate)));
     currentJumpStockValue *= (1 + monthlyRate(toReal(JUMP_EQUITY_GROWTH * 100)));
-    liquidCash   *= (1 + marketMo);
+    liquidCash   *= (1 + taxableMo);  // taxable brokerage / cash
     tradBalance  *= (1 + marketMo);
     rothBalance  *= (1 + marketMo);
     current529   *= (1 + monthlyRate(sampledRealPct ?? toReal(config.market_assumptions.market_return_rate)));
 
     let totalOtherInvestmentsValue = 0;
     for (const inv of currentOtherInvestments) {
-      const invReal = sampledRealPct ?? toReal(Math.max(0, inv.expectedReturn - config.market_assumptions.volatility_drag));
+      const invReal = (sampledRealPct ?? toReal(Math.max(0, inv.expectedReturn - config.market_assumptions.volatility_drag))) - taxableDrag;
       inv.currentValue *= (1 + monthlyRate(invReal));
       totalOtherInvestmentsValue += inv.currentValue;
     }
@@ -512,17 +518,19 @@ export const runSimulation = (
     // margin. Elsewhere it only feeds the deficit emergency rate, where the
     // effective rate is a fine proxy. (This halves the per-month tax cost in the
     // common case and matters under Monte Carlo's hundreds of runs.)
-    const needMarginal = monthlyEquityVestUnits > 0 || jumpGrantMonthlyGross > 0;
+    // Also need the true marginal rate in the bonus month: a bonus is income on
+    // TOP of salary, so it's taxed at the margin, not the household effective rate.
+    const isBonusMonth     = (month % 12 === 2);
+    const needMarginal = monthlyEquityVestUnits > 0 || jumpGrantMonthlyGross > 0 || (isBonusMonth && annualTargetBonus > 0);
     const marginalRate = needMarginal
       ? (calculateTaxRaw({ ...taxInput, grossIncome: annualW2Gross + 100 }).totalTax - taxResult.totalTax) / 100
       : ordinaryEffRate;
 
     // ── Net cash flows ─────────────────────────────────────────────────────
-    const isBonusMonth     = (month % 12 === 2);
     // Salary net = (salary minus 401k contribution) after tax; 401k goes to tradBalance
     const taxableSalary    = Math.max(0, annualBaseSalary - annualK401);
     const monthlySalaryNet = (taxableSalary / 12) * (1 - ordinaryEffRate);
-    const monthlyBonusNet  = isBonusMonth ? annualTargetBonus * (1 - ordinaryEffRate) : 0;
+    const monthlyBonusNet  = isBonusMonth ? annualTargetBonus * (1 - marginalRate) : 0;
     const monthlyPartnerNet = (annualPartnerGross / 12) * (1 - ordinaryEffRate);
     const monthlyRentalNet  = (annualRentalGross  / 12) * (1 - ordinaryEffRate);
     const monthlyParttimeNet = (annualParttimeGross / 12) * (1 - ordinaryEffRate);

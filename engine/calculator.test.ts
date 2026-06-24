@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { runSimulation, findIndependencePoint } from "@/engine/calculator";
 import { estimateMonthlySocialSecurity } from "@/engine/social_security";
+import { calculateTax } from "@/engine/tax_engine";
 import type { FinancialSnapshot, SimulationConfiguration } from "@/engine/calculator";
 import { DEFAULT_SIM_CONFIG, DEFAULT_SNAPSHOT } from "@/config/sharedConfig";
 
@@ -45,6 +46,7 @@ function idleRetiree(): SimulationConfiguration {
   cfg.medicare.monthly_premium = 0;
   cfg.social_security.social_security_linked = false;
   cfg.social_security.monthly_amount = 0;
+  cfg.market_assumptions.taxable_dividend_drag = 0; // isolate pure compounding
   return cfg;
 }
 function idleSnap(cash: number): FinancialSnapshot {
@@ -339,5 +341,31 @@ describe("healthcare cost realism (medical inflation + LTC)", () => {
     const after  = at(86).healthcareCost; // age 86, post-LTC
     expect(during).toBeGreaterThan(before + 100_000); // ~+120k/yr while in care
     expect(after).toBeCloseTo(before, -2);             // back to baseline afterward
+  });
+});
+
+describe("Phase 4 polish: dividend drag & marginal bonus", () => {
+  it("drags taxable accounts below sheltered ones at the same return", () => {
+    // Equal cash (taxable) and Roth (sheltered) balances, no income/spend, growth on.
+    const cfg = idleRetiree();
+    cfg.market_assumptions.market_return_rate = 7;
+    cfg.market_assumptions.volatility_drag = 0;
+    cfg.market_assumptions.inflation_rate = 0;
+    cfg.market_assumptions.taxable_dividend_drag = 0.4;
+    const snap = baseSnap();
+    snap.liquid_assets.cash_savings = 1_000_000; // taxable
+    snap.retirement_assets.roth_ira = 1_000_000; // sheltered
+    const traj = runSimulation(snap, cfg, 200);
+    // After a year the Roth (no drag) is worth more than the taxable cash.
+    expect(traj[12].rothBalance).toBeGreaterThan(traj[12].liquidCash);
+  });
+
+  it("taxes a bonus at the marginal rate, which exceeds the effective rate at high income", () => {
+    // The premise behind netting the bonus at marginal, not effective.
+    const t = calculateTax({
+      filingStatus: "single", state: "NONE",
+      grossIncome: 400_000, longTermCapitalGains: 0, shortTermCapitalGains: 0,
+    });
+    expect(t.marginalRate).toBeGreaterThan(t.ordinaryEffectiveRate);
   });
 });

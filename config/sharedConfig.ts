@@ -129,6 +129,7 @@ export const DEFAULT_SIM_CONFIG: SimulationConfiguration = {
     volatility_drag:    1.5,
     return_volatility:  15,  // annual std-dev of equity returns, for Monte Carlo
     healthcare_inflation_premium: 2, // healthcare grows ~2%/yr above general inflation
+    taxable_dividend_drag: 0.4,      // ~0.4%/yr lost to tax on dividends/distributions
   },
   tax_assumptions: {
     filing_status:      "single",

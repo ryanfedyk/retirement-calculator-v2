@@ -20,7 +20,9 @@ function TipChip({ emoji, code, tip, color }: { emoji: string; code: string; tip
         fontSize: 9, fontWeight: 800, letterSpacing: "0.04em", color, background: `${color}1a`, borderRadius: 5, padding: "1px 5px" }}
     >
       <span aria-hidden>{emoji}</span>
-      <span className="hidden min-[520px]:inline">{code}</span>
+      {/* Container-query: drop the acronym when the levers row is narrow so the
+          slider's value never wraps to a second line (the emoji + tooltip stay). */}
+      <span className="hidden @min-[460px]:inline">{code}</span>
       {show && (
         <span role="tooltip" style={{
           position: "absolute", bottom: "calc(100% + 7px)", left: "50%", transform: "translateX(-50%)",
@@ -94,7 +96,7 @@ export default function ScenarioLevers({ onOpenEditor }: { onOpenEditor?: () => 
         <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: C.ink }}>Tune this scenario</span>
       </div>
 
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "14px 22px", marginBottom: 14 }}>
+      <div className="@container" style={{ display: "flex", flexWrap: "wrap", gap: "14px 22px", marginBottom: 14 }}>
         <Slider label="Exit Year" value={cp.exit_year} display={String(cp.exit_year)}
           min={2024} max={maxExit} step={1} accent={C.teal} onChange={setExit} />
         <Slider label="Monthly Spend" value={sp.monthly_lifestyle} display={money(sp.monthly_lifestyle)}

@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Sliders, Wallet, Trash2, PlusCircle, ChevronDown, Pencil } from "lucide-react";
+import { Sliders, Wallet, Trash2, PlusCircle, ChevronDown, Pencil, ChevronLeft } from "lucide-react";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { C } from "@/config/colors";
 import { DEFAULT_SNAPSHOT, DEFAULT_SIM_CONFIG } from "@/config/sharedConfig";
@@ -207,7 +207,7 @@ function InvestmentItem({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function LeftPanel({ livePrices = {}, variant = "sidebar" }: { livePrices?: LivePrices; variant?: "sidebar" | "finances" }) {
+export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClose }: { livePrices?: LivePrices; variant?: "sidebar" | "finances"; onClose?: () => void }) {
   // "sidebar" = the per-scenario deep-dive (plan levers); "finances" = the
   // shared, scenario-independent balance sheet ("Your finances"). The factual
   // sections (assets, holdings, 529s) edit the global snapshot, so they're the
@@ -259,6 +259,12 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar" }: { li
             </span>
           )}
         </div>
+        {onClose && (
+          <button onClick={onClose} aria-label="Collapse panel" title="Collapse"
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: 7, border: `1px solid ${C.border}`, background: C.bg, color: C.inkSoft, cursor: "pointer", flexShrink: 0 }}>
+            <ChevronLeft size={16} />
+          </button>
+        )}
       </div>
 
       <div style={{ padding: "14px 16px", flex: 1 }}>

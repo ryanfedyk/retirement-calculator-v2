@@ -19,6 +19,10 @@ export const useUIStore = create<{
    *  page refresh keeps you in the scenario you were viewing instead of going home. */
   scenarioOpen: boolean;
   setScenarioOpen: (v: boolean) => void;
+  /** Desktop only: whether the "Scenario plan" side panel is expanded. Collapsed
+   *  by default (transient) — opened from the side rail or the levers card. */
+  planPanelOpen: boolean;
+  setPlanPanelOpen: (v: boolean) => void;
   /** Global money basis: today's dollars (real) vs. future dollars (nominal). */
   dollarMode: DollarMode;
   setDollarMode: (v: DollarMode) => void;
@@ -35,6 +39,8 @@ export const useUIStore = create<{
       setFinancesOpen: (v) => set({ financesOpen: v }),
       scenarioOpen: false,
       setScenarioOpen: (v) => set({ scenarioOpen: v }),
+      planPanelOpen: false,
+      setPlanPanelOpen: (v) => set({ planPanelOpen: v }),
       dollarMode: "today",
       setDollarMode: (v) => set({ dollarMode: v }),
       reportScenarioId: null,

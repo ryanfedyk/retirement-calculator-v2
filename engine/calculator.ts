@@ -214,6 +214,25 @@ function rmdDivisor(age: number): number {
   return RMD_DIVISORS[age] ?? 6.4; // hold the oldest factor past 100
 }
 
+// ── Taxable portion of Social Security (IRS provisional-income worksheet) ─────
+// Only 0–85% of benefits are federally taxable, graduated by "provisional income"
+// (other income + ½ of benefits). The old model assumed a flat 85% inclusion,
+// which over-taxed modest-income retirees. `otherOrdinary` is the household's
+// other ordinary income (rental, withdrawals, wages, etc.).
+function taxableSocialSecurity(
+  ssGross: number,
+  otherOrdinary: number,
+  filing: 'single' | 'married_joint' | 'married_separate' | 'head_household',
+): number {
+  if (ssGross <= 0) return 0;
+  const [base1, base2] = filing === 'married_joint' ? [32_000, 44_000] : [25_000, 34_000];
+  const provisional = otherOrdinary + 0.5 * ssGross;
+  if (provisional <= base1) return 0;
+  if (provisional <= base2) return Math.min(0.5 * ssGross, 0.5 * (provisional - base1));
+  const tier50 = Math.min(0.5 * ssGross, 0.5 * (base2 - base1));
+  return Math.min(0.85 * ssGross, 0.85 * (provisional - base2) + tier50);
+}
+
 // ── Main simulation ───────────────────────────────────────────────────────────
 
 export const runSimulation = (
@@ -602,9 +621,12 @@ export const runSimulation = (
       let ssMonthly = 0;
 
       // Primary: linked (default) → estimate from income; else manual amount.
+      // Years worked (assuming a career start at ~22) scales the benefit down for
+      // early retirees, whose 35-year earnings average includes zero years.
+      const primaryYearsWorked = config.career_path.exit_year - ((config.birth_year ?? 1980) + 22);
       if (currentAge >= claimAge) {
         ssMonthly += config.social_security.social_security_linked !== false
-          ? estimateMonthlySocialSecurity(ip.gross_annual_salary, claimAge)
+          ? estimateMonthlySocialSecurity(ip.gross_annual_salary, claimAge, primaryYearsWorked)
           : config.social_security.monthly_amount;
       }
 
@@ -621,7 +643,8 @@ export const runSimulation = (
 
       if (ssMonthly > 0) {
       const grossSSAnnual = ssMonthly * 12; // SS is inflation-indexed → flat in real terms
-      const taxableSSAnnual = grossSSAnnual * 0.85; // max inclusion for higher-income retirees
+      // Graduated taxable portion (0–85%) by provisional income, not a flat 85%.
+      const taxableSSAnnual = taxableSocialSecurity(grossSSAnnual, annualRentalGross + annualW2Gross, config.tax_assumptions.filing_status);
 
       const ssBaseTax = calculateTaxRaw({
         filingStatus: config.tax_assumptions.filing_status, state: "NONE",

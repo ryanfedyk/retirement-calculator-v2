@@ -13,10 +13,17 @@ const BEND_1 = 1_226;
 const BEND_2 = 7_391;
 const FRA = 67; // Full retirement age for anyone retiring today
 
-/** Monthly benefit estimate for a given annual salary and claiming age. */
-export function estimateMonthlySocialSecurity(annualSalary: number, claimAge: number): number {
+/** Monthly benefit estimate for a given annual salary and claiming age.
+ *
+ * `yearsWorked` (default 35) models the reality that benefits are based on the
+ * highest 35 years of indexed earnings: someone who retires early has zero-earning
+ * years dragging the average down. We scale the AIME by yearsWorked/35 (capped at
+ * 1) — so a 28-year career yields ~80% of the otherwise-estimated benefit. */
+export function estimateMonthlySocialSecurity(annualSalary: number, claimAge: number, yearsWorked = 35): number {
   const cappedSalary = Math.min(Math.max(0, annualSalary || 0), SS_WAGE_BASE);
-  const aime = cappedSalary / 12; // average indexed monthly earnings (approx)
+  const fullAime = cappedSalary / 12; // average indexed monthly earnings (approx)
+  // Early retirement → fewer than 35 earning years → zero years dilute the average.
+  const aime = fullAime * Math.min(1, Math.max(0, yearsWorked) / 35);
 
   // PIA: 90% of first bend, 32% to second bend, 15% above.
   const pia =

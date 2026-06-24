@@ -431,12 +431,17 @@ export default function RightPanel({ livePrices }: Props) {
               {chartView === "timeline" ? "Life & Career Timeline" :
                chartView === "income"   ? "Income Breakdown" :
                chartView === "expenses" ? "Expense Breakdown" :
-               chartView === "risk"     ? "Outcome Range" :
+               chartView === "risk"     ? (
+                 <span>
+                   <span style={{ color: successColor, fontWeight: 700 }}>{successPct ?? "—"}%</span>
+                   <span style={{ fontWeight: 600 }}> fund this plan to age {ageCap}</span>
+                 </span>
+               ) :
                "Wealth Trajectory"}
             </div>
             <div style={{ fontSize: 10, color: C.inkSoft, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {chartView === "timeline" ? "Month-by-month phases & milestones" :
-               chartView === "risk"     ? `${monteCarlo?.runs ?? 0} randomized return paths · in today's dollars` :
+               chartView === "risk"     ? `Median & 10th–90th percentile across ${monteCarlo?.runs ?? 0} return paths · today's dollars` :
                `Projection to age ${ageCap} · in today's dollars`}
             </div>
           </div>
@@ -479,35 +484,24 @@ export default function RightPanel({ livePrices }: Props) {
           {chartView === "timeline" ? (
             <LifeCalendar data={trajectoryData} config={config} />
           ) : chartView === "risk" ? (
-            <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
-              {/* Success probability — the headline of the risk view */}
-              <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 6 }}>
-                <span style={{ fontSize: 30, fontWeight: 700, color: successColor, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
-                  {successPct ?? "—"}%
-                </span>
-                <span style={{ fontSize: 12, color: C.inkSoft }}>
-                  of return sequences fund this plan through age {ageCap}
-                </span>
-              </div>
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={riskChartData} margin={{ top: 12, right: 16, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="riskBand" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor={C.teal} stopOpacity={0.22} />
-                      <stop offset="95%" stopColor={C.teal} stopOpacity={0.05} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={C.borderSoft} />
-                  <XAxis dataKey="date" axisLine={false} tickLine={false}
-                    tick={{ fill: C.inkFaint, fontSize: 10 }} minTickGap={32} interval="preserveStartEnd" />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fill: C.inkFaint, fontSize: 10 }}
-                    tickFormatter={fmtM} width={52} domain={[0, "auto"]} />
-                  <Tooltip content={<RiskTooltip birthYear={birthYear} />} />
-                  <Area type="monotone" dataKey="range" stroke="none" fill="url(#riskBand)" name="10th–90th percentile" isAnimationActive={false} />
-                  <Line type="monotone" dataKey="p50" stroke={C.teal} strokeWidth={2.5} dot={false} name="Median" isAnimationActive={false} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
+            <ResponsiveContainer width="100%" height={446}>
+              <AreaChart data={riskChartData} margin={{ top: 16, right: 16, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="riskBand" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%"  stopColor={C.teal} stopOpacity={0.22} />
+                    <stop offset="95%" stopColor={C.teal} stopOpacity={0.05} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={C.borderSoft} />
+                <XAxis dataKey="date" axisLine={false} tickLine={false}
+                  tick={{ fill: C.inkFaint, fontSize: 10 }} minTickGap={32} interval="preserveStartEnd" />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: C.inkFaint, fontSize: 10 }}
+                  tickFormatter={fmtM} width={52} domain={[0, "auto"]} />
+                <Tooltip content={<RiskTooltip birthYear={birthYear} />} />
+                <Area type="monotone" dataKey="range" stroke="none" fill="url(#riskBand)" name="10th–90th percentile" isAnimationActive={false} />
+                <Line type="monotone" dataKey="p50" stroke={C.teal} strokeWidth={2.5} dot={false} name="Median" isAnimationActive={false} />
+              </AreaChart>
+            </ResponsiveContainer>
           ) : (
             <ResponsiveContainer width="100%" height={446}>
               <AreaChart data={cappedChartData} margin={{ top: 16, right: 16, left: 0, bottom: 0 }}

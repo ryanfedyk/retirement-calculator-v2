@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { ChevronRight } from "lucide-react";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { C } from "@/config/colors";
 import { colTier } from "@/lib/fire/moments";
@@ -66,10 +67,12 @@ function PhaseChip({ label, on, color, onClick }: { label: string; on: boolean; 
 
 /**
  * Scenario levers — the headline of the Financial tab. Compact sliders + phase
- * toggles that update the live trajectory instantly. Detailed inputs still live
- * in the config panel; this is the "play with it" surface.
+ * toggles that update the live trajectory instantly. This is the "play with it"
+ * surface: a summary plus quick adjustment of the key knobs. Pass `onOpenEditor`
+ * to surface a "click in" affordance into the full, more robust editor (mobile
+ * uses this to open the config sheet); detailed inputs all live there.
  */
-export default function ScenarioLevers() {
+export default function ScenarioLevers({ onOpenEditor }: { onOpenEditor?: () => void } = {}) {
   const { config, updateNestedConfig } = useFinancialStore();
   const cp = config.career_path;
   const sp = config.spending;
@@ -111,6 +114,19 @@ export default function ScenarioLevers() {
         <PhaseChip label="Career Jump" on={cp.use_jump} color="#2a9d7f" onClick={() => updateNestedConfig("career_path", { use_jump: !cp.use_jump })} />
         <PhaseChip label="Bridge Job" on={cp.use_bridge} color="#3a7d9c" onClick={() => updateNestedConfig("career_path", { use_bridge: !cp.use_bridge })} />
       </div>
+
+      {onOpenEditor && (
+        <button onClick={onOpenEditor} style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%",
+          marginTop: 14, paddingTop: 14, borderTop: `1px solid ${C.borderSoft}`,
+          background: "none", border: "none", cursor: "pointer", textAlign: "left",
+        }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: C.tealDark }}>Fine-tune every detail</span>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: C.teal }}>
+            Edit full plan <ChevronRight size={15} />
+          </span>
+        </button>
+      )}
     </div>
   );
 }

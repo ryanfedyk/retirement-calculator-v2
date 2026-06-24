@@ -4,7 +4,8 @@ import {
   ResponsiveContainer, AreaChart, Area, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine,
 } from "recharts";
-import { Flag, CheckCircle, TrendingUp, CalendarDays, Sparkles, AlertTriangle, ZoomIn, ZoomOut } from "lucide-react";
+import { Flag, CheckCircle, TrendingUp, CalendarDays, Sparkles, AlertTriangle } from "lucide-react";
+import HorizonZoomButton from "./HorizonZoomButton";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
 import { runSimulation, findIndependencePoint, toDisplayDollars } from "@/engine/calculator";
@@ -174,7 +175,7 @@ export default function RightPanel({ livePrices }: Props) {
   const { children } = useHorizonProfile();
   const [chartView, setChartView] = useState<ChartView>("wealth");
   const [insightTab, setInsightTab] = useState<"today" | "ai">("today");
-  const [ageCap, setAgeCap] = useState<75 | 100>(100);
+  const [ageCap, setAgeCap] = useState<75 | 100>(75);
 
   // Year currently hovered on the chart — reveals subtle (secondary) milestones
   const [hoverYear, setHoverYear] = useState<string | null>(null);
@@ -390,7 +391,7 @@ export default function RightPanel({ livePrices }: Props) {
       {/* ── Off-track warning — this plan never reaches FI by age 70 ── */}
       {!indepPoint && (
         <div style={{
-          display: "flex", alignItems: "flex-start", gap: 12,
+          display: "flex", alignItems: "flex-start", gap: 12, flexShrink: 0,
           background: "#fdece8", border: "2px solid #e0775a", borderRadius: 12, padding: "14px 16px",
         }}>
           <AlertTriangle size={22} color="#c0492b" style={{ flexShrink: 0, marginTop: 1 }} />
@@ -405,7 +406,7 @@ export default function RightPanel({ livePrices }: Props) {
 
       {/* ── Summary cards ── Financial Independence first; a horizontal scroll
           strip when space is tight. */}
-      <div className="no-scrollbar" style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 4 }}>
+      <div className="no-scrollbar" style={{ display: "flex", flexShrink: 0, gap: 12, overflowX: "auto", paddingBottom: 4 }}>
         <SummaryCard
           label="Financial Independence"
           value={indepPoint ? indepPoint.date : "30+ Yrs"}
@@ -442,9 +443,12 @@ export default function RightPanel({ livePrices }: Props) {
       </div>
 
       {/* ── Main chart (the hero) ── */}
+      {/* flexShrink:0 — the panel is a fixed-height flex column that scrolls; without
+          this, flexbox squeezes the card shorter than its fixed-height inner chart,
+          so the graph spills up over the summary cards. */}
       <div style={{
         background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 12,
-        display: "flex", flexDirection: "column",
+        display: "flex", flexDirection: "column", flexShrink: 0,
         height: chartView === "timeline" ? 580 : 536,
         transition: "height 0.3s ease",
       }}>
@@ -471,22 +475,6 @@ export default function RightPanel({ livePrices }: Props) {
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-            {/* Horizon zoom — magnifier toggles between the full (to 100) and the
-                focused (to 75) view. Zoomed-out shows zoom-in, and vice-versa. */}
-            {chartView !== "timeline" && (
-              <button
-                onClick={() => setAgeCap((a) => (a === 100 ? 75 : 100))}
-                title={ageCap === 100 ? "Zoom in — focus on the years to age 75" : "Zoom out — show the full horizon to age 100"}
-                aria-label={ageCap === 100 ? "Zoom in to age 75" : "Zoom out to age 100"}
-                style={{
-                  display: "flex", alignItems: "center", justifyContent: "center", width: 30, height: 28,
-                  borderRadius: 6, cursor: "pointer", border: `1px solid ${C.border}`, background: C.bg, color: C.inkMid,
-                }}
-              >
-                {ageCap === 100 ? <ZoomIn size={15} /> : <ZoomOut size={15} />}
-              </button>
-            )}
-
             <div style={{ display: "flex", background: C.bg, borderRadius: 8, padding: 3, gap: 2 }}>
               {(["wealth", "income", "expenses"] as ChartView[]).map(v => (
                 <TabBtn key={v} active={chartView === v} onClick={() => setChartView(v)}>
@@ -505,7 +493,12 @@ export default function RightPanel({ livePrices }: Props) {
         </div>
 
         {/* Chart body */}
-        <div style={{ flex: 1, padding: "8px 20px 16px", minHeight: 0, overflow: "hidden" }}>
+        <div style={{ position: "relative", flex: 1, padding: "8px 20px 16px", minHeight: 0, overflow: "hidden" }}>
+          {/* Horizon zoom — floats in the chart's bottom-right (not for the
+              calendar timeline, which has no age horizon to cap). */}
+          {chartView !== "timeline" && (
+            <HorizonZoomButton ageCap={ageCap} onToggle={() => setAgeCap((a) => (a === 100 ? 75 : 100))} />
+          )}
           {chartView === "timeline" ? (
             <LifeCalendar data={displayTrajectory} config={config} />
           ) : chartView === "risk" ? (

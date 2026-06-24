@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { C } from "@/config/colors";
 
 export interface TickerResult {
@@ -40,7 +41,13 @@ export default function TickerAutocomplete({
   const [results, setResults]     = useState<TickerResult[]>([]);
   const [open, setOpen]           = useState(false);
   const [highlight, setHighlight] = useState(-1);
-  const wrapRef = useRef<HTMLDivElement>(null);
+  // The suggestion list renders through a portal with fixed positioning so it's
+  // never clipped by a scrolling/`overflow:hidden` ancestor (e.g. the scenario
+  // sidebar's accordion cards). These track where to anchor it.
+  const [coords, setCoords] = useState<{ top: number; left: number; width: number } | null>(null);
+  const wrapRef  = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const menuRef  = useRef<HTMLDivElement>(null);
   // Suppress the search that would otherwise fire right after a pick (the value
   // change from selecting shouldn't reopen the menu).
   const skipNext = useRef(false);
@@ -68,14 +75,33 @@ export default function TickerAutocomplete({
     return () => { active = false; clearTimeout(t); };
   }, [value]);
 
-  // Close when clicking outside.
+  // Close when clicking outside (either the input wrapper or the portaled menu).
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (wrapRef.current?.contains(t) || menuRef.current?.contains(t)) return;
+      setOpen(false);
     };
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   }, []);
+
+  // Anchor the portaled menu under the input, and keep it there while the page
+  // (or the sidebar) scrolls or the window resizes.
+  useEffect(() => {
+    if (!open) return;
+    const place = () => {
+      const r = inputRef.current?.getBoundingClientRect();
+      if (r) setCoords({ top: r.bottom + 4, left: r.left, width: r.width });
+    };
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [open, results.length]);
 
   const pick = useCallback((r: TickerResult) => {
     skipNext.current = true;
@@ -97,6 +123,7 @@ export default function TickerAutocomplete({
   return (
     <div ref={wrapRef} style={{ position: "relative" }}>
       <input
+        ref={inputRef}
         value={value}
         placeholder={placeholder}
         autoFocus={autoFocus}
@@ -107,10 +134,11 @@ export default function TickerAutocomplete({
         onKeyDown={onKeyDown}
         style={inputStyle ?? DEFAULT_INPUT}
       />
-      {open && results.length > 0 && (
+      {open && results.length > 0 && coords && createPortal(
         <div
+          ref={menuRef}
           style={{
-            position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, zIndex: 50,
+            position: "fixed", top: coords.top, left: coords.left, width: coords.width, zIndex: 1000,
             background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 8,
             boxShadow: "0 8px 24px rgba(26,46,37,0.14)", overflow: "hidden", maxHeight: 240, overflowY: "auto",
           }}
@@ -133,7 +161,8 @@ export default function TickerAutocomplete({
               {r.exchange && <span style={{ fontSize: 9, color: C.inkFaint, flexShrink: 0 }}>{r.exchange}</span>}
             </button>
           ))}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

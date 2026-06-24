@@ -1,7 +1,8 @@
 "use client";
 import { useState, useMemo } from "react";
 import { ResponsiveContainer, AreaChart, Area, Line, XAxis, YAxis, Tooltip, ReferenceLine, CartesianGrid } from "recharts";
-import { AlertTriangle, ZoomIn, ZoomOut } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
+import HorizonZoomButton from "@/components/finance/HorizonZoomButton";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
@@ -41,7 +42,7 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
   const dollarBasisLabel = dollarMode === "future" ? "future (nominal) dollars" : "today’s dollars";
   const { children } = useHorizonProfile();
   const [view, setView] = useState<View>("wealth");
-  const [ageCap, setAgeCap] = useState<75 | 100>(100);
+  const [ageCap, setAgeCap] = useState<75 | 100>(75);
 
   const googInfo      = livePrices["GOOG"] ?? livePrices["GOOGL"];
   const liveGoogPrice = googInfo?.price ?? 0;
@@ -246,23 +247,9 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
           </div>
         )}
 
-        {/* Chart, with the horizon-zoom magnifier tucked into its top-right
-            corner (icon-only) so it costs no vertical space. */}
+        {/* Chart, with the horizon-zoom magnifier floating in its bottom-right. */}
         <div style={{ position: "relative" }}>
-          <button
-            onClick={() => setAgeCap(a => (a === 100 ? 75 : 100))}
-            title={ageCap === 100 ? "Zoom in — focus on the years to age 75" : "Zoom out — show the full horizon to age 100"}
-            aria-label={ageCap === 100 ? "Zoom in to age 75" : "Zoom out to age 100"}
-            style={{
-              position: "absolute", top: 0, right: 4, zIndex: 2,
-              display: "flex", alignItems: "center", justifyContent: "center", width: 30, height: 30,
-              borderRadius: 8, border: `1px solid ${C.border}`, background: `${C.bgCard}e6`,
-              color: C.inkMid, cursor: "pointer", boxShadow: `0 1px 3px ${C.border}`,
-            }}
-          >
-            {ageCap === 100 ? <ZoomIn size={15} /> : <ZoomOut size={15} />}
-          </button>
-
+        <HorizonZoomButton ageCap={ageCap} onToggle={() => setAgeCap(a => (a === 100 ? 75 : 100))} size={30} />
         {view === "risk" ? (
           <ResponsiveContainer width="100%" height={300}>
             <AreaChart data={riskData} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>

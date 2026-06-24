@@ -18,30 +18,46 @@ describe("runSimulation — invariants", () => {
   });
 
   it("compounds a pure asset at the configured geometric rate (no income/expenses)", () => {
-    const snap = baseSnap();
-    snap.liquid_assets.cash_savings = 1_000_000;
-    const cfg = baseConfig();
+    const cfg = idleRetiree();
     cfg.market_assumptions.market_return_rate = 7;
     cfg.market_assumptions.volatility_drag = 0;
-    cfg.spending.monthly_lifestyle = 0;
-    cfg.spending.healthcare_premium = 0;
-    // Remove income/passive flows that would perturb the pure-growth check.
-    cfg.income_profile.gross_annual_salary = 0;
-    cfg.social_security.monthly_amount = 0;
-    cfg.social_security.social_security_linked = false;
+    cfg.market_assumptions.inflation_rate = 0; // isolate nominal == real growth
 
-    const traj = runSimulation(snap, cfg, 200);
-    const oneYear = traj[12].liquidCash;
-    // True monthly compounding of 7%/yr → exactly 7% after 12 months.
-    expect(oneYear / 1_000_000).toBeCloseTo(1.07, 2);
+    const traj = runSimulation(idleSnap(1_000_000), cfg, 200);
+    // One clean year of growth (no contributions/withdrawals) → exactly 7%.
+    expect(traj[24].liquidCash / traj[12].liquidCash).toBeCloseTo(1.07, 3);
   });
 });
+
+// A retired, no-income, no-spend household whose only dynamic is asset growth —
+// used to test compounding cleanly (no salary, 401k, backdoor Roth, SS, or spend).
+function idleRetiree(): SimulationConfiguration {
+  const cfg = baseConfig();
+  cfg.birth_year = YEAR - 50;
+  cfg.career_path.exit_year = YEAR;
+  cfg.career_path.use_sabbatical = false;
+  cfg.career_path.use_jump = false;
+  cfg.career_path.use_bridge = false;
+  cfg.income_profile.gross_annual_salary = 0;
+  cfg.spending.monthly_lifestyle = 0;
+  cfg.spending.healthcare_premium = 0;
+  cfg.medicare.monthly_premium = 0;
+  cfg.social_security.social_security_linked = false;
+  cfg.social_security.monthly_amount = 0;
+  return cfg;
+}
+function idleSnap(cash: number): FinancialSnapshot {
+  const snap = baseSnap();
+  snap.liquid_assets.cash_savings = cash;
+  return snap;
+}
 
 describe("rental income growth is user-configurable", () => {
   function rentalAfter10y(rate: number): number {
     const cfg = baseConfig();
     cfg.income_profile.monthly_rental_income = 1_000;
     cfg.income_profile.rental_income_growth_rate = rate;
+    cfg.market_assumptions.inflation_rate = 0; // compare the nominal rate directly (real == nominal)
     const traj = runSimulation(baseSnap(), cfg, 200);
     return traj[120].rentalIncome; // annualized gross rental at exactly 10 years
   }
@@ -150,5 +166,42 @@ describe("FI test uses after-tax spendable assets, not gross balances", () => {
     expect(roth[0].swrTarget).toBeCloseTo(900_000, -3);
     expect(roth[0].isIndependent).toBe(true);
     expect(trad[0].isIndependent).toBe(false);
+  });
+});
+
+describe("real-dollar model (today's purchasing power)", () => {
+  it("grows assets at the REAL return (nominal minus inflation)", () => {
+    const cfg = idleRetiree();
+    cfg.market_assumptions.market_return_rate = 7;
+    cfg.market_assumptions.inflation_rate = 3;
+    cfg.market_assumptions.volatility_drag = 0;
+
+    const traj = runSimulation(idleSnap(1_000_000), cfg, 200);
+    // Real return = 1.07 / 1.03 − 1 ≈ 3.883%/yr over one clean year.
+    expect(traj[24].liquidCash / traj[12].liquidCash).toBeCloseTo(1.07 / 1.03, 3);
+  });
+
+  it("keeps lifestyle spending flat in real terms (no inflation ramp)", () => {
+    const cfg = baseConfig();
+    cfg.spending.monthly_lifestyle = 5_000;
+    cfg.market_assumptions.inflation_rate = 3;
+    const traj = runSimulation(baseSnap(), cfg, 200);
+    expect(traj[120].lifestyleExpense).toBe(traj[12].lifestyleExpense);
+    expect(traj[12].lifestyleExpense).toBe(5_000 * 12);
+  });
+
+  it("shows no bracket-creep: a salary that just tracks inflation has a flat real net", () => {
+    const cfg = baseConfig();
+    cfg.birth_year = YEAR - 35;
+    cfg.career_path.exit_year = YEAR + 30;     // working the whole window
+    cfg.income_profile.gross_annual_salary = 200_000;
+    cfg.income_profile.income_growth_rate = 3; // nominal raise == inflation
+    cfg.market_assumptions.inflation_rate = 3; // → 0% real growth
+    const traj = runSimulation(baseSnap(), cfg, 200);
+    // Same month-of-year 14 years apart (both non-bonus months) → identical real
+    // take-home. Under the old frozen-bracket model this drifted down as nominal
+    // pay climbed into higher brackets.
+    const ratio = traj[180].salaryAndEquityNet / traj[12].salaryAndEquityNet;
+    expect(ratio).toBeCloseTo(1, 2);
   });
 });

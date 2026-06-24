@@ -106,3 +106,49 @@ describe("decumulation draws down the taxable brokerage", () => {
     }
   });
 });
+
+describe("FI test uses after-tax spendable assets, not gross balances", () => {
+  // A pre-retiree with a single asset bucket and simple expenses, used to
+  // isolate the tax-haircut behavior.
+  function retireeConfig(): SimulationConfiguration {
+    const cfg = baseConfig();
+    cfg.birth_year = YEAR - 60;        // age 60: retired, pre-Medicare, pre-SS
+    cfg.career_path.exit_year = YEAR;
+    cfg.career_path.use_sabbatical = false;
+    cfg.career_path.use_jump = false;
+    cfg.career_path.use_bridge = false;
+    cfg.income_profile.gross_annual_salary = 0;
+    cfg.spending.monthly_lifestyle = 3_000;
+    cfg.spending.healthcare_premium = 0;
+    cfg.spending.mortgage_payment = 0;
+    cfg.medicare.monthly_premium = 0;
+    return cfg;
+  }
+  function snapWith(bucket: "cash" | "roth" | "trad", amount: number): FinancialSnapshot {
+    const snap = baseSnap();
+    if (bucket === "cash") snap.liquid_assets.cash_savings = amount;
+    if (bucket === "roth") snap.retirement_assets.roth_ira = amount;
+    if (bucket === "trad") snap.retirement_assets.k401 = amount;
+    return snap;
+  }
+
+  it("does not haircut cash or Roth (after-tax == gross)", () => {
+    const traj = runSimulation(snapWith("cash", 1_000_000), retireeConfig(), 200);
+    expect(traj[0].investableAfterTax).toBe(traj[0].investableAssets);
+  });
+
+  it("haircuts pre-tax balances (after-tax < gross)", () => {
+    const traj = runSimulation(snapWith("trad", 1_000_000), retireeConfig(), 200);
+    expect(traj[0].investableAfterTax).toBeLessThan(traj[0].investableAssets);
+  });
+
+  it("reaches FI on Roth dollars but not the same gross balance held pre-tax", () => {
+    // $930k vs a $900k FI number ($36k/yr need ÷ 4%): Roth clears it after-tax,
+    // but the same balance in a 401k does not once the withdrawal tax is netted.
+    const roth = runSimulation(snapWith("roth", 930_000), retireeConfig(), 200);
+    const trad = runSimulation(snapWith("trad", 930_000), retireeConfig(), 200);
+    expect(roth[0].swrTarget).toBeCloseTo(900_000, -3);
+    expect(roth[0].isIndependent).toBe(true);
+    expect(trad[0].isIndependent).toBe(false);
+  });
+});

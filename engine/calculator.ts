@@ -150,7 +150,10 @@ export interface TrajectoryPoint {
   totalLiabilities: number;
   isIndependent: boolean;
   swrTarget: number;              // the FI Number (Rule of 25)
-  investableAssets: number;      // assets that fund retirement (excl. 529)
+  investableAssets: number;      // assets that fund retirement, GROSS (excl. 529)
+  investableAfterTax: number;    // spendable value of those assets, net of the
+                                 // tax owed on pre-tax balances + embedded gains
+                                 // (this is what the FI test compares against)
   annualExpenseNeed: number;     // retirement annual expenses (incl self-paid healthcare)
   annualPassiveIncome: number;   // rental + Social Security, net of tax
   currentPhase: 'GOOGLE' | 'SABBATICAL' | 'JUMP' | 'BRIDGE' | 'RETIRED';
@@ -850,9 +853,39 @@ export const runSimulation = (
     const netAnnualNeed       = Math.max(0, annualExpenses - annualPassiveIncome);
     const swrTargetValue      = netAnnualNeed / SWR; // the FI Number (25× the net need)
 
-    // Independent once investable assets cover the FI Number (or passive income
+    // ── After-tax "spendable" assets ─────────────────────────────────────────
+    // $1 in a pre-tax 401k/IRA, or sitting on a large unrealized capital gain,
+    // is NOT $1 of spending power. Haircut tax-deferred balances by the ordinary
+    // rate a retiree would pay drawing them, and taxable holdings by the LTCG
+    // owed on their embedded gains. The FI test then compares spendable assets
+    // against the (post-tax) spending need — apples to apples. The old test used
+    // gross balances and triggered FI years early for pre-tax-heavy savers.
+    const RETIRE_LTCG_RATE = 0.15; // federal long-term capital-gains midpoint
+    const deferredTaxRate = calculateTax({
+      filingStatus:     config.tax_assumptions.filing_status,
+      state:            config.tax_assumptions.state_of_residence,
+      grossIncome:      0,
+      ficaExemptIncome: netAnnualNeed, // ordinary withdrawal, no FICA
+      longTermCapitalGains: 0, shortTermCapitalGains: 0,
+    }).ordinaryEffectiveRate;
+
+    const googBasisTot = currentGoogByBasis.reduce((a, b) => a + b.shares * b.basis, 0);
+    const googShTot    = currentGoogByBasis.reduce((a, b) => a + b.shares, 0);
+    const googAvgBasis = googShTot > 0 ? googBasisTot / googShTot : 0;
+    const googGain     = Math.max(0, currentGoogValue - currentGoogShares * googAvgBasis);
+    const otherGain    = currentOtherInvestments.reduce((s, i) => s + Math.max(0, i.currentValue - i.shares * i.cost_basis), 0);
+    const jumpGain     = currentJumpStockValue; // basis untracked → treat as fully appreciated (conservative)
+    const embeddedGainTax = (googGain + otherGain + jumpGain) * RETIRE_LTCG_RATE;
+
+    const investableAfterTax = Math.max(0,
+      liquidCash + rothBalance
+      + tradBalance * (1 - deferredTaxRate)
+      + currentGoogValue + currentJumpStockValue + totalOtherInvestmentsValue
+      - embeddedGainTax);
+
+    // Independent once SPENDABLE assets cover the FI Number (or passive income
     // alone already covers expenses → need is zero).
-    const isIndependent = investableAssets >= swrTargetValue;
+    const isIndependent = investableAfterTax >= swrTargetValue;
 
     // ── Chart fields ──────────────────────────────────────────────────────
     const equityPart    = monthlyEquityVestUnits > 0 ? monthlyEquityVestUnits * (1 - marginalRate) * currentGoogPrice : 0;
@@ -875,6 +908,7 @@ export const runSimulation = (
       isIndependent,
       swrTarget:  Math.round(swrTargetValue),
       investableAssets:    Math.round(investableAssets),
+      investableAfterTax:  Math.round(investableAfterTax),
       annualExpenseNeed:   Math.round(annualExpenses),
       annualPassiveIncome: Math.round(annualPassiveIncome),
       currentPhase: phase,
@@ -926,8 +960,10 @@ export function continuousFiMonth(points: TrajectoryPoint[]): number | undefined
   const i = fi.monthIndex;
   if (i <= 0) return 0;
   const prev = points[i - 1];
-  const gapPrev = prev.investableAssets - prev.swrTarget; // < 0
-  const gapNow  = fi.investableAssets  - fi.swrTarget;     // ≥ 0
+  // Interpolate on the SAME (after-tax) measure the independence flag uses, so
+  // the continuous FI month lines up with the durable crossing.
+  const gapPrev = prev.investableAfterTax - prev.swrTarget; // < 0
+  const gapNow  = fi.investableAfterTax  - fi.swrTarget;     // ≥ 0
   const denom = gapNow - gapPrev;
   const frac = denom > 0 ? Math.min(1, Math.max(0, -gapPrev / denom)) : 0;
   return (i - 1) + frac;

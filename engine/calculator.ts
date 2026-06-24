@@ -803,6 +803,16 @@ export const runSimulation = (
     const partnerOnMed  = !!config.medicare && partnerAge != null && partnerAge >= medAge;
     const adultsOnMed   = (primaryOnMed ? 1 : 0) + (partnerOnMed ? 1 : 0);
 
+    // Household size for healthcare premiums AND the ACA Federal-Poverty-Line
+    // subsidy test — derived from the ACTUAL household (each adult + each child
+    // still on the family plan). This tapers automatically as kids age out, and
+    // avoids relying on a static `aca_family_size` config value (which defaulted
+    // to 1, understating FPL thresholds and over-counting per-capita premiums).
+    const coveredKids   = (config.children ?? []).filter(
+      c => currentYear - c.birthYear < CHILD_OFF_PLAN_AGE
+    ).length;
+    const householdSize = Math.max(1, adults + coveredKids);
+
     // Healthcare (and long-term care) historically rise faster than general
     // inflation. The model runs in real dollars, so apply this REAL premium on
     // top: a ~2%/yr real escalation compounded over a long retirement.
@@ -820,11 +830,7 @@ export const runSimulation = (
     let selfPaidHealthcare: number;
     {
       const medCost        = ((config.medicare?.monthly_premium ?? 0) + irmaaSurcharge) * adultsOnMed;
-      const baseFamilySize = Math.max(1, opt?.aca_family_size ?? 4);
-      const perCapita      = config.spending.healthcare_premium / baseFamilySize;
-      const coveredKids    = (config.children ?? []).filter(
-        c => currentYear - c.birthYear < CHILD_OFF_PLAN_AGE
-      ).length;
+      const perCapita      = config.spending.healthcare_premium / householdSize;
       const preMedAdults   = adults - adultsOnMed;
       selfPaidHealthcare = (medCost + perCapita * (preMedAdults + coveredKids)) * medInflMult;
     }
@@ -843,8 +849,7 @@ export const runSimulation = (
       // dynamic the old "sabbatical-only" rule missed.
       const acaWindow = (phase === 'SABBATICAL' || phase === 'RETIRED') && !primaryOnMed;
       if (acaWindow && (opt?.enable_aca_optimization ?? true)) {
-        const baseFamilySize = Math.max(1, opt?.aca_family_size ?? 4);
-        const fpl            = getFPL(baseFamilySize);
+        const fpl            = getFPL(householdSize);
         const magiForACA     = magiByYear.get(currentYear - 1)
           ?? (annualRentalGross + taxableSSForMagi + Math.max(0, annualW2Gross - annualK401));
         const maxContribPct  = acaMaxContributionPct(magiForACA / fpl);

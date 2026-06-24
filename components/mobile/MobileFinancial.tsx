@@ -1,13 +1,13 @@
 "use client";
 import { useState, useMemo } from "react";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, ReferenceLine, CartesianGrid } from "recharts";
-import { ChevronRight, AlertTriangle, X } from "lucide-react";
+import { ChevronRight, AlertTriangle } from "lucide-react";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { runSimulation, findIndependencePoint } from "@/engine/calculator";
 import { getLifeEvents } from "@/lib/horizonUtils";
 import { useHorizonProfile } from "@/config/horizonConfig";
-import { TodaysDelta, buildMomentumCards } from "@/components/finance/MotivationWidgets";
+import { buildMomentumCards } from "@/components/finance/MotivationWidgets";
 import AiAnalysis from "@/components/finance/AiAnalysis";
 import PriceTicker from "@/components/finance/PriceTicker";
 import ScenarioLevers from "@/components/finance/ScenarioLevers";
@@ -37,9 +37,6 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
   const { children } = useHorizonProfile();
   const [view, setView] = useState<View>("wealth");
   const [ageCap, setAgeCap] = useState<75 | 100>(100);
-  const [insightTab, setInsightTab] = useState<"today" | "ai">("today");
-  // Metric cards the user has dismissed this session (they return on reload).
-  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
 
   const googInfo      = livePrices["GOOG"] ?? livePrices["GOOGL"];
   const liveGoogPrice = googInfo?.price ?? 0;
@@ -166,14 +163,12 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
       <FireMoments netWorth={currentNW} swrTarget={swrTarget} isIndependent={today?.isIndependent ?? false} savingsRate={savingsRate} coastFI={coastFI} />
 
       {/* Metric strip — Financial Independence first, then momentum cards, in one
-          horizontal scroller. Each card is dismissable. */}
-      {metricCards.some((c) => !dismissed.has(c.id)) && (
-        <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 4, scrollSnapType: "x proximity", WebkitOverflowScrolling: "touch" }}>
-          {metricCards.filter((c) => !dismissed.has(c.id)).map((c) => (
-            <MetricCard key={c.id} {...c} onDismiss={() => setDismissed((p) => new Set(p).add(c.id))} />
-          ))}
-        </div>
-      )}
+          horizontal scroller. */}
+      <div className="no-scrollbar" style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 4, scrollSnapType: "x proximity", WebkitOverflowScrolling: "touch" }}>
+        {metricCards.map((c) => (
+          <MetricCard key={c.id} {...c} />
+        ))}
+      </div>
 
       {/* Scenario levers — drive the trajectory live */}
       <ScenarioLevers />
@@ -270,24 +265,8 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
         </ResponsiveContainer>
       </div>
 
-      {/* Insights — progressive disclosure below the chart (mirrors desktop) */}
-      <div style={{ display: "flex", gap: 6, background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 14, padding: 5 }}>
-        {([["today", "Today"], ["ai", "AI Coach"]] as const).map(([id, label]) => (
-          <button key={id} onClick={() => setInsightTab(id)} style={{
-            flex: 1, padding: "10px 0", borderRadius: 10, border: "none", cursor: "pointer",
-            fontSize: 12, fontWeight: 600,
-            background: insightTab === id ? C.teal : "transparent",
-            color: insightTab === id ? "white" : C.inkSoft, transition: "all 0.15s",
-          }}>{label}</button>
-        ))}
-      </div>
-
-      {insightTab === "today" && (
-        <TodaysDelta trajectory={traj} snapshot={enrichedSnapshot} symbol={config.concentrated_symbol} price={livePrices[(config.concentrated_symbol ?? "").toUpperCase()]?.price ?? 0} />
-      )}
-      {insightTab === "ai" && (
-        <AiAnalysis config={config} snapshot={snapshot} trajectory={traj} />
-      )}
+      {/* AI Coach — insight below the chart */}
+      <AiAnalysis config={config} snapshot={snapshot} trajectory={traj} />
 
       {/* Config summary — tap to open the full editor */}
       <button onClick={onOpenConfig} style={{
@@ -312,31 +291,20 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
 
 // A single metric card in the top scroll strip. `hero` (Financial Independence)
 // gets the teal gradient so it still reads as primary while sitting in the row.
-function MetricCard({ tag, value, unit, blurb, color, pct, hero, onDismiss }: {
+function MetricCard({ tag, value, unit, blurb, color, pct, hero }: {
   tag: string; value: string; unit?: string; blurb: string; color: string;
-  pct?: number | null; hero?: boolean; onDismiss: () => void;
+  pct?: number | null; hero?: boolean;
 }) {
   const soft = hero ? "rgba(255,255,255,0.85)" : C.inkSoft;
   return (
     <div style={{
-      position: "relative", flex: "0 0 auto", width: "80%", maxWidth: 340, scrollSnapAlign: "start",
+      flex: "0 0 auto", width: "80%", maxWidth: 340, scrollSnapAlign: "start",
       background: hero ? `linear-gradient(135deg, ${C.tealDark}, ${C.teal})` : C.bgCard,
       border: hero ? "none" : `1px solid ${C.border}`, borderRadius: 20, padding: "16px 18px",
       minHeight: 150, display: "flex", flexDirection: "column",
       boxShadow: hero ? `0 10px 30px ${C.teal}40` : "none",
     }}>
-      <button
-        onClick={onDismiss}
-        aria-label={`Dismiss ${tag}`}
-        style={{
-          position: "absolute", top: 10, right: 10, width: 26, height: 26, borderRadius: "50%",
-          border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-          background: hero ? "rgba(255,255,255,0.18)" : C.bg, color: hero ? "white" : C.inkFaint,
-        }}
-      >
-        <X size={15} />
-      </button>
-      <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: soft, paddingRight: 30 }}>{tag}</div>
+      <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: soft }}>{tag}</div>
       <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 6 }}>
         <span style={{ fontSize: 30, fontWeight: 300, letterSpacing: "-0.02em", color: hero ? "white" : color, fontVariantNumeric: "tabular-nums" }}>{value}</span>
         {unit ? <span style={{ fontSize: 12, color: soft }}>{unit}</span> : null}

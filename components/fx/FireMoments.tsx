@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { X } from "lucide-react";
 import { launchConfetti } from "@/lib/fx/confetti";
 import { MILESTONES, type FireMetrics } from "@/lib/fire/moments";
 import { C } from "@/config/colors";
@@ -30,20 +31,30 @@ export default function FireMoments(metrics: FireMetrics) {
   }, [metrics.netWorth, metrics.swrTarget, metrics.isIndependent, metrics.savingsRate, metrics.coastFI]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!toasts.length) return null;
+  const dismiss = (id: string) => setToasts((t) => t.filter((x) => x.id !== id));
   return (
     <div style={{ position: "fixed", right: 18, bottom: 18, zIndex: 9998, display: "flex", flexDirection: "column", gap: 10, pointerEvents: "none" }}>
       {toasts.map((t) => (
         <div key={t.id} style={{
           display: "flex", alignItems: "center", gap: 12, maxWidth: 320,
           background: C.bgCard, border: `1px solid ${C.tealLight}`, borderRadius: 14,
-          padding: "12px 16px", boxShadow: "0 8px 28px rgba(0,0,0,0.18)",
-          animation: "fireToastIn 0.35s ease",
+          padding: "12px 14px 12px 16px", boxShadow: "0 8px 28px rgba(0,0,0,0.18)",
+          animation: "fireToastIn 0.35s ease", pointerEvents: "auto",
         }}>
           <span style={{ fontSize: 26, lineHeight: 1 }}>{t.emoji}</span>
-          <div>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: C.ink }}>{t.title}</div>
             <div style={{ fontSize: 12, color: C.inkSoft }}>{t.sub}</div>
           </div>
+          <button
+            onClick={() => dismiss(t.id)}
+            aria-label="Dismiss notification"
+            style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, border: "none", background: "transparent", borderRadius: 6, color: C.inkFaint, cursor: "pointer" }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = C.bg; e.currentTarget.style.color = C.inkSoft; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = C.inkFaint; }}
+          >
+            <X size={15} />
+          </button>
         </div>
       ))}
       <style>{`@keyframes fireToastIn{from{opacity:0;transform:translateY(12px) scale(0.96)}to{opacity:1;transform:none}}`}</style>

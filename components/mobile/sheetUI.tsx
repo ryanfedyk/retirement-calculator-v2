@@ -23,7 +23,7 @@ export function Field({ label, children }: { label: string; children: React.Reac
   return <div style={{ marginBottom: 14 }}><span style={labelStyle}>{label}</span>{children}</div>;
 }
 
-export function Num({ value, onChange, step = 1, prefix }: { value: number; onChange: (v: number) => void; step?: number; prefix?: string }) {
+export function Num({ value, onChange, step = 1, prefix, suffix }: { value: number; onChange: (v: number) => void; step?: number; prefix?: string; suffix?: string }) {
   // Local buffer while focused so the field can be fully cleared (a controlled
   // value={0} otherwise snaps back to "0" and the leading zero can't be erased).
   const [focused, setFocused] = useState(false);
@@ -36,7 +36,8 @@ export function Num({ value, onChange, step = 1, prefix }: { value: number; onCh
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         onChange={e => { setText(e.target.value); onChange(e.target.value === "" ? 0 : +e.target.value); }}
-        style={{ ...inputStyle, paddingLeft: prefix ? 26 : 12 }} />
+        style={{ ...inputStyle, paddingLeft: prefix ? 26 : 12, paddingRight: suffix ? 30 : 12 }} />
+      {suffix && <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: C.inkFaint, fontSize: 16 }}>{suffix}</span>}
     </div>
   );
 }

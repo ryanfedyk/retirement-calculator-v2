@@ -64,6 +64,7 @@ export interface SimulationConfiguration {
     target_bonus_rate: number;
     annual_equity_grant: number;
     monthly_rental_income: number;
+    rental_income_growth_rate?: number; // Annual rental growth % (market-specific; default 3%)
     monthly_parttime_income?: number;   // Supplemental earned income (part-time work)
     annual_401k_contribution?: number;  // Pre-tax 401k (default IRS max)
     annual_backdoor_roth?: number;      // Backdoor Roth IRA per year (default $7k)
@@ -211,7 +212,10 @@ export const runSimulation = (
   const opt               = config.tax_optimization;
 
   const JUMP_EQUITY_GROWTH = 0.08;
-  const RENTAL_GROWTH_RATE = 0.074; // User-specified
+  // Rental growth is market-specific, so it's user-configurable. Default 3%
+  // (≈ long-run inflation) rather than a hard-coded high number, since rents
+  // vary widely by metro.
+  const RENTAL_GROWTH_RATE = (ip.rental_income_growth_rate ?? 3) / 100;
 
   const startYear  = new Date().getFullYear();
   const startMonth = new Date().getMonth();
@@ -625,8 +629,10 @@ export const runSimulation = (
       expense += currentHealthcareCost;
     }
 
-    // Mortgage
-    const hasMortgage = currentDate < mortgagePayoffDate;
+    // Mortgage — the payment is due only while a balance actually remains (and
+    // before the nominal payoff date). Once amortization clears the loan early,
+    // the payment stops rather than running on until the payoff date.
+    const hasMortgage = currentDate < mortgagePayoffDate && currentMortgage > 0;
     if (hasMortgage) {
       expense += config.spending.mortgage_payment;
       if (currentMortgage > 0) {
@@ -719,38 +725,98 @@ export const runSimulation = (
       liquidCash -= paydown;
     }
 
-    // ── Deficit handling ──────────────────────────────────────────────────
+    // ── Deficit handling — tax-aware withdrawal waterfall ───────────────────
+    // When monthly cash flow goes negative, raise the shortfall by liquidating
+    // assets in a tax-efficient order:
+    //   1. Taxable accounts (concentrated stock, diversified brokerage, jump
+    //      equity) — only the embedded gain is taxed.
+    //   2. Traditional / pre-tax — fully taxed as ordinary income.
+    //   3. Roth LAST — tax-free and RMD-free, so it's preserved to compound.
+    // Each bucket is drained only as far as the remaining deficit requires, and
+    // no bucket is allowed to go negative (the old code drove the 401k negative
+    // to absorb shortfalls, and never tapped the diversified brokerage at all).
     if (liquidCash < 0) {
-      const deficit = Math.abs(liquidCash);
+      let deficit = Math.abs(liquidCash);
       liquidCash = 0;
       const emergencyTaxRate = Math.min(0.55, marginalRate + 0.05);
 
-      const totalBasis = currentGoogByBasis.reduce((a, b) => a + b.shares * b.basis, 0);
-      const totalSh    = currentGoogByBasis.reduce((a, b) => a + b.shares, 0);
-      const avgBasis   = totalSh > 0 ? totalBasis / totalSh : 0;
-      const netPerShare = currentGoogPrice - emergencyTaxRate * Math.max(0, currentGoogPrice - avgBasis);
-
-      if (currentGoogShares * netPerShare >= deficit) {
-        currentGoogShares -= deficit / Math.max(0.01, netPerShare);
-      } else {
-        let remaining = deficit - currentGoogShares * netPerShare;
-        currentGoogShares = 0;
-        // Draw from Roth first (tax-free), then traditional (with tax drag)
-        if (rothBalance * 1.0 >= remaining) {
-          rothBalance -= remaining;
+      // 1a. Concentrated employer position (average-basis LTCG).
+      if (deficit > 0 && currentGoogShares > 0) {
+        const totalBasis = currentGoogByBasis.reduce((a, b) => a + b.shares * b.basis, 0);
+        const totalSh    = currentGoogByBasis.reduce((a, b) => a + b.shares, 0);
+        const avgBasis   = totalSh > 0 ? totalBasis / totalSh : 0;
+        const netPerShare = currentGoogPrice - emergencyTaxRate * Math.max(0, currentGoogPrice - avgBasis);
+        const proceeds = currentGoogShares * Math.max(0, netPerShare);
+        if (proceeds >= deficit) {
+          currentGoogShares -= deficit / Math.max(0.01, netPerShare);
+          deficit = 0;
         } else {
-          remaining -= rothBalance;
-          rothBalance = 0;
-          if (currentJumpStockValue * 0.75 >= remaining) {
-            currentJumpStockValue -= remaining / 0.75;
-          } else {
-            remaining -= currentJumpStockValue * 0.75;
-            currentJumpStockValue = 0;
-            tradBalance -= remaining / 0.70; // ~30% effective tax on traditional withdrawal
-          }
+          deficit -= proceeds;
+          currentGoogShares = 0;
         }
       }
+
+      // 1b. Diversified taxable holdings — tax only the proportional gain.
+      for (const inv of currentOtherInvestments) {
+        if (deficit <= 0) break;
+        if (inv.currentValue <= 0) continue;
+        const basisTotal   = (inv.shares * inv.cost_basis) || 0;
+        const gainFraction = Math.max(0, (inv.currentValue - basisTotal) / inv.currentValue);
+        const netPerDollar = Math.max(0.01, 1 - emergencyTaxRate * gainFraction);
+        const grossNeeded  = deficit / netPerDollar;
+        if (grossNeeded >= inv.currentValue) {
+          deficit -= inv.currentValue * netPerDollar;
+          inv.shares = 0;
+          inv.currentValue = 0;
+        } else {
+          const frac = grossNeeded / inv.currentValue;
+          inv.shares *= (1 - frac);
+          inv.currentValue -= grossNeeded;
+          deficit = 0;
+        }
+      }
+
+      // 1c. Jump-company equity (taxable; ~25% haircut on the draw).
+      if (deficit > 0 && currentJumpStockValue > 0) {
+        const proceeds = currentJumpStockValue * 0.75;
+        if (proceeds >= deficit) {
+          currentJumpStockValue -= deficit / 0.75;
+          deficit = 0;
+        } else {
+          deficit -= proceeds;
+          currentJumpStockValue = 0;
+        }
+      }
+
+      // 2. Traditional / pre-tax (ordinary income; ~30% effective).
+      if (deficit > 0 && tradBalance > 0) {
+        const grossNeeded = deficit / 0.70;
+        if (grossNeeded >= tradBalance) {
+          deficit -= tradBalance * 0.70;
+          tradBalance = 0;
+        } else {
+          tradBalance -= grossNeeded;
+          deficit = 0;
+        }
+      }
+
+      // 3. Roth LAST (tax-free).
+      if (deficit > 0 && rothBalance > 0) {
+        if (rothBalance >= deficit) {
+          rothBalance -= deficit;
+          deficit = 0;
+        } else {
+          deficit -= rothBalance;
+          rothBalance = 0;
+        }
+      }
+      // Any residual deficit means assets are exhausted — a true plan shortfall.
+      // Leave liquidCash at 0 rather than fabricating negative balances.
     }
+
+    // The brokerage may have been partially liquidated above; refresh its total
+    // so net worth / investable assets reflect the withdrawals.
+    totalOtherInvestmentsValue = currentOtherInvestments.reduce((s, i) => s + i.currentValue, 0);
 
     // ── Derived values ────────────────────────────────────────────────────
     const totalRetirement  = tradBalance + rothBalance;

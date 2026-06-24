@@ -115,6 +115,8 @@ export default function ConfigPanel() {
           onChange={v => updateIncomeProfile({ google_net_monthly: v })} />
         <NumField label="Rental Income" value={ip.monthly_rental_income} step={100} prefix="$"
           onChange={v => updateIncomeProfile({ monthly_rental_income: v })} />
+        <NumField label="Rental Growth Rate" value={ip.rental_income_growth_rate ?? 3} step={0.25} suffix="%"
+          onChange={v => updateIncomeProfile({ rental_income_growth_rate: v })} />
       </Section>
 
       {/* Market Assumptions */}

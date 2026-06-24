@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
+// The LLM call can take longer than the default serverless budget; give it room.
+export const runtime = "nodejs";
+export const maxDuration = 60;
+
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
 // Current Gemini models, in order of preference. 1.5-flash is being retired,
@@ -16,7 +20,10 @@ export async function POST(req: Request) {
   try {
     if (!process.env.GEMINI_API_KEY) {
       return NextResponse.json(
-        { error: "Gemini API key not configured", detail: "Set GEMINI_API_KEY in .env.local" },
+        {
+          error: "Gemini API key not configured",
+          detail: "GEMINI_API_KEY is missing. Locally: set it in .env.local. In production (Firebase App Hosting): create the secret with `firebase apphosting:secrets:set GEMINI_API_KEY`, grant the backend access, and redeploy.",
+        },
         { status: 503 }
       );
     }
@@ -84,7 +91,8 @@ Return ONLY raw JSON in this exact shape (no markdown, no code fences):
     let lastErr: any = null;
     for (const modelName of MODEL_CANDIDATES) {
       try {
-        const model  = genAI.getGenerativeModel({ model: modelName });
+        // Force JSON output so parsing is reliable (no stray prose / code fences).
+        const model  = genAI.getGenerativeModel({ model: modelName, generationConfig: { responseMimeType: "application/json" } });
         const result = await model.generateContent(prompt);
         responseText = result.response.text();
         if (responseText) break;

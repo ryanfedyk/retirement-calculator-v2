@@ -166,6 +166,7 @@ function SuggestionsStrip({ suggestions }: { suggestions: Suggestion[] }) {
       </div>
 
       <div
+        className="no-scrollbar"
         style={{
           display: "flex", gap: 10, overflowX: "auto", paddingBottom: 6,
           scrollSnapType: "x proximity", WebkitOverflowScrolling: "touch",
@@ -388,6 +389,7 @@ export default function ScenariosHub({ livePrices, onOpen }: { livePrices: LiveP
             a horizontal scroll strip on mobile (saves vertical space, and the
             peek of the next card signals the row scrolls). */}
         <div
+          className={isMobile ? "no-scrollbar" : undefined}
           style={isMobile
             ? { display: "flex", gap: 12, overflowX: "auto", paddingBottom: 6, scrollSnapType: "x proximity", WebkitOverflowScrolling: "touch" }
             : { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 12 }}

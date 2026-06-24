@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { LineChart, Compass, SlidersHorizontal, LogOut, Settings, ChevronLeft, ChevronDown, Wallet } from "lucide-react";
+import { LineChart, Compass, SlidersHorizontal, LogOut, Settings, ChevronLeft, Wallet } from "lucide-react";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
@@ -18,6 +18,9 @@ type View = "financial" | "forecasting";
 
 export default function MobileApp() {
   const { snapshot } = useFinancialStore();
+  const scenarios = useFinancialStore((s) => s.scenarios);
+  const activeScenarioId = useFinancialStore((s) => s.activeScenarioId);
+  const activeName = scenarios.find((s) => s.id === activeScenarioId)?.name ?? "Scenario";
   const financesOpen = useUIStore((s) => s.financesOpen);
   const setFinancesOpen = useUIStore((s) => s.setFinancesOpen);
   const settingsOpen = useUIStore((s) => s.settingsOpen);
@@ -59,8 +62,8 @@ export default function MobileApp() {
   useEffect(() => { fetchAllPrices(); }, [fetchAllPrices]);
 
   const tabs: { id: View; label: string; icon: typeof LineChart }[] = [
-    { id: "financial",   label: "Financial",   icon: LineChart },
-    { id: "forecasting", label: "Forecasting", icon: Compass },
+    { id: "financial",   label: "Trajectory", icon: LineChart },
+    { id: "forecasting", label: "Reclaim",    icon: Compass },
   ];
 
   return (
@@ -75,19 +78,25 @@ export default function MobileApp() {
         display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
       }}>
         {scenarioOpen ? (
-          <button onClick={() => setScenarioOpen(false)} aria-label="Back to scenarios" style={{
-            display: "flex", alignItems: "center", gap: 3, padding: "6px 10px 6px 6px",
-            borderRadius: 9, border: `1px solid ${C.border}`, background: C.bgCard, cursor: "pointer",
-            color: C.inkSoft, fontSize: 13, fontWeight: 600, flexShrink: 0,
-          }}>
-            <ChevronLeft size={16} /> Scenarios
-          </button>
+          // Back button (returns to the hub, where scenarios are switched) plus
+          // the active scenario name as a static title — no in-place dropdown.
+          <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+            <button onClick={() => setScenarioOpen(false)} aria-label="Back to scenarios" style={{
+              display: "flex", alignItems: "center", gap: 3, padding: "6px 10px 6px 6px",
+              borderRadius: 9, border: `1px solid ${C.border}`, background: C.bgCard, cursor: "pointer",
+              color: C.inkSoft, fontSize: 13, fontWeight: 600, flexShrink: 0,
+            }}>
+              <ChevronLeft size={16} /> Scenarios
+            </button>
+            <span style={{ fontSize: 15, fontWeight: 700, color: C.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
+              {activeName}
+            </span>
+          </div>
         ) : (
           <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: "0.18em", color: C.ink }}>TAPER</div>
         )}
 
         <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-          {scenarioOpen && <MobileScenarioSelect />}
           {scenarioOpen && (
             <button onClick={() => useUIStore.getState().setFinancesOpen(true)} aria-label="Your finances" style={{
               width: 40, height: 40, borderRadius: "50%", border: `1px solid ${C.border}`, flexShrink: 0,
@@ -146,32 +155,6 @@ export default function MobileApp() {
           })}
         </nav>
       )}
-    </div>
-  );
-}
-
-/** Compact active-scenario dropdown for the mobile deep-dive header. */
-function MobileScenarioSelect() {
-  const scenarios = useFinancialStore((s) => s.scenarios);
-  const activeScenarioId = useFinancialStore((s) => s.activeScenarioId);
-  const setActiveScenario = useFinancialStore((s) => s.setActiveScenario);
-
-  return (
-    <div style={{ position: "relative", display: "inline-flex", alignItems: "center", minWidth: 0 }}>
-      <select
-        value={activeScenarioId}
-        onChange={(e) => setActiveScenario(e.target.value)}
-        aria-label="Active scenario"
-        style={{
-          appearance: "none", WebkitAppearance: "none", MozAppearance: "none",
-          maxWidth: 150, border: `1px solid ${C.border}`, borderRadius: 9,
-          padding: "8px 28px 8px 11px", fontSize: 13, fontWeight: 700, color: C.ink,
-          background: C.bgCard, outline: "none", cursor: "pointer", textOverflow: "ellipsis",
-        }}
-      >
-        {scenarios.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-      </select>
-      <ChevronDown size={14} color={C.inkSoft} style={{ position: "absolute", right: 9, pointerEvents: "none" }} />
     </div>
   );
 }

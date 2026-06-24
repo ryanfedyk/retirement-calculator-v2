@@ -33,3 +33,8 @@ body {
 .lens-in { animation: lens-in 0.3s ease both; }
 
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+/* Hide the scrollbar on horizontal card strips (mobile) — the peek of the next
+   card already signals that the row scrolls, so the bar is just visual noise. */
+.no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }

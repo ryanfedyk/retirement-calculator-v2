@@ -41,7 +41,7 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
   const dollarBasisLabel = dollarMode === "future" ? "future (nominal) dollars" : "today’s dollars";
   const { children } = useHorizonProfile();
   const [view, setView] = useState<View>("wealth");
-  const [ageCap, setAgeCap] = useState<75 | 100>(100);
+  const [ageCap, setAgeCap] = useState<75 | 100>(75);
 
   const googInfo      = livePrices["GOOG"] ?? livePrices["GOOGL"];
   const liveGoogPrice = googInfo?.price ?? 0;
@@ -222,8 +222,9 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
 
       {/* Chart card — touchAction pan-y so dragging the chart never scrolls the page sideways */}
       <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 20, padding: "16px 12px 12px", touchAction: "pan-y" }}>
-        {/* View pills */}
-        <div style={{ display: "flex", gap: 6, padding: "0 4px 14px", justifyContent: "center" }}>
+        {/* View pills, with the horizon-zoom magnifier sharing the row (icon-only,
+            no label) so it's part of the card chrome and takes no extra height. */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "0 4px 14px" }}>
           {(["wealth", "income", "expenses", "risk"] as View[]).map(v => (
             <button key={v} onClick={() => setView(v)} style={{
               flex: 1, padding: "9px 0", borderRadius: 999, border: "none", cursor: "pointer",
@@ -232,6 +233,17 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
               color: view === v ? "white" : C.tealDark, transition: "all 0.18s",
             }}>{v}</button>
           ))}
+          <button
+            onClick={() => setAgeCap(a => (a === 100 ? 75 : 100))}
+            title={ageCap === 100 ? "Zoom in — focus on the years to age 75" : "Zoom out — show the full horizon to age 100"}
+            aria-label={ageCap === 100 ? "Zoom in to age 75" : "Zoom out to age 100"}
+            style={{
+              flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", width: 38, height: 36,
+              borderRadius: 999, border: "none", cursor: "pointer", background: C.tealWash, color: C.tealDark,
+            }}
+          >
+            {ageCap === 100 ? <ZoomIn size={16} /> : <ZoomOut size={16} />}
+          </button>
         </div>
 
         {/* Basis note — names the global money basis (changed in Settings) */}
@@ -245,23 +257,6 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
             <div style={{ fontSize: 11, color: C.inkSoft, marginTop: 2 }}>of return paths fund this plan to age {ageCap}</div>
           </div>
         )}
-
-        {/* Chart, with the horizon-zoom magnifier tucked into its top-right
-            corner (icon-only) so it costs no vertical space. */}
-        <div style={{ position: "relative" }}>
-          <button
-            onClick={() => setAgeCap(a => (a === 100 ? 75 : 100))}
-            title={ageCap === 100 ? "Zoom in — focus on the years to age 75" : "Zoom out — show the full horizon to age 100"}
-            aria-label={ageCap === 100 ? "Zoom in to age 75" : "Zoom out to age 100"}
-            style={{
-              position: "absolute", top: 0, right: 4, zIndex: 2,
-              display: "flex", alignItems: "center", justifyContent: "center", width: 30, height: 30,
-              borderRadius: 8, border: `1px solid ${C.border}`, background: `${C.bgCard}e6`,
-              color: C.inkMid, cursor: "pointer", boxShadow: `0 1px 3px ${C.border}`,
-            }}
-          >
-            {ageCap === 100 ? <ZoomIn size={15} /> : <ZoomOut size={15} />}
-          </button>
 
         {view === "risk" ? (
           <ResponsiveContainer width="100%" height={300}>
@@ -323,7 +318,6 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
           </AreaChart>
         </ResponsiveContainer>
         )}
-        </div>
       </div>
 
       {/* AI Coach — insight below the chart */}

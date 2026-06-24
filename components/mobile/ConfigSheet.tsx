@@ -14,7 +14,7 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
   const kids = profile.children;
   const thisYear = new Date().getFullYear();
   const age = thisYear - (config.birth_year || profile.birthYear || 1985);
-  const [openId, setOpenId] = useState<string | null>("quick");
+  const [openId, setOpenId] = useState<string | null>("career");
   const [newEvent, setNewEvent] = useState({ name: "", year: 2030, cost: 50_000 });
 
   useEffect(() => {
@@ -80,8 +80,8 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
             <ChevronRight size={18} color={C.inkSoft} style={{ flexShrink: 0 }} />
           </button>
 
-          {/* ── Quick adjust (always-open feel) ── */}
-          <Section title="Quick Adjust" accent={C.teal} {...sec("quick")}>
+          {/* ── Career & Phases ── */}
+          <Section title="Career & Phases" accent="#2a9d7f" {...sec("career")}>
             <Field label={`Career Exit Year — ${cp.exit_year}`}>
               <input type="range" min={2024} max={Math.max(2040, (config.birth_year || (thisYear - age)) + 75, cp.exit_year)} step={1} value={cp.exit_year}
                 style={{ width: "100%", accentColor: C.teal, height: 28 }}
@@ -94,18 +94,6 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
                   }
                 }} />
             </Field>
-            <Field label={`Monthly Spend (excl. rent/mortgage) — ${money(sp.monthly_lifestyle)}`}>
-              <input type="range" min={3000} max={35000} step={250} value={sp.monthly_lifestyle}
-                style={{ width: "100%", accentColor: C.warm, height: 28 }}
-                onChange={e => updateNestedConfig("spending", { monthly_lifestyle: +e.target.value })} />
-            </Field>
-            <Toggle label="Take a Sabbatical" color="#d98a3d" on={cp.use_sabbatical} onChange={v => updateNestedConfig("career_path", { use_sabbatical: v })} />
-            <Toggle label="Model a Career Jump" color="#2a9d7f" on={cp.use_jump} onChange={v => updateNestedConfig("career_path", { use_jump: v })} />
-            <Toggle label="Model a Bridge Job" color="#3a7d9c" on={cp.use_bridge} onChange={v => updateNestedConfig("career_path", { use_bridge: v })} />
-          </Section>
-
-          {/* ── Career & Phases ── */}
-          <Section title="Career & Phases" accent="#2a9d7f" {...sec("career")}>
             <Toggle label="Take a Sabbatical" color="#d98a3d" on={cp.use_sabbatical} onChange={v => updateNestedConfig("career_path", { use_sabbatical: v })} />
             {cp.use_sabbatical && <Field label="Sabbatical Duration (years)"><Num value={cp.sabbatical_duration} onChange={v => updateNestedConfig("career_path", { sabbatical_duration: v })} /></Field>}
 

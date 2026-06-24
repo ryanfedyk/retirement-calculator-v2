@@ -174,7 +174,7 @@ export default function RightPanel({ livePrices }: Props) {
   const { children } = useHorizonProfile();
   const [chartView, setChartView] = useState<ChartView>("wealth");
   const [insightTab, setInsightTab] = useState<"today" | "ai">("today");
-  const [ageCap, setAgeCap] = useState<75 | 100>(100);
+  const [ageCap, setAgeCap] = useState<75 | 100>(75);
 
   // Year currently hovered on the chart — reveals subtle (secondary) milestones
   const [hoverYear, setHoverYear] = useState<string | null>(null);
@@ -390,7 +390,7 @@ export default function RightPanel({ livePrices }: Props) {
       {/* ── Off-track warning — this plan never reaches FI by age 70 ── */}
       {!indepPoint && (
         <div style={{
-          display: "flex", alignItems: "flex-start", gap: 12,
+          display: "flex", alignItems: "flex-start", gap: 12, flexShrink: 0,
           background: "#fdece8", border: "2px solid #e0775a", borderRadius: 12, padding: "14px 16px",
         }}>
           <AlertTriangle size={22} color="#c0492b" style={{ flexShrink: 0, marginTop: 1 }} />
@@ -405,7 +405,7 @@ export default function RightPanel({ livePrices }: Props) {
 
       {/* ── Summary cards ── Financial Independence first; a horizontal scroll
           strip when space is tight. */}
-      <div className="no-scrollbar" style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 4 }}>
+      <div className="no-scrollbar" style={{ display: "flex", flexShrink: 0, gap: 12, overflowX: "auto", paddingBottom: 4 }}>
         <SummaryCard
           label="Financial Independence"
           value={indepPoint ? indepPoint.date : "30+ Yrs"}
@@ -442,9 +442,12 @@ export default function RightPanel({ livePrices }: Props) {
       </div>
 
       {/* ── Main chart (the hero) ── */}
+      {/* flexShrink:0 — the panel is a fixed-height flex column that scrolls; without
+          this, flexbox squeezes the card shorter than its fixed-height inner chart,
+          so the graph spills up over the summary cards. */}
       <div style={{
         background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 12,
-        display: "flex", flexDirection: "column",
+        display: "flex", flexDirection: "column", flexShrink: 0,
         height: chartView === "timeline" ? 580 : 536,
         transition: "height 0.3s ease",
       }}>

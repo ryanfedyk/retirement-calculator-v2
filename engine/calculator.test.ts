@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { runSimulation, findIndependencePoint } from "@/engine/calculator";
+import { runSimulation, findIndependencePoint, toDisplayDollars } from "@/engine/calculator";
 import { estimateMonthlySocialSecurity } from "@/engine/social_security";
 import { calculateTax } from "@/engine/tax_engine";
 import type { FinancialSnapshot, SimulationConfiguration } from "@/engine/calculator";
@@ -480,5 +480,45 @@ describe("survivor transition for couples (#14)", () => {
     const at = (yr: number) => traj.find(p => p.date.includes(String(yr)))!;
     // No couple → no survivor transition → spending unchanged across age 75.
     expect(at(YEAR + 13).lifestyleExpense).toBeCloseTo(at(YEAR + 5).lifestyleExpense, -1);
+  });
+});
+
+describe("toDisplayDollars — today's vs future dollars", () => {
+  it("'today' mode is a no-op (engine already runs in real dollars)", () => {
+    const traj = runSimulation(baseSnap(), baseConfig(), 200);
+    expect(toDisplayDollars(traj, "today", 3)).toBe(traj);
+  });
+
+  it("zero inflation is a no-op even in 'future' mode", () => {
+    const traj = runSimulation(baseSnap(), baseConfig(), 200);
+    expect(toDisplayDollars(traj, "future", 0)).toBe(traj);
+  });
+
+  it("'future' mode leaves month 0 untouched and re-inflates by CPI over time", () => {
+    const cfg = baseConfig();
+    cfg.market_assumptions.inflation_rate = 3;
+    const real = runSimulation(baseSnap(), cfg, 200);
+    const nominal = toDisplayDollars(real, "future", 3);
+
+    // Month 0 (today) is unchanged.
+    expect(nominal[0].totalNetWorth).toBeCloseTo(real[0].totalNetWorth, 6);
+
+    // After exactly 10 years, every dollar field is scaled by 1.03^10.
+    const i = real.findIndex(p => p.monthIndex === 120);
+    const f = Math.pow(1.03, 10);
+    expect(nominal[i].totalNetWorth).toBeCloseTo(real[i].totalNetWorth * f, 4);
+    expect(nominal[i].swrTarget).toBeCloseTo(real[i].swrTarget * f, 4);
+  });
+
+  it("preserves non-monetary fields (dates, phase, FI flag)", () => {
+    const cfg = baseConfig();
+    cfg.market_assumptions.inflation_rate = 3;
+    const real = runSimulation(baseSnap(), cfg, 200);
+    const nominal = toDisplayDollars(real, "future", 3);
+    const i = Math.min(60, real.length - 1);
+    expect(nominal[i].date).toBe(real[i].date);
+    expect(nominal[i].monthIndex).toBe(real[i].monthIndex);
+    expect(nominal[i].currentPhase).toBe(real[i].currentPhase);
+    expect(nominal[i].isIndependent).toBe(real[i].isIndependent);
   });
 });

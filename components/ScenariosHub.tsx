@@ -282,6 +282,7 @@ function ScenarioCard({
 export default function ScenariosHub({ livePrices, onOpen }: { livePrices: LivePrices; onOpen: () => void }) {
   const { scenarios, config, snapshot, setActiveScenario, addScenario, duplicateScenario, renameScenario, deleteScenario } = useFinancialStore();
   const setFinancesOpen = useUIStore((s) => s.setFinancesOpen);
+  const dollarMode = useUIStore((s) => s.dollarMode);
   const suggestions = useScenarioSuggestions(livePrices);
   const confirm = useConfirm();
   const isMobile = useIsMobile();
@@ -309,14 +310,23 @@ export default function ScenariosHub({ livePrices, onOpen }: { livePrices: LiveP
       const pts = runSimulation(enriched, sc.config, liveGoog);
       const fi = findIndependencePoint(pts);
       const fiYear = fi ? Number((fi.date.match(/\d{4}/) || [])[0]) : undefined;
+      // End-of-horizon net worth is a future value, so honour the global money
+      // basis (re-inflate it for "future $", using this scenario's inflation).
+      const last = pts[pts.length - 1];
+      const infl = sc.config.market_assumptions.inflation_rate || 0;
+      const finalNW = last
+        ? (dollarMode === "future" && infl
+            ? last.totalNetWorth * Math.pow(1 + infl / 100, last.monthIndex / 12)
+            : last.totalNetWorth)
+        : 0;
       map[sc.id] = {
         fiYear,
         fiAge: fiYear ? fiYear - (sc.config.birth_year ?? 1980) : undefined,
-        finalNW: pts[pts.length - 1]?.totalNetWorth ?? 0,
+        finalNW,
       };
     }
     return map;
-  }, [scenarios, enriched, liveGoog]);
+  }, [scenarios, enriched, liveGoog, dollarMode]);
 
   // Net worth today — config-independent (current balances), so any scenario works.
   const currentNW = useMemo(() => runSimulation(enriched, config, liveGoog)[0]?.totalNetWorth ?? 0, [enriched, config, liveGoog]);

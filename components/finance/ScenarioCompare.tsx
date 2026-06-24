@@ -4,7 +4,8 @@ import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine,
 } from "recharts";
 import { useFinancialStore } from "@/store/useFinancialStore";
-import { runSimulation, findIndependencePoint } from "@/engine/calculator";
+import { useUIStore } from "@/store/useUIStore";
+import { runSimulation, findIndependencePoint, toDisplayDollars } from "@/engine/calculator";
 import { C, SCENARIO_PALETTE as PALETTE } from "@/config/colors";
 import type { LivePrices } from "./FinancialDashboard";
 
@@ -21,6 +22,7 @@ const yearOf = (date: string) => date.split(" ").pop() ?? date;
  */
 export default function ScenarioCompare({ livePrices, hiddenIds }: { livePrices: LivePrices; hiddenIds?: Set<string> }) {
   const { scenarios, snapshot } = useFinancialStore();
+  const dollarMode = useUIStore((s) => s.dollarMode);
   const liveGoog = livePrices["GOOG"]?.price ?? livePrices["GOOGL"]?.price ?? 0;
 
   const enriched = useMemo(() => ({
@@ -32,7 +34,14 @@ export default function ScenarioCompare({ livePrices, hiddenIds }: { livePrices:
   }), [snapshot, livePrices]);
 
   const results = useMemo(() => scenarios.map((sc, i) => {
-    const points = runSimulation(enriched, sc.config, liveGoog);
+    // Each scenario re-expressed in the global money basis (using its own
+    // inflation rate, since plans can differ). FI dates key off a boolean, so
+    // they're unaffected by the dollar basis.
+    const points = toDisplayDollars(
+      runSimulation(enriched, sc.config, liveGoog),
+      dollarMode,
+      sc.config.market_assumptions.inflation_rate || 0,
+    );
     const fi = findIndependencePoint(points);
     return {
       id: sc.id,
@@ -41,7 +50,7 @@ export default function ScenarioCompare({ livePrices, hiddenIds }: { livePrices:
       points,
       fiDate: fi?.date,
     };
-  }), [scenarios, enriched, liveGoog]);
+  }), [scenarios, enriched, liveGoog, dollarMode]);
 
   // All scenarios share birth year + snapshot, so they run the same horizon.
   // Cap the hub chart to the first HUB_CHART_YEARS (a chronological prefix, so

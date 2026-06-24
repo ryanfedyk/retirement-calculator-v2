@@ -6,11 +6,13 @@ import {
 } from "recharts";
 import { Flag, CheckCircle, TrendingUp, CalendarDays, Sparkles, AlertTriangle } from "lucide-react";
 import { useFinancialStore } from "@/store/useFinancialStore";
-import { runSimulation, findIndependencePoint } from "@/engine/calculator";
+import { useUIStore } from "@/store/useUIStore";
+import { runSimulation, findIndependencePoint, toDisplayDollars } from "@/engine/calculator";
 import type { TrajectoryPoint } from "@/engine/calculator";
 import { runMonteCarlo } from "@/engine/montecarlo";
 import { MomentumTurnstile } from "./MotivationWidgets";
 import AiAnalysis from "./AiAnalysis";
+import DollarModeToggle from "@/components/DollarModeToggle";
 import { C } from "@/config/colors";
 import LifeCalendar from "./LifeCalendar";
 import type { LivePrices } from "./FinancialDashboard";
@@ -167,6 +169,9 @@ interface Props {
 
 export default function RightPanel({ livePrices }: Props) {
   const { snapshot, config } = useFinancialStore();
+  const dollarMode = useUIStore((s) => s.dollarMode);
+  const inflationRate = config.market_assumptions.inflation_rate || 0;
+  const dollarBasisLabel = dollarMode === "future" ? "future (nominal) dollars" : "today's dollars";
   const { children } = useHorizonProfile();
   const [chartView, setChartView] = useState<ChartView>("wealth");
   const [insightTab, setInsightTab] = useState<"today" | "ai">("today");
@@ -221,19 +226,32 @@ export default function RightPanel({ livePrices }: Props) {
     yearsToRetirement: Math.max(0, 65 - (new Date().getFullYear() - birthYear)),
   });
 
+  // The trajectory re-expressed in the global money basis (today's vs future $).
+  // Metrics above read month-0 values (unchanged by inflation), so only the
+  // display series — the chart and the timeline tooltip — need conversion.
+  const displayTrajectory = useMemo(
+    () => toDisplayDollars(trajectoryData, dollarMode, inflationRate),
+    [trajectoryData, dollarMode, inflationRate],
+  );
+
   // Chart data
-  const chartData = useMemo(() => trajectoryData.map((pt, i) => ({
-    ...pt,
-    earlierNetWorth:  earlierData[i]?.totalNetWorth ?? 0,
-    laterNetWorth:    laterData[i]?.totalNetWorth   ?? 0,
-    // Use the pre-computed net fields — no subtraction, no negatives
-    salaryAndEquity:  pt.salaryAndEquityNet,
-    rentalNet:        pt.rentalIncomeNet,
-    socialSecurity:   pt.socialSecurityNet,
-    lifestyleExpense: pt.lifestyleExpense || 0,
-    healthcareCost:   pt.healthcareCost   || 0,
-    mortgagePayment:  pt.mortgagePayment  || 0,
-  })), [trajectoryData, earlierData, laterData]);
+  const chartData = useMemo(() => {
+    const traj    = displayTrajectory;
+    const earlier = toDisplayDollars(earlierData, dollarMode, inflationRate);
+    const later   = toDisplayDollars(laterData,   dollarMode, inflationRate);
+    return traj.map((pt, i) => ({
+      ...pt,
+      earlierNetWorth:  earlier[i]?.totalNetWorth ?? 0,
+      laterNetWorth:    later[i]?.totalNetWorth   ?? 0,
+      // Use the pre-computed net fields — no subtraction, no negatives
+      salaryAndEquity:  pt.salaryAndEquityNet,
+      rentalNet:        pt.rentalIncomeNet,
+      socialSecurity:   pt.socialSecurityNet,
+      lifestyleExpense: pt.lifestyleExpense || 0,
+      healthcareCost:   pt.healthcareCost   || 0,
+      mortgagePayment:  pt.mortgagePayment  || 0,
+    }));
+  }, [displayTrajectory, earlierData, laterData, dollarMode, inflationRate]);
 
   // Trim the trajectory to the selected age horizon (75 = focused, 100 = full).
   const cappedChartData = useMemo(() => {
@@ -254,10 +272,17 @@ export default function RightPanel({ livePrices }: Props) {
   const riskChartData = useMemo(() => {
     if (!monteCarlo) return [];
     const maxYear = ageCap >= 100 ? Infinity : birthYear + ageCap;
+    const annual = 1 + inflationRate / 100;
+    const infl = (v: number, monthIndex: number) =>
+      dollarMode === "future" && inflationRate ? v * Math.pow(annual, monthIndex / 12) : v;
     return monteCarlo.bands
       .filter((b) => { const y = Number(String(b.date).split(" ")[1]); return !y || y <= maxYear; })
-      .map((b) => ({ date: b.date, p50: b.p50, range: [b.p10, b.p90] as [number, number] }));
-  }, [monteCarlo, ageCap, birthYear]);
+      .map((b) => ({
+        date: b.date,
+        p50: infl(b.p50, b.monthIndex),
+        range: [infl(b.p10, b.monthIndex), infl(b.p90, b.monthIndex)] as [number, number],
+      }));
+  }, [monteCarlo, ageCap, birthYear, dollarMode, inflationRate]);
   const successPct = monteCarlo ? Math.round(monteCarlo.successRate * 100) : null;
   const successColor = successPct == null ? C.inkSoft : successPct >= 85 ? "#2a7a68" : successPct >= 70 ? C.warm : "#c0492b";
 
@@ -441,12 +466,15 @@ export default function RightPanel({ livePrices }: Props) {
             </div>
             <div style={{ fontSize: 10, color: C.inkSoft, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {chartView === "timeline" ? "Month-by-month phases & milestones" :
-               chartView === "risk"     ? `Median & 10th–90th percentile across ${monteCarlo?.runs ?? 0} return paths · today's dollars` :
-               `Projection to age ${ageCap} · in today's dollars`}
+               chartView === "risk"     ? `Median & 10th–90th percentile across ${monteCarlo?.runs ?? 0} return paths · ${dollarBasisLabel}` :
+               `Projection to age ${ageCap} · in ${dollarBasisLabel}`}
             </div>
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+            {/* Money basis — the global today's vs future dollars switch
+                (the timeline's hover tooltip shows dollars too, so keep it) */}
+            <DollarModeToggle />
             {/* Age horizon — a compact toggle nestled in the controls row (adds no height) */}
             {chartView !== "timeline" && (
               <button
@@ -482,7 +510,7 @@ export default function RightPanel({ livePrices }: Props) {
         {/* Chart body */}
         <div style={{ flex: 1, padding: "8px 20px 16px", minHeight: 0, overflow: "hidden" }}>
           {chartView === "timeline" ? (
-            <LifeCalendar data={trajectoryData} config={config} />
+            <LifeCalendar data={displayTrajectory} config={config} />
           ) : chartView === "risk" ? (
             <ResponsiveContainer width="100%" height={446}>
               <AreaChart data={riskChartData} margin={{ top: 16, right: 16, left: 0, bottom: 0 }}>

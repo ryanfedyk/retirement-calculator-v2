@@ -402,3 +402,36 @@ describe("Medicare IRMAA surcharge (MAGI-based)", () => {
     expect(lo[40].healthcareCost).toBeCloseTo(185 * 12, -2);
   });
 });
+
+describe("ACA subsidy in early retirement (#11)", () => {
+  function earlyRetiree(annualRental: number, cash: number): { snap: FinancialSnapshot; cfg: SimulationConfiguration } {
+    const cfg = baseConfig();
+    cfg.birth_year = YEAR - 60;            // age 60: retired, pre-Medicare
+    cfg.career_path.exit_year = YEAR;
+    cfg.career_path.use_sabbatical = false;
+    cfg.career_path.use_jump = false;
+    cfg.career_path.use_bridge = false;
+    cfg.income_profile.gross_annual_salary = 0;
+    cfg.income_profile.monthly_rental_income = annualRental / 12;
+    cfg.income_profile.rental_income_growth_rate = 0;
+    cfg.spending.monthly_lifestyle = 3_000;
+    cfg.spending.healthcare_premium = 1_000;  // a real premium to subsidize
+    cfg.spending.mortgage_payment = 0;
+    cfg.market_assumptions.inflation_rate = 0;
+    cfg.market_assumptions.healthcare_inflation_premium = 0;
+    cfg.tax_optimization.aca_family_size = 1;
+    const snap = baseSnap();
+    snap.liquid_assets.cash_savings = cash;
+    return { snap, cfg };
+  }
+
+  it("subsidizes healthcare for a low-MAGI early retiree but not a high-MAGI one", () => {
+    const low  = earlyRetiree(0, 2_000_000);        // lives off cash → ~0 MAGI
+    const high = earlyRetiree(200_000, 0);          // big rental → high MAGI
+    const lowT  = runSimulation(low.snap, low.cfg, 200);
+    const highT = runSimulation(high.snap, high.cfg, 200);
+    // By year 3 the prior-year MAGI is established and drives the subsidy.
+    expect(lowT[36].healthcareCost).toBeLessThan(highT[36].healthcareCost);
+    expect(lowT[36].healthcareCost).toBeLessThan(2_000); // heavily subsidized at low income
+  });
+});

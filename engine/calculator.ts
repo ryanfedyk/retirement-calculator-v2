@@ -770,13 +770,19 @@ export const runSimulation = (
     if (!hasEmployerCoverage) {
       currentHealthcareCost = selfPaidHealthcare;
 
-      // ACA premium subsidy applies only during a true low-income window — the
-      // sabbatical, when the family lives on rental income alone. In normal early
-      // retirement, six-figure withdrawals push MAGI above the subsidy range.
-      if (phase === 'SABBATICAL' && (opt?.enable_aca_optimization ?? true)) {
+      // ACA premium subsidy. Applies during any pre-Medicare window where the
+      // household buys its own coverage — the sabbatical AND early retirement —
+      // capping the premium at the ARPA-style % of MAGI. Driven by the household's
+      // actual MAGI (prior completed year), so a retiree who keeps income low
+      // (living off cash/Roth/basis) qualifies for large subsidies, while one
+      // funding spending with big taxable withdrawals does not — exactly the
+      // dynamic the old "sabbatical-only" rule missed.
+      const acaWindow = (phase === 'SABBATICAL' || phase === 'RETIRED') && !primaryOnMed;
+      if (acaWindow && (opt?.enable_aca_optimization ?? true)) {
         const baseFamilySize = Math.max(1, opt?.aca_family_size ?? 4);
         const fpl            = getFPL(baseFamilySize);
-        const magiForACA     = annualRentalGross + socialSecurityIncome * 12 * 0.85;
+        const magiForACA     = magiByYear.get(currentYear - 1)
+          ?? (annualRentalGross + taxableSSForMagi + Math.max(0, annualW2Gross - annualK401));
         const maxContribPct  = acaMaxContributionPct(magiForACA / fpl);
         const maxMonthly     = (magiForACA * maxContribPct) / 12;
         currentHealthcareCost = Math.min(currentHealthcareCost, maxMonthly);

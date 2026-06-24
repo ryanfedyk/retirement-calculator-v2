@@ -28,9 +28,16 @@ export default function MobileApp() {
   const setSettingsOpen = useUIStore((s) => s.setSettingsOpen);
   const reportScenarioId = useUIStore((s) => s.reportScenarioId);
   const closeReport = useUIStore((s) => s.closeReport);
+  // Persisted (survives refresh) so reloading keeps you in the open scenario.
+  const scenarioOpen = useUIStore((s) => s.scenarioOpen);
+  const setScenarioOpen = useUIStore((s) => s.setScenarioOpen);
   const [view, setView] = useState<View>("financial");
-  const [scenarioOpen, setScenarioOpen] = useState(false);
   const [configOpen, setConfigOpen] = useState(false);
+
+  // Entering/leaving a scenario (or switching tabs) should land at the top of
+  // the page — without this the new view inherits the hub's scroll position and
+  // appears to load already scrolled halfway down.
+  useEffect(() => { window.scrollTo(0, 0); }, [scenarioOpen, view]);
 
   // Make the device/browser Back button step back through the app: close an
   // open sheet/overlay first, then leave a scenario for the hub. Ordered

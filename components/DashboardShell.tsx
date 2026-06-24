@@ -36,7 +36,9 @@ type NavId = typeof NAV[number]["id"];
 
 export default function DashboardShell() {
   const [appView, setAppView] = useState<AppView>("financial");
-  const [scenarioOpen, setScenarioOpen] = useState(false);
+  // Persisted (survives refresh) so reloading keeps you in the open scenario.
+  const scenarioOpen = useUIStore((s) => s.scenarioOpen);
+  const setScenarioOpen = useUIStore((s) => s.setScenarioOpen);
   const [tab,   setTab]   = useState<NavId>("seasons");
   const [saved, setSaved] = useState<AdventureBlueprint[]>([]);
   const { retirementDate } = useRetirementDate();

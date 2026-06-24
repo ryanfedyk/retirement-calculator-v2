@@ -39,14 +39,15 @@ const iconBtn: React.CSSProperties = {
  * The menu renders through a portal with fixed positioning so it's never
  * clipped by the card grid / horizontal scroll strip, and flips upward when it
  * would otherwise run off the bottom of the screen. */
-function CardMenu({ canDelete, onRename, onDuplicate, onExport, onDelete }: {
-  canDelete: boolean; onRename?: () => void; onDuplicate: () => void; onExport: () => void; onDelete: () => void;
+function CardMenu({ canDelete, onRename, onDuplicate, onExport, onToggleHidden, hidden, onDelete }: {
+  canDelete: boolean; onRename?: () => void; onDuplicate: () => void; onExport: () => void;
+  onToggleHidden?: () => void; hidden?: boolean; onDelete: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [coords, setCoords] = useState<{ top: number; right: number } | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const itemCount = (onRename ? 1 : 0) + 2 + (canDelete ? 1 : 0);
+  const itemCount = (onRename ? 1 : 0) + 2 + (onToggleHidden ? 1 : 0) + (canDelete ? 1 : 0);
 
   useEffect(() => {
     if (!open) return;
@@ -103,6 +104,7 @@ function CardMenu({ canDelete, onRename, onDuplicate, onExport, onDelete }: {
           style={{ position: "fixed", top: coords.top, right: coords.right, zIndex: 1000, minWidth: 160, background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.18)", padding: 5 }}
         >
           {onRename && item(Pencil, "Rename", onRename)}
+          {onToggleHidden && item(hidden ? Eye : EyeOff, hidden ? "Show on chart" : "Hide from chart", onToggleHidden)}
           {item(Copy, "Duplicate", onDuplicate)}
           {item(FileText, "Export for LLM", onExport)}
           {canDelete && item(Trash2, "Delete", onDelete, true)}
@@ -226,9 +228,10 @@ function ScenarioCard({
         border: `1px solid ${C.border}`, boxShadow: `0 1px 3px ${C.border}`,
         padding: "12px 14px 14px", display: "flex", flexDirection: "column", gap: 10,
         opacity: hidden ? 0.55 : 1, transition: "border-color 0.15s, opacity 0.15s",
-        // On mobile the cards live in a horizontal strip — keep them compact so
-        // more than one shows, with a peek of the next hinting that it scrolls.
-        ...(isMobile ? { flex: "0 0 auto", width: "47%", maxWidth: 200, scrollSnapAlign: "start" } : {}),
+        // On mobile the cards live in a horizontal strip. Size to ~half the
+        // viewport MINUS a margin so two cards fit with the next always peeking
+        // off the edge — a clear signal the row scrolls.
+        ...(isMobile ? { flex: "0 0 auto", width: "calc(50% - 26px)", maxWidth: 220, scrollSnapAlign: "start" } : {}),
       }}
       onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.teal; }}
       onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; }}
@@ -236,7 +239,9 @@ function ScenarioCard({
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <span style={{ width: 9, height: 9, borderRadius: "50%", background: color, flexShrink: 0 }} />
         <EditableName name={sc.name} onCommit={onRename} editing={editing} setEditing={setEditing} clickToEdit={!isMobile} />
-        {multi && (
+        {/* Desktop keeps the chart-visibility toggle inline; on mobile it moves
+            into the ⋯ menu so it can't be tapped by accident while navigating. */}
+        {multi && !isMobile && (
           <button
             aria-label={hidden ? "Show on chart" : "Hide from chart"}
             title={hidden ? "Show on chart" : "Hide from chart"}
@@ -253,6 +258,8 @@ function ScenarioCard({
           onRename={isMobile ? () => setEditing(true) : undefined}
           onDuplicate={onDuplicate}
           onExport={onExport}
+          onToggleHidden={multi && isMobile ? onToggleHidden : undefined}
+          hidden={hidden}
           onDelete={onDelete}
         />
       </div>

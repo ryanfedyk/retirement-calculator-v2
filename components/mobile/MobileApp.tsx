@@ -4,6 +4,7 @@ import { LineChart, Compass, SlidersHorizontal, LogOut, Settings, ChevronLeft, C
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
+import { useBrowserBackNav } from "@/hooks/useBrowserBackNav";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import type { LivePrices } from "@/components/finance/FinancialDashboard";
 import MobileFinancial from "./MobileFinancial";
@@ -17,9 +18,26 @@ type View = "financial" | "forecasting";
 
 export default function MobileApp() {
   const { snapshot } = useFinancialStore();
+  const financesOpen = useUIStore((s) => s.financesOpen);
+  const setFinancesOpen = useUIStore((s) => s.setFinancesOpen);
+  const settingsOpen = useUIStore((s) => s.settingsOpen);
+  const setSettingsOpen = useUIStore((s) => s.setSettingsOpen);
   const [view, setView] = useState<View>("financial");
   const [scenarioOpen, setScenarioOpen] = useState(false);
   const [configOpen, setConfigOpen] = useState(false);
+
+  // Make the device/browser Back button step back through the app: close an
+  // open sheet/overlay first, then leave a scenario for the hub. Ordered
+  // top-most first.
+  useBrowserBackNav({
+    enabled: true,
+    layers: [
+      { open: settingsOpen, close: () => setSettingsOpen(false) },
+      { open: financesOpen, close: () => setFinancesOpen(false) },
+      { open: configOpen, close: () => setConfigOpen(false) },
+      { open: scenarioOpen, close: () => setScenarioOpen(false) },
+    ],
+  });
 
   // ── Live prices (shared with the chart) ─────────────────────────────────────
   const [livePrices, setLivePrices]         = useState<LivePrices>({});

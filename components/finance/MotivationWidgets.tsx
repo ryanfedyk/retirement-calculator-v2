@@ -189,7 +189,7 @@ export function MomentumCards({ point, config }: { point: TrajectoryPoint; confi
   );
 }
 
-function buildMomentumCards(point: TrajectoryPoint, config: SimulationConfiguration) {
+export function buildMomentumCards(point: TrajectoryPoint, config: SimulationConfiguration) {
   const investable = point.investableAssets;
   const fiTarget   = point.swrTarget;
   const expenses   = point.annualExpenseNeed;

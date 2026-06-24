@@ -187,6 +187,13 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
             <Field label="Monthly Spend (excl. rent/mortgage & healthcare)"><Num prefix="$" step={250} value={sp.monthly_lifestyle} onChange={v => updateNestedConfig("spending", { monthly_lifestyle: v })} /></Field>
             <Field label="Monthly Mortgage / Rent Payment"><Num prefix="$" step={100} value={sp.mortgage_payment} onChange={v => updateNestedConfig("spending", { mortgage_payment: v })} /></Field>
             <Field label="Healthcare Premium ($/mo, pre-65)"><Num prefix="$" step={100} value={sp.healthcare_premium} onChange={v => updateNestedConfig("spending", { healthcare_premium: v })} /></Field>
+            <Field label="Long-Term Care ($/yr, today's $; 0 = off)"><Num prefix="$" step={5000} value={sp.ltc_annual_cost ?? 0} onChange={v => updateNestedConfig("spending", { ltc_annual_cost: v })} /></Field>
+            {(sp.ltc_annual_cost ?? 0) > 0 && (
+              <Two>
+                <Field label="LTC Start Age"><Num step={1} value={sp.ltc_start_age ?? 80} onChange={v => updateNestedConfig("spending", { ltc_start_age: v })} /></Field>
+                <Field label="LTC Years"><Num step={1} value={sp.ltc_years ?? 3} onChange={v => updateNestedConfig("spending", { ltc_years: v })} /></Field>
+              </Two>
+            )}
             {kids.length > 0 && (
               <>
                 <Toggle label="Model an Empty-Nest Phase" on={sp.use_empty_nest !== false} onChange={v => updateNestedConfig("spending", { use_empty_nest: v })} />
@@ -214,6 +221,7 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
               <Field label="Volatility Drag (%)"><Num step={0.1} value={ma.volatility_drag} onChange={v => updateNestedConfig("market_assumptions", { volatility_drag: v })} /></Field>
             </Two>
             <Field label="Inflation (%)"><Num step={0.25} value={ma.inflation_rate} onChange={v => updateNestedConfig("market_assumptions", { inflation_rate: v })} /></Field>
+            <Field label="Healthcare Inflation over CPI (%)"><Num step={0.25} value={ma.healthcare_inflation_premium ?? 2} onChange={v => updateNestedConfig("market_assumptions", { healthcare_inflation_premium: v })} /></Field>
           </Section>
 
           {/* ── Divestment (only relevant with company stock) ── */}

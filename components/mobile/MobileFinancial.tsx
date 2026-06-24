@@ -234,23 +234,6 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
           ))}
         </div>
 
-        {/* Horizon zoom — a magnifier toggles full (to 100) vs focused (to 75). */}
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}>
-          <button
-            onClick={() => setAgeCap(a => (a === 100 ? 75 : 100))}
-            title={ageCap === 100 ? "Zoom in — focus on the years to age 75" : "Zoom out — show the full horizon to age 100"}
-            aria-label={ageCap === 100 ? "Zoom in to age 75" : "Zoom out to age 100"}
-            style={{
-              display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 12px", borderRadius: 7,
-              border: `1px solid ${C.border}`, background: C.bg, color: C.inkMid, cursor: "pointer",
-              fontSize: 11, fontWeight: 600,
-            }}
-          >
-            {ageCap === 100 ? <ZoomIn size={14} /> : <ZoomOut size={14} />}
-            {ageCap === 100 ? "Zoom in" : "Zoom out"}
-          </button>
-        </div>
-
         {/* Basis note — names the global money basis (changed in Settings) */}
         <div style={{ textAlign: "center", fontSize: 10, color: C.inkFaint, marginBottom: 8 }}>
           in {dollarBasisLabel}
@@ -262,6 +245,23 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
             <div style={{ fontSize: 11, color: C.inkSoft, marginTop: 2 }}>of return paths fund this plan to age {ageCap}</div>
           </div>
         )}
+
+        {/* Chart, with the horizon-zoom magnifier tucked into its top-right
+            corner (icon-only) so it costs no vertical space. */}
+        <div style={{ position: "relative" }}>
+          <button
+            onClick={() => setAgeCap(a => (a === 100 ? 75 : 100))}
+            title={ageCap === 100 ? "Zoom in — focus on the years to age 75" : "Zoom out — show the full horizon to age 100"}
+            aria-label={ageCap === 100 ? "Zoom in to age 75" : "Zoom out to age 100"}
+            style={{
+              position: "absolute", top: 0, right: 4, zIndex: 2,
+              display: "flex", alignItems: "center", justifyContent: "center", width: 30, height: 30,
+              borderRadius: 8, border: `1px solid ${C.border}`, background: `${C.bgCard}e6`,
+              color: C.inkMid, cursor: "pointer", boxShadow: `0 1px 3px ${C.border}`,
+            }}
+          >
+            {ageCap === 100 ? <ZoomIn size={15} /> : <ZoomOut size={15} />}
+          </button>
 
         {view === "risk" ? (
           <ResponsiveContainer width="100%" height={300}>
@@ -323,6 +323,7 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
           </AreaChart>
         </ResponsiveContainer>
         )}
+        </div>
       </div>
 
       {/* AI Coach — insight below the chart */}

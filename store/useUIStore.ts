@@ -15,6 +15,10 @@ export const useUIStore = create<{
   /** The shared "Your finances" overlay — openable from anywhere in the app. */
   financesOpen: boolean;
   setFinancesOpen: (v: boolean) => void;
+  /** Whether a scenario deep-dive is open (vs. the scenarios hub). Persisted so a
+   *  page refresh keeps you in the scenario you were viewing instead of going home. */
+  scenarioOpen: boolean;
+  setScenarioOpen: (v: boolean) => void;
   /** Global money basis: today's dollars (real) vs. future dollars (nominal). */
   dollarMode: DollarMode;
   setDollarMode: (v: DollarMode) => void;
@@ -29,6 +33,8 @@ export const useUIStore = create<{
       setSettingsOpen: (v) => set({ settingsOpen: v }),
       financesOpen: false,
       setFinancesOpen: (v) => set({ financesOpen: v }),
+      scenarioOpen: false,
+      setScenarioOpen: (v) => set({ scenarioOpen: v }),
       dollarMode: "today",
       setDollarMode: (v) => set({ dollarMode: v }),
       reportScenarioId: null,
@@ -38,8 +44,9 @@ export const useUIStore = create<{
     {
       name: "horizon-ui",
       storage: createJSONStorage(() => localStorage),
-      // Only the durable preference persists; overlay flags stay transient.
-      partialize: (s) => ({ dollarMode: s.dollarMode }),
+      // The durable preferences persist (money basis + which view you were on);
+      // transient overlay/report flags do not.
+      partialize: (s) => ({ dollarMode: s.dollarMode, scenarioOpen: s.scenarioOpen }),
     },
   ),
 );

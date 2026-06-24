@@ -1,5 +1,5 @@
 "use client";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { X, Wallet } from "lucide-react";
 import { C } from "@/config/colors";
 import { useUIStore } from "@/store/useUIStore";
@@ -17,6 +17,7 @@ export default function FinancesOverlay({ livePrices = {} }: { livePrices?: Live
   const open = useUIStore((s) => s.financesOpen);
   const setOpen = useUIStore((s) => s.setFinancesOpen);
   const isMobile = useIsMobile();
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   // Lock body scroll while the mobile sheet is open.
   useEffect(() => {
@@ -24,6 +25,12 @@ export default function FinancesOverlay({ livePrices = {} }: { livePrices?: Live
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => { document.body.style.overflow = prev; };
+  }, [open, isMobile]);
+
+  // The sheet stays mounted (it only slides off-screen), so its scroll position
+  // persists between opens — reset it to the top each time it's opened.
+  useEffect(() => {
+    if (open && isMobile) requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: 0 }));
   }, [open, isMobile]);
 
   if (isMobile) {
@@ -39,7 +46,9 @@ export default function FinancesOverlay({ livePrices = {} }: { livePrices?: Live
           boxShadow: "0 -8px 40px rgba(0,0,0,0.18)",
           transform: open ? "translateY(0)" : "translateY(100%)",
           transition: "transform 0.32s cubic-bezier(0.32,0.72,0,1)",
-          height: "92vh", display: "flex", flexDirection: "column",
+          // dvh (dynamic viewport) — not vh — so the sheet sizes to the *visible*
+          // area and its top isn't tucked behind the mobile browser chrome.
+          height: "92dvh", maxHeight: "92dvh", display: "flex", flexDirection: "column",
         }}>
           {/* Grabber + header */}
           <div style={{ flexShrink: 0, padding: "8px 20px 12px" }}>
@@ -59,7 +68,7 @@ export default function FinancesOverlay({ livePrices = {} }: { livePrices?: Live
             </div>
           </div>
           {/* Scrollable body */}
-          <div style={{ flex: 1, overflowY: "auto", padding: "0 16px calc(28px + env(safe-area-inset-bottom))", WebkitOverflowScrolling: "touch" }}>
+          <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "0 16px calc(28px + env(safe-area-inset-bottom))", WebkitOverflowScrolling: "touch" }}>
             <MobileFinancesSections />
             <button onClick={() => setOpen(false)} style={{ marginTop: 8, width: "100%", padding: "16px", borderRadius: 16, border: "none", background: C.teal, color: "white", fontSize: 15, fontWeight: 600, cursor: "pointer", boxShadow: `0 4px 16px ${C.teal}55` }}>
               Done

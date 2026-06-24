@@ -4,7 +4,8 @@ import {
   ResponsiveContainer, AreaChart, Area, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine,
 } from "recharts";
-import { Flag, CheckCircle, TrendingUp, CalendarDays, Sparkles, AlertTriangle, ZoomIn, ZoomOut } from "lucide-react";
+import { Flag, CheckCircle, TrendingUp, CalendarDays, Sparkles, AlertTriangle } from "lucide-react";
+import HorizonZoomButton from "./HorizonZoomButton";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
 import { runSimulation, findIndependencePoint, toDisplayDollars } from "@/engine/calculator";
@@ -474,22 +475,6 @@ export default function RightPanel({ livePrices }: Props) {
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-            {/* Horizon zoom — magnifier toggles between the full (to 100) and the
-                focused (to 75) view. Zoomed-out shows zoom-in, and vice-versa. */}
-            {chartView !== "timeline" && (
-              <button
-                onClick={() => setAgeCap((a) => (a === 100 ? 75 : 100))}
-                title={ageCap === 100 ? "Zoom in — focus on the years to age 75" : "Zoom out — show the full horizon to age 100"}
-                aria-label={ageCap === 100 ? "Zoom in to age 75" : "Zoom out to age 100"}
-                style={{
-                  display: "flex", alignItems: "center", justifyContent: "center", width: 30, height: 28,
-                  borderRadius: 6, cursor: "pointer", border: `1px solid ${C.border}`, background: C.bg, color: C.inkMid,
-                }}
-              >
-                {ageCap === 100 ? <ZoomIn size={15} /> : <ZoomOut size={15} />}
-              </button>
-            )}
-
             <div style={{ display: "flex", background: C.bg, borderRadius: 8, padding: 3, gap: 2 }}>
               {(["wealth", "income", "expenses"] as ChartView[]).map(v => (
                 <TabBtn key={v} active={chartView === v} onClick={() => setChartView(v)}>
@@ -508,7 +493,12 @@ export default function RightPanel({ livePrices }: Props) {
         </div>
 
         {/* Chart body */}
-        <div style={{ flex: 1, padding: "8px 20px 16px", minHeight: 0, overflow: "hidden" }}>
+        <div style={{ position: "relative", flex: 1, padding: "8px 20px 16px", minHeight: 0, overflow: "hidden" }}>
+          {/* Horizon zoom — floats in the chart's bottom-right (not for the
+              calendar timeline, which has no age horizon to cap). */}
+          {chartView !== "timeline" && (
+            <HorizonZoomButton ageCap={ageCap} onToggle={() => setAgeCap((a) => (a === 100 ? 75 : 100))} />
+          )}
           {chartView === "timeline" ? (
             <LifeCalendar data={displayTrajectory} config={config} />
           ) : chartView === "risk" ? (

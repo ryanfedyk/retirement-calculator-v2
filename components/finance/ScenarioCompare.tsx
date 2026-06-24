@@ -1,5 +1,5 @@
 "use client";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine,
 } from "recharts";
@@ -7,10 +7,9 @@ import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
 import { runSimulation, findIndependencePoint, toDisplayDollars } from "@/engine/calculator";
 import { C, SCENARIO_PALETTE as PALETTE } from "@/config/colors";
+import HorizonZoomButton from "./HorizonZoomButton";
 import type { LivePrices } from "./FinancialDashboard";
 
-// The hub comparison chart shows the near/mid term where the plans diverge most.
-const HUB_CHART_YEARS = 30;
 const fmtM = (n: number) => `$${(n / 1_000_000).toFixed(2)}M`;
 const yearOf = (date: string) => date.split(" ").pop() ?? date;
 
@@ -24,6 +23,10 @@ export default function ScenarioCompare({ livePrices, hiddenIds }: { livePrices:
   const { scenarios, snapshot } = useFinancialStore();
   const dollarMode = useUIStore((s) => s.dollarMode);
   const liveGoog = livePrices["GOOG"]?.price ?? livePrices["GOOGL"]?.price ?? 0;
+  // Horizon zoom, matching the per-scenario charts: focus to age 75 by default,
+  // toggle out to 100. All scenarios share a birth year, so one cap fits them all.
+  const [ageCap, setAgeCap] = useState<75 | 100>(75);
+  const birthYear = scenarios[0]?.config.birth_year || 1985;
 
   const enriched = useMemo(() => ({
     ...snapshot,
@@ -53,11 +56,11 @@ export default function ScenarioCompare({ livePrices, hiddenIds }: { livePrices:
   }), [scenarios, enriched, liveGoog, dollarMode]);
 
   // All scenarios share birth year + snapshot, so they run the same horizon.
-  // Cap the hub chart to the first HUB_CHART_YEARS (a chronological prefix, so
+  // Cap the hub chart to the selected age horizon (a chronological prefix, so
   // point indices still line up across scenarios).
   const chartData = useMemo(() => {
     const base = results[0]?.points ?? [];
-    const maxYear = new Date().getFullYear() + HUB_CHART_YEARS;
+    const maxYear = birthYear + ageCap;
     const capped = base.filter((p) => {
       const y = Number(String(p.date).split(" ").pop());
       return !y || y <= maxYear;
@@ -67,7 +70,7 @@ export default function ScenarioCompare({ livePrices, hiddenIds }: { livePrices:
       for (const r of results) row[r.id] = r.points[idx]?.totalNetWorth ?? 0;
       return row;
     });
-  }, [results]);
+  }, [results, birthYear, ageCap]);
 
   if (scenarios.length < 2) return null;
 
@@ -79,7 +82,9 @@ export default function ScenarioCompare({ livePrices, hiddenIds }: { livePrices:
         Scenario comparison
       </div>
 
-      {/* Overlaid net-worth trajectories */}
+      {/* Overlaid net-worth trajectories — zoom magnifier floats bottom-right */}
+      <div style={{ position: "relative" }}>
+      <HorizonZoomButton ageCap={ageCap} onToggle={() => setAgeCap((a) => (a === 100 ? 75 : 100))} size={30} />
       <ResponsiveContainer width="100%" height={260}>
         <LineChart data={chartData} margin={{ top: 6, right: 10, bottom: 0, left: 6 }}>
           <CartesianGrid strokeDasharray="3 3" stroke={C.borderSoft} vertical={false} />
@@ -102,6 +107,7 @@ export default function ScenarioCompare({ livePrices, hiddenIds }: { livePrices:
           ))}
         </LineChart>
       </ResponsiveContainer>
+      </div>
       <div style={{ fontSize: 10, color: C.inkFaint, marginTop: 8, textAlign: "center" }}>
         Net worth over time · dashed lines mark each plan’s FI date · toggle plans with the 👁 on each card below
       </div>

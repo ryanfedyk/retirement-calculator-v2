@@ -1,7 +1,8 @@
 "use client";
 import { useState, useMemo } from "react";
 import { ResponsiveContainer, AreaChart, Area, Line, XAxis, YAxis, Tooltip, ReferenceLine, CartesianGrid } from "recharts";
-import { AlertTriangle, ZoomIn, ZoomOut } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
+import HorizonZoomButton from "@/components/finance/HorizonZoomButton";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
@@ -222,9 +223,8 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
 
       {/* Chart card — touchAction pan-y so dragging the chart never scrolls the page sideways */}
       <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 20, padding: "16px 12px 12px", touchAction: "pan-y" }}>
-        {/* View pills, with the horizon-zoom magnifier sharing the row (icon-only,
-            no label) so it's part of the card chrome and takes no extra height. */}
-        <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "0 4px 14px" }}>
+        {/* View pills */}
+        <div style={{ display: "flex", gap: 6, padding: "0 4px 14px", justifyContent: "center" }}>
           {(["wealth", "income", "expenses", "risk"] as View[]).map(v => (
             <button key={v} onClick={() => setView(v)} style={{
               flex: 1, padding: "9px 0", borderRadius: 999, border: "none", cursor: "pointer",
@@ -233,17 +233,6 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
               color: view === v ? "white" : C.tealDark, transition: "all 0.18s",
             }}>{v}</button>
           ))}
-          <button
-            onClick={() => setAgeCap(a => (a === 100 ? 75 : 100))}
-            title={ageCap === 100 ? "Zoom in — focus on the years to age 75" : "Zoom out — show the full horizon to age 100"}
-            aria-label={ageCap === 100 ? "Zoom in to age 75" : "Zoom out to age 100"}
-            style={{
-              flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", width: 38, height: 36,
-              borderRadius: 999, border: "none", cursor: "pointer", background: C.tealWash, color: C.tealDark,
-            }}
-          >
-            {ageCap === 100 ? <ZoomIn size={16} /> : <ZoomOut size={16} />}
-          </button>
         </div>
 
         {/* Basis note — names the global money basis (changed in Settings) */}
@@ -258,6 +247,9 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
           </div>
         )}
 
+        {/* Chart, with the horizon-zoom magnifier floating in its bottom-right. */}
+        <div style={{ position: "relative" }}>
+        <HorizonZoomButton ageCap={ageCap} onToggle={() => setAgeCap(a => (a === 100 ? 75 : 100))} size={30} />
         {view === "risk" ? (
           <ResponsiveContainer width="100%" height={300}>
             <AreaChart data={riskData} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
@@ -318,6 +310,7 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
           </AreaChart>
         </ResponsiveContainer>
         )}
+        </div>
       </div>
 
       {/* AI Coach — insight below the chart */}

@@ -1,6 +1,6 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
-import { Check, Cloud, LogOut, AlertCircle, Settings, ChevronRight, ChevronDown, Wallet, LineChart, Compass } from "lucide-react";
+import { Check, Cloud, LogOut, AlertCircle, Settings, ChevronDown, Wallet, LineChart, Compass } from "lucide-react";
 import { C } from "@/config/colors";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { useCloudSync } from "@/lib/cloud/CloudSyncProvider";
@@ -25,38 +25,39 @@ export default function Header({ view, onViewChange, mode, onBack }: Props) {
       padding: "14px 32px",
     }}>
       <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
-        {/* Wordmark + (deep-dive) back-to-scenarios breadcrumb */}
+        {/* Wordmark (doubles as the "home" affordance in a deep-dive) + scenario picker */}
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 2, height: 28, borderRadius: 2, background: C.teal, flexShrink: 0 }} />
-            <div style={{ color: C.ink, fontSize: 12, fontWeight: 600, letterSpacing: "0.2em", textTransform: "uppercase", lineHeight: 1 }}>
-              Taper
+          {mode === "scenario" ? (
+            <button
+              onClick={onBack}
+              title="Back to all scenarios"
+              style={{
+                display: "flex", alignItems: "center", gap: 10, padding: 0,
+                border: "none", background: "transparent", cursor: "pointer",
+              }}
+              onMouseEnter={(e) => { const s = e.currentTarget.querySelector("span"); if (s) s.style.color = C.teal; }}
+              onMouseLeave={(e) => { const s = e.currentTarget.querySelector("span"); if (s) s.style.color = C.ink; }}
+            >
+              <div style={{ width: 2, height: 28, borderRadius: 2, background: C.teal, flexShrink: 0 }} />
+              <span style={{ color: C.ink, fontSize: 12, fontWeight: 600, letterSpacing: "0.2em", textTransform: "uppercase", lineHeight: 1, transition: "color 0.15s" }}>
+                Taper
+              </span>
+            </button>
+          ) : (
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 2, height: 28, borderRadius: 2, background: C.teal, flexShrink: 0 }} />
+              <div style={{ color: C.ink, fontSize: 12, fontWeight: 600, letterSpacing: "0.2em", textTransform: "uppercase", lineHeight: 1 }}>
+                Taper
+              </div>
             </div>
-          </div>
+          )}
 
           {mode === "scenario" && (
             <>
               <div style={{ width: 1, height: 20, background: C.border }} />
-              {/* Breadcrumb: "Scenarios › [active scenario ▾]". Clicking the root
-                  goes back to the hub; the dropdown switches the active scenario.
-                  The hierarchy makes "leave" vs "switch" unambiguous. */}
-              <nav aria-label="Breadcrumb" style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <button
-                  onClick={onBack}
-                  title="Back to all scenarios"
-                  style={{
-                    display: "flex", alignItems: "center", padding: "5px 4px",
-                    border: "none", background: "transparent", cursor: "pointer",
-                    color: C.inkSoft, fontSize: 12, fontWeight: 600,
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.color = C.ink)}
-                  onMouseLeave={(e) => (e.currentTarget.style.color = C.inkSoft)}
-                >
-                  Scenarios
-                </button>
-                <ChevronRight size={14} color={C.inkFaint} style={{ flexShrink: 0 }} />
-                <ScenarioSelect />
-              </nav>
+              {/* The active-scenario picker — reads as a header title that drops down
+                  to switch scenarios. Leaving the deep-dive is the Taper wordmark. */}
+              <ScenarioSelect />
             </>
           )}
         </div>
@@ -123,22 +124,29 @@ function ScenarioSelect() {
   const activeScenarioId = useFinancialStore((s) => s.activeScenarioId);
   const setActiveScenario = useFinancialStore((s) => s.setActiveScenario);
 
+  // Styled to read as a header title that drops down — borderless and
+  // transparent, with just a chevron hint and a faint hover wash — rather than a
+  // boxy form control.
   return (
-    <div style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
+    <div
+      style={{ position: "relative", display: "inline-flex", alignItems: "center", borderRadius: 7, transition: "background 0.15s" }}
+      onMouseEnter={(e) => (e.currentTarget.style.background = C.bg)}
+      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+    >
       <select
         value={activeScenarioId}
         onChange={(e) => setActiveScenario(e.target.value)}
         aria-label="Active scenario"
         style={{
           appearance: "none", WebkitAppearance: "none", MozAppearance: "none",
-          maxWidth: 220, border: `1px solid ${C.border}`, borderRadius: 8,
-          padding: "6px 28px 6px 11px", fontSize: 13, fontWeight: 700, color: C.ink,
-          background: C.bgCard, outline: "none", cursor: "pointer",
+          maxWidth: 240, border: "none", borderRadius: 7,
+          padding: "5px 26px 5px 8px", fontSize: 14, fontWeight: 700, color: C.ink,
+          background: "transparent", outline: "none", cursor: "pointer",
         }}
       >
         {scenarios.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
       </select>
-      <ChevronDown size={14} color={C.inkSoft} style={{ position: "absolute", right: 9, pointerEvents: "none" }} />
+      <ChevronDown size={15} color={C.inkSoft} style={{ position: "absolute", right: 7, pointerEvents: "none" }} />
     </div>
   );
 }

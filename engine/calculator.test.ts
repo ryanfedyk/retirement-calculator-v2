@@ -205,3 +205,45 @@ describe("real-dollar model (today's purchasing power)", () => {
     expect(ratio).toBeCloseTo(1, 2);
   });
 });
+
+describe("required minimum distributions (RMDs)", () => {
+  // A retiree with a pre-tax balance and no growth/spending, to isolate the
+  // forced withdrawal: zero returns, no expenses, no other income.
+  function rmdScenario(birthOffset: number) {
+    const cfg = baseConfig();
+    cfg.birth_year = YEAR - birthOffset;
+    cfg.career_path.exit_year = YEAR;
+    cfg.career_path.use_sabbatical = false;
+    cfg.career_path.use_jump = false;
+    cfg.career_path.use_bridge = false;
+    cfg.income_profile.gross_annual_salary = 0;
+    cfg.spending.monthly_lifestyle = 0;
+    cfg.spending.healthcare_premium = 0;
+    cfg.spending.mortgage_payment = 0;
+    cfg.medicare.monthly_premium = 0;
+    cfg.social_security.social_security_linked = false;
+    cfg.social_security.monthly_amount = 0;
+    cfg.market_assumptions.market_return_rate = 0;
+    cfg.market_assumptions.inflation_rate = 0;
+    cfg.market_assumptions.volatility_drag = 0;
+    const snap = baseSnap();
+    snap.retirement_assets.k401 = 1_000_000;
+    return { snap, cfg };
+  }
+
+  it("forces the pre-tax balance down once past the RMD age", () => {
+    const { snap, cfg } = rmdScenario(80); // age 80 → well past 75
+    const traj = runSimulation(snap, cfg, 200);
+    // With zero growth and no spending, the only thing moving the 401k is the RMD.
+    expect(traj[24].retirement).toBeLessThan(traj[0].retirement);
+    // ...and the after-tax proceeds accumulate in cash.
+    expect(traj[24].liquidCash).toBeGreaterThan(traj[0].liquidCash);
+  });
+
+  it("does not withdraw before the RMD age", () => {
+    const { snap, cfg } = rmdScenario(68); // age 68 → below 73/75
+    const traj = runSimulation(snap, cfg, 200);
+    // No growth, no RMD yet → the pre-tax balance is untouched for years.
+    expect(traj[24].retirement).toBeCloseTo(traj[0].retirement, -1);
+  });
+});

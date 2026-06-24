@@ -12,7 +12,6 @@ import type { TrajectoryPoint } from "@/engine/calculator";
 import { runMonteCarlo } from "@/engine/montecarlo";
 import { MomentumTurnstile } from "./MotivationWidgets";
 import AiAnalysis from "./AiAnalysis";
-import DollarModeToggle from "@/components/DollarModeToggle";
 import { C } from "@/config/colors";
 import LifeCalendar from "./LifeCalendar";
 import type { LivePrices } from "./FinancialDashboard";
@@ -472,9 +471,6 @@ export default function RightPanel({ livePrices }: Props) {
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-            {/* Money basis — the global today's vs future dollars switch
-                (the timeline's hover tooltip shows dollars too, so keep it) */}
-            <DollarModeToggle />
             {/* Age horizon — a compact toggle nestled in the controls row (adds no height) */}
             {chartView !== "timeline" && (
               <button

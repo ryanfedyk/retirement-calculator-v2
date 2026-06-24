@@ -7,7 +7,6 @@ import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
 import { runSimulation, findIndependencePoint, toDisplayDollars } from "@/engine/calculator";
 import { runMonteCarlo } from "@/engine/montecarlo";
-import DollarModeToggle from "@/components/DollarModeToggle";
 import { getLifeEvents } from "@/lib/horizonUtils";
 import { useHorizonProfile } from "@/config/horizonConfig";
 import { buildMomentumCards } from "@/components/finance/MotivationWidgets";
@@ -248,10 +247,9 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
           </div>
         </div>
 
-        {/* Money basis — global today's vs future dollars, with the active basis named */}
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5, marginBottom: 8 }}>
-          <DollarModeToggle />
-          <span style={{ fontSize: 10, color: C.inkFaint }}>in {dollarBasisLabel}</span>
+        {/* Basis note — names the global money basis (changed in Settings) */}
+        <div style={{ textAlign: "center", fontSize: 10, color: C.inkFaint, marginBottom: 8 }}>
+          in {dollarBasisLabel}
         </div>
 
         {view === "risk" && (

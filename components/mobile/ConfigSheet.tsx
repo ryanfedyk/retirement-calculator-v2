@@ -166,6 +166,7 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
           {/* ── Additional Income ── */}
           <Section title="Additional Income" accent="#4aab92" {...sec("supplemental")}>
             <Field label="Monthly Rental Income"><Num prefix="$" step={100} value={ip.monthly_rental_income ?? 0} onChange={v => updateNestedConfig("income_profile", { monthly_rental_income: v })} /></Field>
+            <Field label="Rental Growth Rate"><Num suffix="%" step={0.25} value={ip.rental_income_growth_rate ?? 3} onChange={v => updateNestedConfig("income_profile", { rental_income_growth_rate: v })} /></Field>
             <Field label="Monthly Part-Time Work Income"><Num prefix="$" step={100} value={ip.monthly_parttime_income ?? 0} onChange={v => updateNestedConfig("income_profile", { monthly_parttime_income: v })} /></Field>
             {ip.use_partner_income ? (
               <>

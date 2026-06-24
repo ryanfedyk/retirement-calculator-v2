@@ -112,6 +112,7 @@ export const DEFAULT_SIM_CONFIG: SimulationConfiguration = {
     target_bonus_rate:       10,
     annual_equity_grant:     0,
     monthly_rental_income:   0,
+    rental_income_growth_rate: 3,   // % per year; market-specific, user-editable
     monthly_parttime_income: 0,
     annual_401k_contribution: 23_500,   // IRS 2025 max; auto-bumped at age 50+
     annual_backdoor_roth:     7_000,

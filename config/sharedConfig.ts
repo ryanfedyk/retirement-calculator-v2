@@ -128,6 +128,7 @@ export const DEFAULT_SIM_CONFIG: SimulationConfiguration = {
     inflation_rate:     3,
     volatility_drag:    1.5,
     return_volatility:  15,  // annual std-dev of equity returns, for Monte Carlo
+    healthcare_inflation_premium: 2, // healthcare grows ~2%/yr above general inflation
   },
   tax_assumptions: {
     filing_status:      "single",
@@ -148,6 +149,9 @@ export const DEFAULT_SIM_CONFIG: SimulationConfiguration = {
     empty_nest_monthly_spend: 4_500,
     healthcare_premium:       1_000,
     mortgage_payment:         0,
+    ltc_annual_cost:          0,    // long-term care off by default; opt in with a cost
+    ltc_start_age:            80,
+    ltc_years:                3,
   },
   birth_year: DEFAULT_PROFILE.birthYear,
   use_equity_comp: false,

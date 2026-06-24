@@ -81,6 +81,7 @@ export interface SimulationConfiguration {
     inflation_rate: number;
     volatility_drag: number;
     return_volatility?: number; // Annual std-dev of market returns (%), for Monte Carlo; default 15
+    healthcare_inflation_premium?: number; // Real healthcare growth above CPI (%/yr); default 2
   };
   tax_assumptions: {
     filing_status: 'single' | 'married_joint' | 'married_separate' | 'head_household';
@@ -108,6 +109,9 @@ export interface SimulationConfiguration {
     empty_nest_monthly_spend?: number;
     healthcare_premium: number;
     mortgage_payment: number;
+    ltc_annual_cost?: number;  // Long-term care: annual cost in today's $ (0 = not modeled)
+    ltc_start_age?: number;    // Age the LTC episode begins (default 80)
+    ltc_years?: number;        // Duration of the LTC episode in years (default 3)
   };
   birth_year: number;
   // Whether the user receives company equity (RSUs). Gates the equity-income
@@ -684,6 +688,11 @@ export const runSimulation = (
     const partnerOnMed  = !!config.medicare && partnerAge != null && partnerAge >= medAge;
     const adultsOnMed   = (primaryOnMed ? 1 : 0) + (partnerOnMed ? 1 : 0);
 
+    // Healthcare (and long-term care) historically rise faster than general
+    // inflation. The model runs in real dollars, so apply this REAL premium on
+    // top: a ~2%/yr real escalation compounded over a long retirement.
+    const medInflMult = Math.pow(1 + (config.market_assumptions.healthcare_inflation_premium ?? 2) / 100, yearsPassed);
+
     let selfPaidHealthcare: number;
     {
       const medCost        = (config.medicare?.monthly_premium ?? 0) * adultsOnMed;
@@ -693,7 +702,7 @@ export const runSimulation = (
         c => currentYear - c.birthYear < CHILD_OFF_PLAN_AGE
       ).length;
       const preMedAdults   = adults - adultsOnMed;
-      selfPaidHealthcare = medCost + perCapita * (preMedAdults + coveredKids); // today's dollars
+      selfPaidHealthcare = (medCost + perCapita * (preMedAdults + coveredKids)) * medInflMult;
     }
 
     // Actual out-of-pocket healthcare expense this month (0 while employer-covered).
@@ -714,6 +723,21 @@ export const runSimulation = (
       }
 
       expense += currentHealthcareCost;
+    }
+
+    // Long-term care — an optional, finite late-life cost (nursing/assisted care),
+    // one of the largest retirement tail risks. Off unless a cost is set. Like
+    // healthcare it escalates with the real medical premium. Folded into the
+    // healthcare figure so it shows in that band, and added to spending.
+    const ltcAnnual = config.spending.ltc_annual_cost ?? 0;
+    if (ltcAnnual > 0) {
+      const ltcStart = config.spending.ltc_start_age ?? 80;
+      const ltcYears = config.spending.ltc_years ?? 3;
+      if (currentAge >= ltcStart && currentAge < ltcStart + ltcYears) {
+        const ltcMonthly = (ltcAnnual / 12) * medInflMult;
+        expense += ltcMonthly;
+        currentHealthcareCost += ltcMonthly;
+      }
     }
 
     // Mortgage — the payment is due only while a balance actually remains (and

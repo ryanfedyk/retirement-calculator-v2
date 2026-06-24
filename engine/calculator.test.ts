@@ -293,3 +293,51 @@ describe("early-retiree Social Security benefit (AIME)", () => {
     expect(over).toBe(full);
   });
 });
+
+describe("healthcare cost realism (medical inflation + LTC)", () => {
+  function healthRetiree(): SimulationConfiguration {
+    const cfg = baseConfig();
+    cfg.birth_year = YEAR - 66;        // retired, on Medicare
+    cfg.career_path.exit_year = YEAR;
+    cfg.career_path.use_sabbatical = false;
+    cfg.career_path.use_jump = false;
+    cfg.career_path.use_bridge = false;
+    cfg.income_profile.gross_annual_salary = 0;
+    cfg.spending.monthly_lifestyle = 0;
+    cfg.spending.healthcare_premium = 1_200;
+    cfg.spending.mortgage_payment = 0;
+    cfg.medicare.monthly_premium = 185;
+    return cfg;
+  }
+
+  it("escalates healthcare faster than general inflation (real growth)", () => {
+    const cfg = healthRetiree();
+    cfg.market_assumptions.healthcare_inflation_premium = 2;
+    const traj = runSimulation(baseSnap(), cfg, 200);
+    // healthcareCost is in real dollars; with a +2% real premium it must climb.
+    expect(traj[120].healthcareCost).toBeGreaterThan(traj[0].healthcareCost * 1.15);
+  });
+
+  it("holds healthcare flat in real terms when the premium is 0", () => {
+    const cfg = healthRetiree();
+    cfg.market_assumptions.healthcare_inflation_premium = 0;
+    const traj = runSimulation(baseSnap(), cfg, 200);
+    expect(traj[120].healthcareCost).toBeCloseTo(traj[0].healthcareCost, -1);
+  });
+
+  it("adds a long-term-care cost only within the configured window", () => {
+    const cfg = healthRetiree();
+    cfg.birth_year = YEAR - 70;
+    cfg.market_assumptions.healthcare_inflation_premium = 0; // isolate the LTC step
+    cfg.spending.ltc_annual_cost = 120_000;
+    cfg.spending.ltc_start_age = 82;
+    cfg.spending.ltc_years = 3;
+    const traj = runSimulation(baseSnap(), cfg, 200);
+    const at = (age: number) => traj.find(p => p.date.includes(String(YEAR + (age - 70))))!;
+    const before = at(80).healthcareCost; // age 80, pre-LTC
+    const during = at(83).healthcareCost; // age 83, mid-LTC
+    const after  = at(86).healthcareCost; // age 86, post-LTC
+    expect(during).toBeGreaterThan(before + 100_000); // ~+120k/yr while in care
+    expect(after).toBeCloseTo(before, -2);             // back to baseline afterward
+  });
+});

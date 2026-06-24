@@ -129,6 +129,8 @@ export default function ConfigPanel() {
           onChange={v => updateMarketAssumptions({ inflation_rate: v })} />
         <NumField label="Volatility Drag" value={ma.volatility_drag} step={0.25} suffix="%"
           onChange={v => updateMarketAssumptions({ volatility_drag: v })} />
+        <NumField label="Healthcare Inflation (over CPI)" value={ma.healthcare_inflation_premium ?? 2} step={0.25} suffix="%"
+          onChange={v => updateMarketAssumptions({ healthcare_inflation_premium: v })} />
       </Section>
 
       {/* Spending */}
@@ -141,6 +143,12 @@ export default function ConfigPanel() {
           onChange={v => updateSpending({ healthcare_premium: v })} />
         <NumField label="Empty Nest Spend" value={sp.empty_nest_monthly_spend ?? 0} step={250} prefix="$"
           onChange={v => updateSpending({ empty_nest_monthly_spend: v })} />
+        <NumField label="Long-Term Care (annual, today's $)" value={sp.ltc_annual_cost ?? 0} step={5000} prefix="$"
+          onChange={v => updateSpending({ ltc_annual_cost: v })} />
+        <NumField label="LTC Start Age" value={sp.ltc_start_age ?? 80} step={1}
+          onChange={v => updateSpending({ ltc_start_age: v })} />
+        <NumField label="LTC Duration (years)" value={sp.ltc_years ?? 3} step={1}
+          onChange={v => updateSpending({ ltc_years: v })} />
       </Section>
 
       {/* Reset */}

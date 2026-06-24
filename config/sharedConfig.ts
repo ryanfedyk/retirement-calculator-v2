@@ -127,6 +127,7 @@ export const DEFAULT_SIM_CONFIG: SimulationConfiguration = {
     market_return_rate: 7,
     inflation_rate:     3,
     volatility_drag:    1.5,
+    return_volatility:  15,  // annual std-dev of equity returns, for Monte Carlo
   },
   tax_assumptions: {
     filing_status:      "single",

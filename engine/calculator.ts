@@ -80,6 +80,7 @@ export interface SimulationConfiguration {
     market_return_rate: number;
     inflation_rate: number;
     volatility_drag: number;
+    return_volatility?: number; // Annual std-dev of market returns (%), for Monte Carlo; default 15
   };
   tax_assumptions: {
     filing_status: 'single' | 'married_joint' | 'married_separate' | 'head_household';
@@ -172,7 +173,7 @@ export interface TrajectoryPoint {
   educationAssets: number;
 }
 
-import { calculateTax } from './tax_engine';
+import { calculateTaxRaw } from './tax_engine';
 import type { StateCode } from './state_tax';
 import { estimateMonthlySocialSecurity } from './social_security';
 
@@ -203,7 +204,14 @@ function acaMaxContributionPct(fplRatio: number): number {
 export const runSimulation = (
   snapshot: FinancialSnapshot,
   config: SimulationConfiguration,
-  live_price_input: number
+  live_price_input: number,
+  // Optional per-month REAL market return path (annual %), one entry per month.
+  // When supplied (Monte Carlo), it overrides the deterministic real market
+  // return for the diversified portfolio — liquid, 401k/IRA, Roth, 529, and the
+  // broad-market brokerage holdings — modeling sequence-of-returns risk. The
+  // concentrated employer position keeps its own growth assumption. Omit it for
+  // the normal deterministic projection (behavior is then identical to before).
+  marketReturnPath?: number[]
 ): TrajectoryPoint[] => {
   const points: TrajectoryPoint[] = [];
 
@@ -299,6 +307,11 @@ export const runSimulation = (
   const inflationPct = config.market_assumptions.inflation_rate || 0;
   const toReal = (nominalPct: number) => ((1 + nominalPct / 100) / (1 + inflationPct / 100) - 1) * 100;
 
+  // Short month names for the "MMM YYYY" trajectory labels. Hand-rolled instead
+  // of Date#toLocaleString, whose Intl formatting is ~an order of magnitude
+  // slower and dominated the per-month cost (hundreds of runs under Monte Carlo).
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
   // ── Main simulation loop (runs through age 100; see monthsToSimulate) ──────
   for (let month = 0; month < monthsToSimulate; month++) {
 
@@ -315,17 +328,22 @@ export const runSimulation = (
     const inflationMultiplier   = Math.pow(1 + config.market_assumptions.inflation_rate / 100, yearsPassed);
 
     // ── Asset growth — REAL geometric monthly compounding ─────────────────────
-    const marketMo = monthlyRate(effectiveMarketReturn);
+    // In Monte Carlo mode the sampled real return drives the whole diversified
+    // portfolio (so a bad run is bad across all market assets at once); otherwise
+    // each bucket grows at its own deterministic real rate.
+    const sampledRealPct = marketReturnPath ? marketReturnPath[month] : undefined;
+    const marketMo = monthlyRate(sampledRealPct ?? effectiveMarketReturn);
     currentGoogPrice      *= (1 + monthlyRate(toReal(config.market_assumptions.goog_growth_rate)));
     currentJumpStockValue *= (1 + monthlyRate(toReal(JUMP_EQUITY_GROWTH * 100)));
     liquidCash   *= (1 + marketMo);
     tradBalance  *= (1 + marketMo);
     rothBalance  *= (1 + marketMo);
-    current529   *= (1 + monthlyRate(toReal(config.market_assumptions.market_return_rate)));
+    current529   *= (1 + monthlyRate(sampledRealPct ?? toReal(config.market_assumptions.market_return_rate)));
 
     let totalOtherInvestmentsValue = 0;
     for (const inv of currentOtherInvestments) {
-      inv.currentValue *= (1 + monthlyRate(toReal(Math.max(0, inv.expectedReturn - config.market_assumptions.volatility_drag))));
+      const invReal = sampledRealPct ?? toReal(Math.max(0, inv.expectedReturn - config.market_assumptions.volatility_drag));
+      inv.currentValue *= (1 + monthlyRate(invReal));
       totalOtherInvestmentsValue += inv.currentValue;
     }
 
@@ -435,7 +453,7 @@ export const runSimulation = (
     // preTaxDeductions = 401k + W-4 allowances (reduce income tax but not FICA)
     const annualW2Gross = annualBaseSalary + annualTargetBonus + annualPartnerGross + annualParttimeGross + annualRSUValue + annualJumpGrantValue;
 
-    const taxResult = calculateTax({
+    const taxInput = {
       filingStatus:          config.tax_assumptions.filing_status,
       state:                 config.tax_assumptions.state_of_residence,
       grossIncome:           annualW2Gross,
@@ -445,10 +463,19 @@ export const runSimulation = (
       nyItemizedDeductions:  totalItemizedNY,
       longTermCapitalGains:  0,
       shortTermCapitalGains: 0,
-    });
-
+    };
+    const taxResult = calculateTaxRaw(taxInput);
     const ordinaryEffRate = taxResult.ordinaryEffectiveRate;
-    const marginalRate    = taxResult.marginalRate;
+
+    // The marginal rate requires a second full tax pass, so only pay for it when
+    // it actually drives a number — equity vesting / jump grants taxed at the
+    // margin. Elsewhere it only feeds the deficit emergency rate, where the
+    // effective rate is a fine proxy. (This halves the per-month tax cost in the
+    // common case and matters under Monte Carlo's hundreds of runs.)
+    const needMarginal = monthlyEquityVestUnits > 0 || jumpGrantMonthlyGross > 0;
+    const marginalRate = needMarginal
+      ? (calculateTaxRaw({ ...taxInput, grossIncome: annualW2Gross + 100 }).totalTax - taxResult.totalTax) / 100
+      : ordinaryEffRate;
 
     // ── Net cash flows ─────────────────────────────────────────────────────
     const isBonusMonth     = (month % 12 === 2);
@@ -502,7 +529,7 @@ export const runSimulation = (
 
         if (monthlyConversion > 100) {
           // Tax: treat conversion as additional ordinary income stacked on rental
-          const baseConvTax = calculateTax({
+          const baseConvTax = calculateTaxRaw({
             filingStatus: config.tax_assumptions.filing_status,
             state: config.tax_assumptions.state_of_residence,
             grossIncome: 0,
@@ -511,7 +538,7 @@ export const runSimulation = (
             nyItemizedDeductions: totalItemizedNY,
             longTermCapitalGains: 0, shortTermCapitalGains: 0,
           });
-          const withConvTax = calculateTax({
+          const withConvTax = calculateTaxRaw({
             filingStatus: config.tax_assumptions.filing_status,
             state: config.tax_assumptions.state_of_residence,
             grossIncome: 0,
@@ -579,12 +606,12 @@ export const runSimulation = (
       const grossSSAnnual = ssMonthly * 12; // SS is inflation-indexed → flat in real terms
       const taxableSSAnnual = grossSSAnnual * 0.85; // max inclusion for higher-income retirees
 
-      const ssBaseTax = calculateTax({
+      const ssBaseTax = calculateTaxRaw({
         filingStatus: config.tax_assumptions.filing_status, state: "NONE",
         grossIncome: 0, ficaExemptIncome: annualRentalGross,
         longTermCapitalGains: 0, shortTermCapitalGains: 0,
       });
-      const ssWithTax = calculateTax({
+      const ssWithTax = calculateTaxRaw({
         filingStatus: config.tax_assumptions.filing_status, state: "NONE",
         grossIncome: 0, ficaExemptIncome: annualRentalGross + taxableSSAnnual,
         longTermCapitalGains: 0, shortTermCapitalGains: 0,
@@ -715,8 +742,8 @@ export const runSimulation = (
         const annualLTCG = capGain * 12;
 
         const annualOrd  = annualW2Gross + annualRentalGross;
-        const baseTax    = calculateTax({ filingStatus: config.tax_assumptions.filing_status, state: config.tax_assumptions.state_of_residence, grossIncome: annualW2Gross, preTaxDeductions: annualK401, ficaExemptIncome: annualRentalGross, itemizedDeductions: totalItemizedFed, nyItemizedDeductions: totalItemizedNY, longTermCapitalGains: 0, shortTermCapitalGains: 0 });
-        const withSaleTax = calculateTax({ filingStatus: config.tax_assumptions.filing_status, state: config.tax_assumptions.state_of_residence, grossIncome: annualW2Gross, preTaxDeductions: annualK401, ficaExemptIncome: annualRentalGross, itemizedDeductions: totalItemizedFed, nyItemizedDeductions: totalItemizedNY, longTermCapitalGains: annualLTCG, shortTermCapitalGains: 0 });
+        const baseTax    = calculateTaxRaw({ filingStatus: config.tax_assumptions.filing_status, state: config.tax_assumptions.state_of_residence, grossIncome: annualW2Gross, preTaxDeductions: annualK401, ficaExemptIncome: annualRentalGross, itemizedDeductions: totalItemizedFed, nyItemizedDeductions: totalItemizedNY, longTermCapitalGains: 0, shortTermCapitalGains: 0 });
+        const withSaleTax = calculateTaxRaw({ filingStatus: config.tax_assumptions.filing_status, state: config.tax_assumptions.state_of_residence, grossIncome: annualW2Gross, preTaxDeductions: annualK401, ficaExemptIncome: annualRentalGross, itemizedDeductions: totalItemizedFed, nyItemizedDeductions: totalItemizedNY, longTermCapitalGains: annualLTCG, shortTermCapitalGains: 0 });
 
         divestmentProceeds = grossSale - (withSaleTax.totalTax - baseTax.totalTax) / 12;
         currentGoogShares -= sharesToSell;
@@ -730,8 +757,8 @@ export const runSimulation = (
         const avgBasis      = totalSh > 0 ? totalBasis / totalSh : 0;
         const gain          = Math.max(0, grossProceeds - currentGoogShares * avgBasis);
 
-        const baseTax     = calculateTax({ filingStatus: config.tax_assumptions.filing_status, state: config.tax_assumptions.state_of_residence, grossIncome: annualW2Gross, preTaxDeductions: annualK401, ficaExemptIncome: annualRentalGross, itemizedDeductions: totalItemizedFed, nyItemizedDeductions: totalItemizedNY, longTermCapitalGains: 0,    shortTermCapitalGains: 0 });
-        const withSaleTax = calculateTax({ filingStatus: config.tax_assumptions.filing_status, state: config.tax_assumptions.state_of_residence, grossIncome: annualW2Gross, preTaxDeductions: annualK401, ficaExemptIncome: annualRentalGross, itemizedDeductions: totalItemizedFed, nyItemizedDeductions: totalItemizedNY, longTermCapitalGains: gain, shortTermCapitalGains: 0 });
+        const baseTax     = calculateTaxRaw({ filingStatus: config.tax_assumptions.filing_status, state: config.tax_assumptions.state_of_residence, grossIncome: annualW2Gross, preTaxDeductions: annualK401, ficaExemptIncome: annualRentalGross, itemizedDeductions: totalItemizedFed, nyItemizedDeductions: totalItemizedNY, longTermCapitalGains: 0,    shortTermCapitalGains: 0 });
+        const withSaleTax = calculateTaxRaw({ filingStatus: config.tax_assumptions.filing_status, state: config.tax_assumptions.state_of_residence, grossIncome: annualW2Gross, preTaxDeductions: annualK401, ficaExemptIncome: annualRentalGross, itemizedDeductions: totalItemizedFed, nyItemizedDeductions: totalItemizedNY, longTermCapitalGains: gain, shortTermCapitalGains: 0 });
 
         divestmentProceeds = grossProceeds - (withSaleTax.totalTax - baseTax.totalTax);
         currentGoogShares  = 0;
@@ -885,7 +912,7 @@ export const runSimulation = (
     // against the (post-tax) spending need — apples to apples. The old test used
     // gross balances and triggered FI years early for pre-tax-heavy savers.
     const RETIRE_LTCG_RATE = 0.15; // federal long-term capital-gains midpoint
-    const deferredTaxRate = calculateTax({
+    const deferredTaxRate = calculateTaxRaw({
       filingStatus:     config.tax_assumptions.filing_status,
       state:            config.tax_assumptions.state_of_residence,
       grossIncome:      0,
@@ -921,7 +948,7 @@ export const runSimulation = (
     const annualizedComp     = salaryAndEquityNet + rentalIncomeNet + socialSecurityNet;
 
     points.push({
-      date:       currentDate.toLocaleString('default', { month: 'short', year: 'numeric' }),
+      date:       `${MONTHS[monthOfYear]} ${currentYear}`,
       monthIndex: month,
       liquidCash: Math.round(liquidCash),
       retirement: Math.round(totalRetirement),

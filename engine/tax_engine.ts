@@ -160,6 +160,13 @@ function applyBrackets(amount: number, brackets: { limit: number; rate: number }
 
 // ── Core calculator ──────────────────────────────────────────────────────────
 
+// Tax result WITHOUT the marginal rate. Exported because computing marginalRate
+// requires a second full pass (calculateTax does `_calculateTaxRaw` twice), and
+// most call sites only need totalTax / effective rates. Skipping the marginal
+// recompute roughly halves the tax cost on those paths — which matters a lot in
+// the per-month loop and especially under Monte Carlo (hundreds of full runs).
+export const calculateTaxRaw = (input: TaxInput): Omit<TaxOutput, 'marginalRate'> => _calculateTaxRaw(input);
+
 const _calculateTaxRaw = (input: TaxInput): Omit<TaxOutput, 'marginalRate'> => {
   const { filingStatus, grossIncome, longTermCapitalGains, shortTermCapitalGains } = input;
   const preTaxDeductions   = input.preTaxDeductions   ?? 0; // 401k etc — reduces income tax NOT FICA

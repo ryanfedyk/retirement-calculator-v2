@@ -18,6 +18,10 @@ export const useUIStore = create<{
   /** Global money basis: today's dollars (real) vs. future dollars (nominal). */
   dollarMode: DollarMode;
   setDollarMode: (v: DollarMode) => void;
+  /** Scenario being exported as a plain-text report (null = the modal is closed). */
+  reportScenarioId: string | null;
+  openReport: (scenarioId: string) => void;
+  closeReport: () => void;
 }>()(
   persist(
     (set) => ({
@@ -27,6 +31,9 @@ export const useUIStore = create<{
       setFinancesOpen: (v) => set({ financesOpen: v }),
       dollarMode: "today",
       setDollarMode: (v) => set({ dollarMode: v }),
+      reportScenarioId: null,
+      openReport: (scenarioId) => set({ reportScenarioId: scenarioId }),
+      closeReport: () => set({ reportScenarioId: null }),
     }),
     {
       name: "horizon-ui",

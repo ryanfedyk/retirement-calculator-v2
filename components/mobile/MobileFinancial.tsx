@@ -1,7 +1,7 @@
 "use client";
 import { useState, useMemo } from "react";
 import { ResponsiveContainer, AreaChart, Area, Line, XAxis, YAxis, Tooltip, ReferenceLine, CartesianGrid } from "recharts";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, ZoomIn, ZoomOut } from "lucide-react";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
@@ -234,17 +234,21 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
           ))}
         </div>
 
-        {/* Age horizon toggle — subtle, in-app */}
+        {/* Horizon zoom — a magnifier toggles full (to 100) vs focused (to 75). */}
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}>
-          <div style={{ display: "inline-flex", gap: 2, background: C.bg, borderRadius: 7, padding: 2 }}>
-            {([75, 100] as const).map(a => (
-              <button key={a} onClick={() => setAgeCap(a)} style={{
-                fontSize: 11, fontWeight: 600, padding: "4px 12px", borderRadius: 5, border: "none", cursor: "pointer",
-                background: ageCap === a ? C.bgCard : "transparent", color: ageCap === a ? C.ink : C.inkFaint,
-                boxShadow: ageCap === a ? `0 1px 2px ${C.border}` : "none",
-              }}>to {a}</button>
-            ))}
-          </div>
+          <button
+            onClick={() => setAgeCap(a => (a === 100 ? 75 : 100))}
+            title={ageCap === 100 ? "Zoom in — focus on the years to age 75" : "Zoom out — show the full horizon to age 100"}
+            aria-label={ageCap === 100 ? "Zoom in to age 75" : "Zoom out to age 100"}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 12px", borderRadius: 7,
+              border: `1px solid ${C.border}`, background: C.bg, color: C.inkMid, cursor: "pointer",
+              fontSize: 11, fontWeight: 600,
+            }}
+          >
+            {ageCap === 100 ? <ZoomIn size={14} /> : <ZoomOut size={14} />}
+            {ageCap === 100 ? "Zoom in" : "Zoom out"}
+          </button>
         </div>
 
         {/* Basis note — names the global money basis (changed in Settings) */}

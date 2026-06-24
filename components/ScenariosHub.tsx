@@ -9,7 +9,7 @@
  */
 import { useMemo, useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { Plus, Copy, Trash2, Sparkles, MoreVertical, Wallet, Eye, EyeOff, ChevronRight, Pencil } from "lucide-react";
+import { Plus, Copy, Trash2, Sparkles, MoreVertical, Wallet, Eye, EyeOff, ChevronRight, Pencil, FileText } from "lucide-react";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
 import { useIsMobile } from "@/hooks/useIsMobile";
@@ -39,14 +39,14 @@ const iconBtn: React.CSSProperties = {
  * The menu renders through a portal with fixed positioning so it's never
  * clipped by the card grid / horizontal scroll strip, and flips upward when it
  * would otherwise run off the bottom of the screen. */
-function CardMenu({ canDelete, onRename, onDuplicate, onDelete }: {
-  canDelete: boolean; onRename?: () => void; onDuplicate: () => void; onDelete: () => void;
+function CardMenu({ canDelete, onRename, onDuplicate, onExport, onDelete }: {
+  canDelete: boolean; onRename?: () => void; onDuplicate: () => void; onExport: () => void; onDelete: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [coords, setCoords] = useState<{ top: number; right: number } | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const itemCount = (onRename ? 1 : 0) + 1 + (canDelete ? 1 : 0);
+  const itemCount = (onRename ? 1 : 0) + 2 + (canDelete ? 1 : 0);
 
   useEffect(() => {
     if (!open) return;
@@ -104,6 +104,7 @@ function CardMenu({ canDelete, onRename, onDuplicate, onDelete }: {
         >
           {onRename && item(Pencil, "Rename", onRename)}
           {item(Copy, "Duplicate", onDuplicate)}
+          {item(FileText, "Export for LLM", onExport)}
           {canDelete && item(Trash2, "Delete", onDelete, true)}
         </div>,
         document.body
@@ -207,12 +208,12 @@ interface CardStat { fiYear?: number; fiAge?: number; finalNW: number }
  * entry point into the deep-dive. Owns its own rename-editing state. */
 function ScenarioCard({
   sc, color, st, hidden, multi, canDelete, isMobile,
-  onOpen, onToggleHidden, onRename, onDuplicate, onDelete,
+  onOpen, onToggleHidden, onRename, onDuplicate, onExport, onDelete,
 }: {
   sc: { id: string; name: string; config: { career_path: { exit_year: number } } };
   color: string; st?: CardStat; hidden: boolean; multi: boolean; canDelete: boolean; isMobile: boolean;
   onOpen: () => void; onToggleHidden: () => void;
-  onRename: (n: string) => void; onDuplicate: () => void; onDelete: () => void;
+  onRename: (n: string) => void; onDuplicate: () => void; onExport: () => void; onDelete: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   return (
@@ -251,6 +252,7 @@ function ScenarioCard({
           canDelete={canDelete}
           onRename={isMobile ? () => setEditing(true) : undefined}
           onDuplicate={onDuplicate}
+          onExport={onExport}
           onDelete={onDelete}
         />
       </div>
@@ -282,6 +284,7 @@ function ScenarioCard({
 export default function ScenariosHub({ livePrices, onOpen }: { livePrices: LivePrices; onOpen: () => void }) {
   const { scenarios, config, snapshot, setActiveScenario, addScenario, duplicateScenario, renameScenario, deleteScenario } = useFinancialStore();
   const setFinancesOpen = useUIStore((s) => s.setFinancesOpen);
+  const openReport = useUIStore((s) => s.openReport);
   const dollarMode = useUIStore((s) => s.dollarMode);
   const suggestions = useScenarioSuggestions(livePrices);
   const confirm = useConfirm();
@@ -418,6 +421,7 @@ export default function ScenariosHub({ livePrices, onOpen }: { livePrices: LiveP
               onToggleHidden={() => toggleHidden(sc.id)}
               onRename={(n) => renameScenario(sc.id, n)}
               onDuplicate={() => { setActiveScenario(sc.id); duplicateScenario(); }}
+              onExport={() => openReport(sc.id)}
               onDelete={() => remove(sc.id, sc.name)}
             />
           ))}

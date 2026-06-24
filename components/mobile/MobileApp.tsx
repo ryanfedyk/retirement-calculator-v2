@@ -13,6 +13,7 @@ import ScenariosHub from "@/components/ScenariosHub";
 import ConfigSheet from "./ConfigSheet";
 import FinancesOverlay from "@/components/finance/FinancesOverlay";
 import SettingsPanel from "@/components/SettingsPanel";
+import ScenarioReportModal from "@/components/ScenarioReportModal";
 
 type View = "financial" | "forecasting";
 
@@ -25,6 +26,8 @@ export default function MobileApp() {
   const setFinancesOpen = useUIStore((s) => s.setFinancesOpen);
   const settingsOpen = useUIStore((s) => s.settingsOpen);
   const setSettingsOpen = useUIStore((s) => s.setSettingsOpen);
+  const reportScenarioId = useUIStore((s) => s.reportScenarioId);
+  const closeReport = useUIStore((s) => s.closeReport);
   const [view, setView] = useState<View>("financial");
   const [scenarioOpen, setScenarioOpen] = useState(false);
   const [configOpen, setConfigOpen] = useState(false);
@@ -35,6 +38,7 @@ export default function MobileApp() {
   useBrowserBackNav({
     enabled: true,
     layers: [
+      { open: !!reportScenarioId, close: closeReport },
       { open: settingsOpen, close: () => setSettingsOpen(false) },
       { open: financesOpen, close: () => setFinancesOpen(false) },
       { open: configOpen, close: () => setConfigOpen(false) },
@@ -131,6 +135,7 @@ export default function MobileApp() {
       <ConfigSheet open={configOpen} onClose={() => setConfigOpen(false)} />
       <FinancesOverlay livePrices={livePrices} />
       <SettingsPanel />
+      <ScenarioReportModal livePrices={livePrices} />
 
       {/* Bottom tab bar — only while exploring a scenario */}
       {scenarioOpen && (

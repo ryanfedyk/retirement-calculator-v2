@@ -185,6 +185,46 @@ export interface TrajectoryPoint {
   educationAssets: number;
 }
 
+/**
+ * Whether dollar figures are shown in today's purchasing power ("today") or in
+ * the inflated, face-value dollars of each future month ("future" / nominal).
+ */
+export type DollarMode = 'today' | 'future';
+
+// Fields on a TrajectoryPoint that are NOT dollar amounts and must be left alone
+// when re-expressing a trajectory in nominal dollars.
+const NON_MONETARY_FIELDS = new Set<string>([
+  'date', 'monthIndex', 'isIndependent', 'currentPhase',
+]);
+
+/**
+ * Re-express a real (today's-dollar) trajectory in the chosen display basis.
+ *
+ * The engine runs entirely in today's dollars, so "today" mode is a no-op. For
+ * "future" mode we re-inflate every dollar field of each month by CPI compounded
+ * over the months elapsed since today — turning purchasing power back into the
+ * face-value dollars a statement would actually show in that month. Month 0
+ * (today) is unchanged, so headline "now" figures never move.
+ */
+export function toDisplayDollars(
+  trajectory: TrajectoryPoint[],
+  mode: DollarMode,
+  inflationRatePct: number,
+): TrajectoryPoint[] {
+  if (mode === 'today' || !inflationRatePct) return trajectory;
+  const annual = 1 + inflationRatePct / 100;
+  return trajectory.map((pt) => {
+    const mult = Math.pow(annual, pt.monthIndex / 12);
+    const out = { ...pt } as Record<string, unknown>;
+    for (const key in out) {
+      if (typeof out[key] === 'number' && !NON_MONETARY_FIELDS.has(key)) {
+        out[key] = (out[key] as number) * mult;
+      }
+    }
+    return out as unknown as TrajectoryPoint;
+  });
+}
+
 import { calculateTaxRaw } from './tax_engine';
 import type { StateCode } from './state_tax';
 import { estimateMonthlySocialSecurity } from './social_security';

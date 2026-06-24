@@ -80,6 +80,8 @@ const Section = ({ title, accent, children }: { title: string; accent: string; c
 export default function SettingsPanel() {
   const open = useUIStore(s => s.settingsOpen);
   const setOpen = useUIStore(s => s.setSettingsOpen);
+  const dollarMode = useUIStore(s => s.dollarMode);
+  const setDollarMode = useUIStore(s => s.setDollarMode);
   const { config, profile, updateProfile, updateConfig, updateNestedConfig, setChildren, resetToDefaults } = useFinancialStore();
   const confirm = useConfirm();
 
@@ -130,6 +132,40 @@ export default function SettingsPanel() {
           <Section title="You" accent={C.teal}>
             <Field label="Your Age" hint={`Birth year ${thisYear - age} · used for taxes, Medicare timing, and the projection horizon`}>
               <Num value={age} onChange={setAge} />
+            </Field>
+          </Section>
+
+          {/* ── Display ── */}
+          <Section title="Display" accent="#3a7d9c">
+            <Field
+              label="Dollar amounts"
+              hint={
+                dollarMode === "future"
+                  ? "Future dollars — face value in each year, inflated by your CPI assumption. Big numbers, but a dollar buys less."
+                  : "Today's dollars — every figure in current purchasing power, so amounts across years are directly comparable."
+              }
+            >
+              <div style={{ display: "flex", background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 10, padding: 3, gap: 3 }}>
+                {([["today", "Today's $"], ["future", "Future $"]] as const).map(([id, label]) => {
+                  const active = dollarMode === id;
+                  return (
+                    <button
+                      key={id}
+                      onClick={() => setDollarMode(id)}
+                      aria-pressed={active}
+                      style={{
+                        flex: 1, padding: "9px 12px", borderRadius: 8, border: "none", cursor: "pointer",
+                        fontSize: 14, fontWeight: 600,
+                        background: active ? C.teal : "transparent",
+                        color: active ? "#fff" : C.inkMid,
+                        transition: "all 0.15s",
+                      }}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
             </Field>
           </Section>
 

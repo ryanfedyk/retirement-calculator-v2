@@ -4,7 +4,8 @@ import { ResponsiveContainer, AreaChart, Area, Line, XAxis, YAxis, Tooltip, Refe
 import { AlertTriangle } from "lucide-react";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
-import { runSimulation, findIndependencePoint } from "@/engine/calculator";
+import { useUIStore } from "@/store/useUIStore";
+import { runSimulation, findIndependencePoint, toDisplayDollars } from "@/engine/calculator";
 import { runMonteCarlo } from "@/engine/montecarlo";
 import { getLifeEvents } from "@/lib/horizonUtils";
 import { useHorizonProfile } from "@/config/horizonConfig";
@@ -35,6 +36,9 @@ interface Props {
 
 export default function MobileFinancial({ livePrices, pricesFetching, onRefreshPrices, onOpenConfig }: Props) {
   const { config, snapshot } = useFinancialStore();
+  const dollarMode = useUIStore((s) => s.dollarMode);
+  const inflationRate = config.market_assumptions.inflation_rate || 0;
+  const dollarBasisLabel = dollarMode === "future" ? "future (nominal) dollars" : "today’s dollars";
   const { children } = useHorizonProfile();
   const [view, setView] = useState<View>("wealth");
   const [ageCap, setAgeCap] = useState<75 | 100>(100);
@@ -85,7 +89,8 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
   }, [indep, currentNW, progress, swrTarget, today, config]);
 
   // Sample yearly (every 12 months) to keep the mobile chart light & legible.
-  const chartData = useMemo(() => traj
+  // Re-express in the global money basis first (month-0 metrics are unaffected).
+  const chartData = useMemo(() => toDisplayDollars(traj, dollarMode, inflationRate)
     .filter((_, i) => i % 6 === 0)
     .map(pt => ({
       date: pt.date,
@@ -96,7 +101,7 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
       lifestyle:       pt.lifestyleExpense || 0,
       healthcare:      pt.healthcareCost || 0,
       mortgage:        pt.mortgagePayment || 0,
-    })), [traj]);
+    })), [traj, dollarMode, inflationRate]);
 
   const cappedChartData = useMemo(() => {
     if (ageCap >= 100) return chartData;
@@ -113,10 +118,17 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
   const riskData = useMemo(() => {
     if (!monteCarlo) return [];
     const maxYear = ageCap >= 100 ? Infinity : birthYear + ageCap;
+    const annual = 1 + inflationRate / 100;
+    const infl = (v: number, monthIndex: number) =>
+      dollarMode === "future" && inflationRate ? v * Math.pow(annual, monthIndex / 12) : v;
     return monteCarlo.bands
       .filter(b => { const y = Number(String(b.date).split(" ")[1]); return !y || y <= maxYear; })
-      .map(b => ({ date: b.date, p50: b.p50, range: [b.p10, b.p90] as [number, number] }));
-  }, [monteCarlo, ageCap, birthYear]);
+      .map(b => ({
+        date: b.date,
+        p50: infl(b.p50, b.monthIndex),
+        range: [infl(b.p10, b.monthIndex), infl(b.p90, b.monthIndex)] as [number, number],
+      }));
+  }, [monteCarlo, ageCap, birthYear, dollarMode, inflationRate]);
   const successPct = monteCarlo ? Math.round(monteCarlo.successRate * 100) : null;
   const successColor = successPct == null ? C.inkSoft : successPct >= 85 ? "#2a7a68" : successPct >= 70 ? C.warm : "#c0492b";
 
@@ -235,9 +247,9 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
           </div>
         </div>
 
-        {/* Basis note — the whole projection is in today's purchasing power */}
+        {/* Basis note — names the global money basis (changed in Settings) */}
         <div style={{ textAlign: "center", fontSize: 10, color: C.inkFaint, marginBottom: 8 }}>
-          in today&rsquo;s dollars
+          in {dollarBasisLabel}
         </div>
 
         {view === "risk" && (

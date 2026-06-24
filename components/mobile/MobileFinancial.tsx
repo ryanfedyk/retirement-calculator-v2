@@ -1,7 +1,7 @@
 "use client";
 import { useState, useMemo } from "react";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, ReferenceLine, CartesianGrid } from "recharts";
-import { ChevronRight, AlertTriangle } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { runSimulation, findIndependencePoint } from "@/engine/calculator";
@@ -108,11 +108,6 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
   const retireDate = findDate(p => p.date.includes(String(cp.exit_year)));
   const hasPostPhases = cp.use_sabbatical || cp.use_jump || cp.use_bridge;
   const fullRetireDate = hasPostPhases ? findDate(d => d.currentPhase === "RETIRED") : undefined;
-  const activePhases = [
-    cp.use_sabbatical && "Sabbatical",
-    cp.use_jump && "Jump",
-    cp.use_bridge && "Bridge",
-  ].filter(Boolean) as string[];
 
   // Snap a full-resolution trajectory date to the nearest down-sampled chart
   // point so it lines up with the data the tooltip reports while scrubbing.
@@ -170,8 +165,8 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
         ))}
       </div>
 
-      {/* Scenario levers — drive the trajectory live */}
-      <ScenarioLevers />
+      {/* Scenario levers — summary + quick adjustment; click in for the full editor */}
+      <ScenarioLevers onOpenEditor={onOpenConfig} />
 
       {/* Portfolio price ticker (from the user's holdings) */}
       <PriceTicker
@@ -267,24 +262,6 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
 
       {/* AI Coach — insight below the chart */}
       <AiAnalysis config={config} snapshot={snapshot} trajectory={traj} />
-
-      {/* Config summary — tap to open the full editor */}
-      <button onClick={onOpenConfig} style={{
-        textAlign: "left", background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 20, padding: 16, cursor: "pointer",
-      }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: C.inkSoft }}>Your Plan · tap to adjust</span>
-          <ChevronRight size={16} color={C.teal} />
-        </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          <Chip label="Exit" value={String(cp.exit_year)} />
-          <Chip label="Spend" value={`${fmtM(config.spending.monthly_lifestyle)}/mo`} />
-          {children.length > 0 && config.spending.use_empty_nest !== false && <Chip label="Empty Nest" value={`${fmtM(config.spending.empty_nest_monthly_spend ?? 0)}/mo`} />}
-          {activePhases.length > 0
-            ? activePhases.map(p => <Chip key={p} label="Phase" value={p} accent />)
-            : <Chip label="Path" value="Straight to exit" />}
-        </div>
-      </button>
     </div>
   );
 }
@@ -330,19 +307,6 @@ function MileLabel({ viewBox, value, fill, row = 0 }: any) {
       <rect x={x - w / 2} y={y} width={w} height={12} rx={3} fill={fill} fillOpacity={0.14} />
       <text x={x} y={y + 9} textAnchor="middle" fontSize={8} fontWeight={700} fill={fill}>{value}</text>
     </g>
-  );
-}
-
-function Chip({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
-  return (
-    <div style={{
-      display: "flex", flexDirection: "column", gap: 2,
-      padding: "8px 12px", borderRadius: 12,
-      background: accent ? C.tealWash : C.bg, border: `1px solid ${accent ? C.tealLight : C.borderSoft}`,
-    }}>
-      <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.inkFaint }}>{label}</span>
-      <span style={{ fontSize: 13, fontWeight: 600, color: accent ? C.tealDark : C.ink }}>{value}</span>
-    </div>
   );
 }
 

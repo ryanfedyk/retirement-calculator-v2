@@ -38,3 +38,24 @@ body {
    card already signals that the row scrolls, so the bar is just visual noise. */
 .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* Charts are presentational, not interactive content. Recharts puts a tabindex
+   on its wrapper/surface, so clicking a graph focuses it and the browser draws a
+   thick focus ring ("selection line") around the chart. Suppress that, and stop
+   click-drags from text-selecting the SVG. */
+.recharts-wrapper,
+.recharts-surface,
+.recharts-wrapper svg {
+  outline: none !important;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.recharts-wrapper:focus,
+.recharts-wrapper:focus-visible,
+.recharts-surface:focus,
+.recharts-surface:focus-visible,
+.recharts-wrapper svg:focus,
+.recharts-wrapper svg:focus-visible {
+  outline: none !important;
+}

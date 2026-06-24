@@ -341,6 +341,22 @@ export default function ScenariosHub({ livePrices, onOpen }: { livePrices: LiveP
   // Net worth today — config-independent (current balances), so any scenario works.
   const currentNW = useMemo(() => runSimulation(enriched, config, liveGoog)[0]?.totalNetWorth ?? 0, [enriched, config, liveGoog]);
 
+  // The snapshot's funded buckets, largest first, so the summary card shows what
+  // the user actually HAS (e.g. skip a $0 Roth and surface a real holding instead)
+  // rather than three fixed line items. Holdings use live prices via `enriched`.
+  const topBuckets = useMemo(() => {
+    const candidates = [
+      { label: "Cash", value: snapshot.liquid_assets.cash_savings },
+      { label: "Brokerage", value: snapshot.liquid_assets.vanguard_bridge },
+      { label: "401(k)", value: snapshot.retirement_assets.k401 },
+      { label: "Trad IRA", value: snapshot.retirement_assets.traditional_ira },
+      { label: "Roth IRA", value: snapshot.retirement_assets.roth_ira },
+      { label: "529", value: (snapshot.education_assets?.accounts ?? []).reduce((s, a) => s + a.balance, 0) },
+      ...(enriched.other_investments ?? []).map((inv) => ({ label: inv.symbol, value: (inv.shares * inv.current_price) || 0 })),
+    ];
+    return candidates.filter((c) => c.value > 0).sort((a, b) => b.value - a.value).slice(0, 3);
+  }, [snapshot, enriched]);
+
   const open = (id: string) => { setActiveScenario(id); onOpen(); };
   const remove = async (id: string, name: string) => {
     if (await confirm({ title: `Delete “${name}”?`, message: "This can't be undone.", confirmLabel: "Delete", danger: true })) deleteScenario(id);
@@ -378,9 +394,7 @@ export default function ScenariosHub({ livePrices, onOpen }: { livePrices: LiveP
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap" }}>
-            <Stat label="Cash" value={fmtBal(snapshot.liquid_assets.cash_savings)} />
-            <Stat label="401(k)" value={fmtBal(snapshot.retirement_assets.k401)} />
-            <Stat label="Roth IRA" value={fmtBal(snapshot.retirement_assets.roth_ira)} />
+            {topBuckets.map((b) => <Stat key={b.label} label={b.label} value={fmtBal(b.value)} />)}
             {/* A self-contained chip so it reads as a deliberate action, not a
                 value floating between the stats' label and number rows. */}
             <span aria-hidden style={{ width: 1, alignSelf: "stretch", minHeight: 30, background: C.border, flexShrink: 0 }} />

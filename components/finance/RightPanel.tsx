@@ -170,6 +170,8 @@ interface Props {
 export default function RightPanel({ livePrices }: Props) {
   const { snapshot, config } = useFinancialStore();
   const dollarMode = useUIStore((s) => s.dollarMode);
+  const setPlanPanelOpen = useUIStore((s) => s.setPlanPanelOpen);
+  const planPanelOpen = useUIStore((s) => s.planPanelOpen);
   const inflationRate = config.market_assumptions.inflation_rate || 0;
   const dollarBasisLabel = dollarMode === "future" ? "future (nominal) dollars" : "today's dollars";
   const { children } = useHorizonProfile();
@@ -386,7 +388,9 @@ export default function RightPanel({ livePrices }: Props) {
       <FireMoments netWorth={currentNW} swrTarget={swrTarget} isIndependent={todayPoint?.isIndependent ?? false} savingsRate={savingsRate} coastFI={coastFI} />
 
       {/* ── Scenario levers — the headline interaction ── */}
-      <ScenarioLevers />
+      {/* The "Edit full plan" affordance opens the side panel; hide it while the
+          panel is already open to avoid a redundant control. */}
+      <ScenarioLevers onOpenEditor={planPanelOpen ? undefined : () => setPlanPanelOpen(true)} />
 
       {/* ── Off-track warning — this plan never reaches FI by age 70 ── */}
       {!indepPoint && (

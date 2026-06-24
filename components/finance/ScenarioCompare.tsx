@@ -103,7 +103,8 @@ export default function ScenarioCompare({ livePrices, hiddenIds }: { livePrices:
             <ReferenceLine key={`fi-${r.id}`} x={r.fiDate} stroke={r.color} strokeDasharray="4 4" strokeOpacity={0.6} />
           ) : null)}
           {visible.map((r) => (
-            <Line key={r.id} type="monotone" dataKey={r.id} name={r.id} stroke={r.color} strokeWidth={2} dot={false} isAnimationActive={false} />
+            <Line key={r.id} type="monotone" dataKey={r.id} name={r.id} stroke={r.color} strokeWidth={2} dot={false}
+              isAnimationActive animationDuration={500} />
           ))}
         </LineChart>
       </ResponsiveContainer>

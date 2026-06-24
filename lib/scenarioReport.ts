@@ -1,0 +1,376 @@
+// ── Scenario → plain-text report ─────────────────────────────────────────────
+//
+// Serializes a saved scenario (balance sheet + assumptions) AND the methodology
+// the engine uses into a single self-contained, plain-text/Markdown document.
+// The intent: paste it into an LLM (or hand it to an advisor) to independently
+// re-derive and cross-check the numbers. Every formula below mirrors what
+// `engine/calculator.ts` actually does, with the scenario's own parameters
+// substituted in, so the math is auditable rather than a black box.
+
+import {
+  runSimulation,
+  findIndependencePoint,
+  type FinancialSnapshot,
+  type SimulationConfiguration,
+  type TrajectoryPoint,
+} from "@/engine/calculator";
+import { runMonteCarlo } from "@/engine/montecarlo";
+import { estimateMonthlySocialSecurity } from "@/engine/social_security";
+
+const usd = (n: number) =>
+  n < 0
+    ? `-$${Math.abs(Math.round(n)).toLocaleString("en-US")}`
+    : `$${Math.round(n).toLocaleString("en-US")}`;
+const usd0 = (n: number) => usd(n);
+const pct = (n: number) => `${n}%`;
+
+/** A real (today's-dollar) rate from a nominal one, per the Fisher relation. */
+const toReal = (nominalPct: number, inflationPct: number) =>
+  ((1 + nominalPct / 100) / (1 + inflationPct / 100) - 1) * 100;
+
+const round1 = (n: number) => Math.round(n * 10) / 10;
+
+export interface ScenarioReportInput {
+  scenarioName: string;
+  snapshot: FinancialSnapshot;
+  config: SimulationConfiguration;
+  liveGoogPrice?: number;
+  /** Run Monte Carlo (slower) and include the success-rate section. Default true. */
+  includeMonteCarlo?: boolean;
+  /** ISO date string for the report header (the engine forbids Date.now()). */
+  generatedAt?: string;
+}
+
+export function buildScenarioReport(input: ScenarioReportInput): string {
+  const { scenarioName, snapshot, config } = input;
+  const live = input.liveGoogPrice ?? 0;
+  const ma = config.market_assumptions;
+  const sp = config.spending;
+  const ip = config.income_profile;
+  const ta = config.tax_assumptions;
+  const cp = config.career_path;
+  const infl = ma.inflation_rate || 0;
+
+  const trajectory = runSimulation(snapshot, config, live);
+  const fi = findIndependencePoint(trajectory);
+  const today = trajectory[0];
+  const last = trajectory[trajectory.length - 1];
+  const thisYear = input.generatedAt
+    ? new Date(input.generatedAt).getUTCFullYear()
+    : (cp.exit_year - 1); // fall back to a deterministic anchor
+  const birthYear = config.birth_year || 1980;
+  const startAge = thisYear - birthYear;
+
+  // Retirement point (first month in the RETIRED phase) for a snapshot there.
+  const retirePoint = trajectory.find((p) => p.currentPhase === "RETIRED");
+
+  const L: string[] = [];
+  const p = (s = "") => L.push(s);
+
+  // ── Header ────────────────────────────────────────────────────────────────
+  p(`# Retirement plan: "${scenarioName}"`);
+  p();
+  p(
+    `This document describes a retirement projection — its inputs, the exact ` +
+      `equations used, and the resulting numbers — in enough detail to ` +
+      `independently verify the math. **All dollar figures are in today's ` +
+      `(real / inflation-adjusted) dollars unless stated otherwise.** The model ` +
+      `runs monthly from the present through age 100.`,
+  );
+  p();
+  p(
+    `> If you're an LLM reading this: please re-derive the headline results ` +
+      `(FI number, the year financial independence is reached, and ending net ` +
+      `worth) from the inputs and formulas below, and flag any place where your ` +
+      `calculation diverges from the "Results" section or where a modeling ` +
+      `assumption looks wrong.`,
+  );
+  p();
+
+  // ── 1. Who ──────────────────────────────────────────────────────────────────
+  p(`## 1. Household`);
+  p();
+  p(`- Current age (primary): **${startAge}** (birth year ${birthYear})`);
+  p(`- Filing status: **${ta.filing_status}**`);
+  p(`- State of residence: **${ta.state_of_residence}**`);
+  if (ip.use_partner_income) {
+    const pby = ip.partner_birth_year;
+    p(`- Partner: yes${pby ? ` (born ${pby}, age ${thisYear - pby})` : ""}`);
+  } else {
+    p(`- Partner: no`);
+  }
+  const kids = config.children ?? [];
+  if (kids.length) {
+    p(
+      `- Children (${kids.length}): birth years ${kids
+        .map((k) => k.birthYear)
+        .join(", ")}`,
+    );
+  }
+  p(`- W-4 allowances claimed: ${ta.w4_allowances ?? 0} (each shields $4,300 of income-taxable wages)`);
+  p();
+
+  // ── 2. Balance sheet ────────────────────────────────────────────────────────
+  const la = snapshot.liquid_assets;
+  const ra = snapshot.retirement_assets;
+  const liab = snapshot.liabilities;
+  const taxableStart = la.vanguard_bridge + la.cash_savings;
+  const tradStart = ra.k401 + ra.traditional_ira;
+  const eduStart = (snapshot.education_assets.accounts || []).reduce(
+    (s, a) => s + a.balance,
+    0,
+  );
+  const otherInv = snapshot.other_investments ?? [];
+
+  p(`## 2. Starting balance sheet (today's dollars)`);
+  p();
+  p(`| Bucket | Value | Tax treatment on withdrawal |`);
+  p(`|---|--:|---|`);
+  p(`| Taxable brokerage + cash | ${usd(taxableStart)} | LTCG on embedded gains only |`);
+  p(`| Traditional 401(k)/IRA | ${usd(tradStart)} | ordinary income (fully taxed) |`);
+  p(`| Roth IRA | ${usd(ra.roth_ira)} | tax-free |`);
+  p(`| 529 (education) | ${usd(eduStart)} | education-only; excluded from net worth's FI assets |`);
+  if (otherInv.length) {
+    for (const inv of otherInv) {
+      p(
+        `| Holding: ${inv.symbol} (${inv.shares} sh) | ${usd(
+          inv.shares * inv.current_price,
+        )} | LTCG on gain over basis ${usd(inv.shares * inv.cost_basis)} |`,
+      );
+    }
+  }
+  p(`| Mortgage balance | ${usd(-liab.mortgage_balance)} | ${pct(liab.mortgage_interest_rate ?? 3.5)} fixed |`);
+  if (liab.consumer_debt) p(`| Consumer debt | ${usd(-liab.consumer_debt)} | paid down when cash > $50k |`);
+  p();
+  p(
+    `**Net worth today: ${usd(today?.totalNetWorth ?? 0)}.** Note: the mortgage ` +
+      `is *excluded* from net worth (the offsetting home value isn't tracked), ` +
+      `but consumer debt is netted out.`,
+  );
+  p();
+
+  // ── 3. Assumptions ──────────────────────────────────────────────────────────
+  p(`## 3. Economic & market assumptions`);
+  p();
+  p(`| Parameter | Nominal | Real (÷ inflation) |`);
+  p(`|---|--:|--:|`);
+  p(`| Inflation (CPI) | ${pct(infl)} | — |`);
+  p(`| Diversified market return | ${pct(ma.market_return_rate)} | ${pct(round1(toReal(ma.market_return_rate, infl)))} |`);
+  p(`| Volatility drag (subtracted before growth) | ${pct(ma.volatility_drag)} | — |`);
+  p(`| Concentrated/employer stock growth | ${pct(ma.goog_growth_rate)} | ${pct(round1(toReal(ma.goog_growth_rate, infl)))} |`);
+  p(`| Salary growth (raises) | ${pct(ip.income_growth_rate || 0)} | ${pct(round1(toReal(ip.income_growth_rate || 0, infl)))} |`);
+  p(`| Taxable-account dividend tax drag | ${pct(ma.taxable_dividend_drag ?? 0.4)} | — |`);
+  p(`| Healthcare inflation *above* CPI (real) | — | ${pct(ma.healthcare_inflation_premium ?? 2)} |`);
+  p(`| Monte Carlo return volatility (σ) | ${pct(ma.return_volatility ?? 15)} | — |`);
+  p();
+  p(`**Real-rate conversion (Fisher):** \`real = (1 + nominal) / (1 + inflation) − 1\`.`);
+  p(
+    `The entire projection runs in today's dollars, so growth is applied at the ` +
+      `*real* rate. This also keeps the fixed 2025 tax brackets valid year over ` +
+      `year (no phantom bracket creep).`,
+  );
+  p();
+  p(`**Monthly compounding:** an annual rate \`r\` (as a %) becomes a monthly factor`);
+  p("```");
+  p(`monthly = (1 + r/100)^(1/12) − 1`);
+  p("```");
+  p(
+    `(Note: this is true compounding, **not** \`r/12\`. Each asset bucket is ` +
+      `multiplied by \`(1 + monthly)\` every month.)`,
+  );
+  p();
+  p(`Per-bucket monthly real growth actually applied:`);
+  const eff = Math.max(0, ma.market_return_rate - ma.volatility_drag);
+  const effReal = toReal(eff, infl);
+  const taxableReal = effReal - (ma.taxable_dividend_drag ?? 0.4);
+  p(
+    `- Diversified market return net of drag: \`max(0, ${ma.market_return_rate} − ${ma.volatility_drag}) = ${round1(eff)}%\` nominal → \`${round1(effReal)}%\` real.`,
+  );
+  p(`- Traditional 401(k)/IRA, Roth, 529 grow at that real market rate.`);
+  p(`- Taxable brokerage grows at the real market rate **minus** the ${pct(ma.taxable_dividend_drag ?? 0.4)} dividend drag → \`${round1(taxableReal)}%\` real.`);
+  p();
+
+  // ── 4. Career & income path ──────────────────────────────────────────────────
+  const sabbEnd = cp.exit_year + (cp.use_sabbatical ? cp.sabbatical_duration : 0);
+  const jumpEnd = sabbEnd + (cp.use_jump ? cp.jump_duration : 0);
+  const bridgeEnd = jumpEnd + (cp.use_bridge ? cp.bridge_duration : 0);
+  p(`## 4. Career path & income`);
+  p();
+  p(`- Primary gross salary today: ${usd(ip.gross_annual_salary)}/yr, target bonus ${pct(ip.target_bonus_rate || 0)}.`);
+  p(`- Exit from primary job: **${cp.exit_year}** (age ${cp.exit_year - birthYear}).`);
+  if (cp.use_sabbatical) p(`- Sabbatical: ${cp.exit_year}–${sabbEnd} (no earned income).`);
+  if (cp.use_jump) p(`- "Jump" job: ${sabbEnd}–${jumpEnd} at ${usd(ip.jump_gross_annual)}/yr, bonus ${pct(ip.jump_bonus_rate || 0)}.`);
+  if (cp.use_bridge) p(`- Bridge job: ${jumpEnd}–${bridgeEnd} at ${usd(ip.bridge_gross_annual)}/yr.`);
+  p(`- Full retirement (no earned income) from **${bridgeEnd}** onward.`);
+  if (ip.monthly_rental_income) p(`- Rental income: ${usd(ip.monthly_rental_income)}/mo, growing ${pct(ip.rental_income_growth_rate ?? 3)}/yr nominal (FICA-exempt, ordinary income tax).`);
+  if (ip.monthly_parttime_income) p(`- Part-time income: ${usd(ip.monthly_parttime_income)}/mo (W-2, taxed with FICA).`);
+  if (ip.use_partner_income && ip.partner_gross_annual_salary)
+    p(`- Partner salary: ${usd(ip.partner_gross_annual_salary)}/yr until ${ip.partner_retirement_year ?? "—"}.`);
+  p();
+  p(`Salary in year *t* = base × (1 + real_raise)^t, where real_raise = Fisher(${pct(ip.income_growth_rate || 0)}). Contributions: up to ${usd(ip.annual_401k_contribution ?? 23500)} to the 401(k) (pre-tax, reduces income tax but not FICA), plus a ${usd(ip.annual_backdoor_roth ?? 7000)}/yr backdoor Roth while working.`);
+  p();
+
+  // ── 5. Spending ───────────────────────────────────────────────────────────────
+  p(`## 5. Spending (today's dollars)`);
+  p();
+  p(`- Core lifestyle: **${usd(sp.monthly_lifestyle)}/mo** (${usd(sp.monthly_lifestyle * 12)}/yr).`);
+  if (config.children?.length && sp.use_empty_nest !== false) {
+    const enSpend = sp.empty_nest_linked !== false ? sp.monthly_lifestyle * 0.85 : (sp.empty_nest_monthly_spend ?? sp.monthly_lifestyle * 0.85);
+    p(`- Empty-nest spend from ${sp.empty_nest_year ?? "—"}: ${usd(enSpend)}/mo (${sp.empty_nest_linked !== false ? "−15% of lifestyle" : "custom"}).`);
+  }
+  p(`- Self-paid healthcare premium basis: ${usd(sp.healthcare_premium)}/mo for the household, escalating at CPI + ${pct(ma.healthcare_inflation_premium ?? 2)} real per year. Out-of-pocket is $0 while employer-covered.`);
+  p(`- Mortgage payment: ${usd(sp.mortgage_payment)}/mo (nominal; deflated to real over time since it's a fixed contract).`);
+  if (sp.ltc_annual_cost) p(`- Long-term care: ${usd(sp.ltc_annual_cost)}/yr for ${sp.ltc_years ?? 3} years starting age ${sp.ltc_start_age ?? 80}.`);
+  if (config.life_events?.length) {
+    p(`- One-off life events:`);
+    for (const ev of config.life_events) p(`  - ${ev.year}: ${ev.name} — ${usd(ev.cost)}${ev.name.toLowerCase().includes("college") ? " (paid from 529 first)" : ""}`);
+  }
+  p();
+
+  // ── 6. Taxes ──────────────────────────────────────────────────────────────────
+  p(`## 6. Taxes`);
+  p();
+  p(`Taxes use 2025 federal brackets, FICA, NIIT, and the resident state's brackets. Key pieces:`);
+  p();
+  p(`- **Federal ordinary income:** 2025 brackets for ${ta.filing_status} (10/12/22/24/32/35/37%) on income after the standard deduction (or itemized, if larger). Itemized here = deductible mortgage interest (capped at $750k of acquisition debt) + $10k SALT${ta.itemized_deductions ? ` + ${usd(ta.itemized_deductions)} other` : ""}.`);
+  p(`- **FICA:** 6.2% Social Security up to the 2025 wage base ($176,100) + 1.45% Medicare + 0.9% additional Medicare over the threshold. Applies to W-2 wages only (not rental, not 401k-reduced).`);
+  p(`- **NIIT:** 3.8% on net investment income above the MAGI threshold (${ta.filing_status === "married_joint" ? "$250,000" : "$200,000"}).`);
+  p(`- **Long-term capital gains:** 0/15/20% federal by income; embedded gains haircut at a 15% midpoint for the FI "spendable assets" test.`);
+  p(`- The model distinguishes the **effective rate** (used to net down steady salary/rental) from the **marginal rate** (used for bonuses, RSU vesting, and the emergency-withdrawal rate = min(55%, marginal + 5%)).`);
+  p();
+
+  // ── 7. Social Security ────────────────────────────────────────────────────────
+  if (config.social_security) {
+    const ss = config.social_security;
+    const claimAge = ss.start_age;
+    const yearsWorked = cp.exit_year - (birthYear + 22);
+    const estPrimary = ss.social_security_linked !== false
+      ? estimateMonthlySocialSecurity(ip.gross_annual_salary, claimAge, yearsWorked)
+      : ss.monthly_amount;
+    p(`## 7. Social Security`);
+    p();
+    p(`- Claim age: **${claimAge}** (Full Retirement Age = 67).`);
+    p(`- Primary benefit: ${ss.social_security_linked !== false ? `estimated **${usd(estPrimary)}/mo**` : `manual **${usd(ss.monthly_amount)}/mo**`}.`);
+    if (ip.use_partner_income) {
+      const pb = ss.partner_ss_linked !== false ? estimateMonthlySocialSecurity(ip.partner_gross_annual_salary || 0, claimAge) : (ss.partner_monthly_amount || 0);
+      p(`- Partner benefit: ${usd(pb)}/mo, starting when the partner reaches ${claimAge}.`);
+    }
+    p();
+    p(`PIA estimate (from salary, as a proxy for the SSA's 35-year indexed average):`);
+    p("```");
+    p(`AIME   = min(salary, 176100) / 12 × min(1, yearsWorked/35)   [yearsWorked ≈ ${Math.max(0, yearsWorked)}]`);
+    p(`PIA    = 0.90 × min(AIME, 1226)`);
+    p(`       + 0.32 × (min(AIME, 7391) − 1226)`);
+    p(`       + 0.15 × max(0, AIME − 7391)`);
+    p(`benefit = PIA × claim_factor   (FRA=67; +8%/yr delayed to 70; reduced if earlier)`);
+    p("```");
+    p(`Up to 85% of benefits are federally taxable (graduated by provisional income); the resident state's SS treatment is applied separately.`);
+    p();
+  }
+
+  // ── 8. Withdrawals, RMDs, healthcare subsidies, survivor ──────────────────────
+  p(`## 8. Retirement mechanics`);
+  p();
+  p(`- **Withdrawal waterfall** when monthly cash flow is negative: (1) taxable accounts — concentrated stock then diversified brokerage, taxing only the embedded gain; (2) traditional/pre-tax — fully taxed as ordinary income (~30% assumed); (3) Roth **last** (tax-free, RMD-free, left to compound).`);
+  const rmdStart = birthYear >= 1960 ? 75 : 73;
+  p(`- **RMDs:** from age ${rmdStart} (SECURE 2.0), each year withdraws \`traditional_balance ÷ IRS_Uniform_Lifetime_divisor(age)\`, taxed as ordinary income; net proceeds move to cash.`);
+  p(`- **Medicare/IRMAA:** at age ${config.medicare?.start_age ?? 65}, premiums of ${usd(config.medicare?.monthly_premium ?? 185)}/mo per adult apply, plus an IRMAA surcharge driven by MAGI from two years prior.`);
+  if (config.tax_optimization?.enable_aca_optimization ?? true)
+    p(`- **ACA subsidies:** during pre-Medicare retirement/sabbatical, the self-paid premium is capped at an ARPA-style % of MAGI (household size ${config.tax_optimization?.aca_family_size ?? 4}), so keeping taxable income low yields larger subsidies.`);
+  if (config.tax_optimization?.enable_roth_conversion ?? true)
+    p(`- **Roth conversions:** during a low-income sabbatical, traditional balances are converted up to the ${usd(config.tax_optimization?.roth_conversion_target_bracket ?? 206700)} taxable-income ceiling, paying tax now from cash.`);
+  if (ta.filing_status === "married_joint" && (config.mortality?.first_death_age ?? 0) > 0) {
+    p(`- **Survivor transition:** at primary age ${config.mortality!.first_death_age}, the household files single, keeps the larger SS benefit, and spends ${Math.round((config.mortality?.survivor_spending_factor ?? 0.75) * 100)}% of the couple's amount.`);
+  }
+  p();
+
+  // ── 9. The FI test ────────────────────────────────────────────────────────────
+  p(`## 9. Financial-independence test (the headline)`);
+  p();
+  p(`Each month the model computes a target and compares spendable assets against it.`);
+  p();
+  p(`**FI Number (Rule of 25 / 4% safe withdrawal rate):**`);
+  p("```");
+  p(`annual_need   = (lifestyle_monthly + self_paid_healthcare_monthly) × 12`);
+  p(`passive_net   = (rental_net + social_security_net) × 12`);
+  p(`net_need      = max(0, annual_need − passive_net)`);
+  p(`FI_number     = net_need / 0.04        (i.e. 25 × net_need)`);
+  p("```");
+  p();
+  p(`**Spendable ("after-tax") assets** — what's compared against the FI number:`);
+  p("```");
+  p(`spendable = cash + roth`);
+  p(`          + traditional × (1 − ordinary_withdrawal_rate)`);
+  p(`          + taxable_holdings − 0.15 × embedded_unrealized_gains`);
+  p("```");
+  p(`A household is financially independent once \`spendable ≥ FI_number\` and stays there for the rest of the horizon (a durable crossing, not a transient one during a stock windfall).`);
+  p();
+
+  // ── 10. Results ───────────────────────────────────────────────────────────────
+  p(`## 10. Results (computed by this engine)`);
+  p();
+  if (today) {
+    p(`- **FI Number today:** ${usd(today.swrTarget)}  (= 25 × net annual need of ${usd(today.annualExpenseNeed - today.annualPassiveIncome)})`);
+    p(`  - annual expense need: ${usd(today.annualExpenseNeed)}; passive income (net): ${usd(today.annualPassiveIncome)}`);
+    p(`- **Spendable assets today:** ${usd(today.investableAfterTax)} (gross investable ${usd(today.investableAssets)})`);
+    p(`- **Net worth today:** ${usd(today.totalNetWorth)}`);
+  }
+  if (fi) {
+    p(`- **Financial independence reached: ${fi.date}** (age ${Number((fi.date.match(/\d{4}/) || [])[0]) - birthYear}).`);
+    p(`  - At that point: spendable ${usd(fi.investableAfterTax)} ≥ FI number ${usd(fi.swrTarget)}.`);
+  } else {
+    p(`- **Financial independence: NOT reached by age 100** under these assumptions — spendable assets never durably cover the FI number.`);
+  }
+  if (retirePoint) {
+    p(`- **At full retirement (${retirePoint.date}):** net worth ${usd(retirePoint.totalNetWorth)}, spendable ${usd(retirePoint.investableAfterTax)}, annual need ${usd(retirePoint.annualExpenseNeed)}.`);
+  }
+  if (last) {
+    p(`- **End of horizon (${last.date}, age ${startAge + Math.round(last.monthIndex / 12)}):** net worth ${usd(last.totalNetWorth)}, spendable ${usd(last.investableAfterTax)}.`);
+  }
+  p();
+
+  // Trajectory sample — every 5 years.
+  p(`### Net-worth trajectory (5-year samples, today's dollars)`);
+  p();
+  p(`| Year | Age | Phase | Net worth | Spendable | FI number | Independent? |`);
+  p(`|---|--:|---|--:|--:|--:|:--:|`);
+  for (const ptn of trajectory) {
+    if (ptn.monthIndex % 60 !== 0) continue;
+    const yr = Number((ptn.date.match(/\d{4}/) || [])[0]);
+    p(
+      `| ${ptn.date} | ${yr - birthYear} | ${ptn.currentPhase} | ${usd0(ptn.totalNetWorth)} | ${usd0(ptn.investableAfterTax)} | ${usd0(ptn.swrTarget)} | ${ptn.isIndependent ? "✓" : "—"} |`,
+    );
+  }
+  p();
+
+  // ── 11. Monte Carlo ───────────────────────────────────────────────────────────
+  if (input.includeMonteCarlo ?? true) {
+    const mc = runMonteCarlo(snapshot, config, live, { runs: 400 });
+    p(`## 11. Sequence-of-returns risk (Monte Carlo)`);
+    p();
+    p(`The deterministic path above uses a single fixed real return. Monte Carlo instead draws a random annual real return each year from a normal distribution:`);
+    p("```");
+    p(`return ~ Normal(mean = ${round1(toReal(eff, infl))}% real, σ = ${ma.return_volatility ?? 15}%)`);
+    p("```");
+    p(`across ${mc.runs} independent lifetime simulations. "Success" = spendable assets never hit zero once retired.`);
+    p();
+    p(`- **Success rate: ${Math.round(mc.successRate * 100)}%** of paths fund the plan to age 100.`);
+    p(`- Median ending spendable assets: ${usd(mc.medianFinalNetWorth)}.`);
+    p();
+  }
+
+  // ── 12. Known simplifications ─────────────────────────────────────────────────
+  p(`## 12. Known simplifications (worth scrutinizing)`);
+  p();
+  p(`- Runs entirely in today's dollars; nominal display just re-inflates the output.`);
+  p(`- Social Security is estimated from current salary as a proxy for the 35-year indexed average (override available).`);
+  p(`- Tax brackets/limits are fixed at 2025 values (valid because the model is real-dollar).`);
+  p(`- The home asset behind the mortgage isn't tracked, so the mortgage is excluded from net worth.`);
+  p(`- Effective vs. marginal tax rates are computed per-year, not per-transaction lot.`);
+  p(`- The survivor transition (if enabled) continues on the primary's age/claim clock rather than each spouse's own mortality.`);
+  p();
+  p(`---`);
+  p(`*Generated by Taper. Figures are planning estimates, not financial advice.*`);
+
+  return L.join("\n");
+}

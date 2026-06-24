@@ -4,7 +4,7 @@ import {
   ResponsiveContainer, AreaChart, Area, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine,
 } from "recharts";
-import { Flag, CheckCircle, TrendingUp, CalendarDays, Sparkles, AlertTriangle } from "lucide-react";
+import { Flag, CheckCircle, TrendingUp, CalendarDays, Sparkles, AlertTriangle, ZoomIn, ZoomOut } from "lucide-react";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
 import { runSimulation, findIndependencePoint, toDisplayDollars } from "@/engine/calculator";
@@ -471,18 +471,19 @@ export default function RightPanel({ livePrices }: Props) {
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-            {/* Age horizon — a compact toggle nestled in the controls row (adds no height) */}
+            {/* Horizon zoom — magnifier toggles between the full (to 100) and the
+                focused (to 75) view. Zoomed-out shows zoom-in, and vice-versa. */}
             {chartView !== "timeline" && (
               <button
                 onClick={() => setAgeCap((a) => (a === 100 ? 75 : 100))}
-                title="Toggle the projection horizon"
-                aria-label={`Projection horizon: to age ${ageCap}. Toggle.`}
+                title={ageCap === 100 ? "Zoom in — focus on the years to age 75" : "Zoom out — show the full horizon to age 100"}
+                aria-label={ageCap === 100 ? "Zoom in to age 75" : "Zoom out to age 100"}
                 style={{
-                  fontSize: 10, fontWeight: 600, padding: "5px 10px", borderRadius: 6, cursor: "pointer",
-                  border: `1px solid ${C.border}`, background: C.bg, color: C.inkMid, whiteSpace: "nowrap",
+                  display: "flex", alignItems: "center", justifyContent: "center", width: 30, height: 28,
+                  borderRadius: 6, cursor: "pointer", border: `1px solid ${C.border}`, background: C.bg, color: C.inkMid,
                 }}
               >
-                to age {ageCap}
+                {ageCap === 100 ? <ZoomIn size={15} /> : <ZoomOut size={15} />}
               </button>
             )}
 

@@ -20,6 +20,7 @@ import FinancialDashboard    from "@/components/finance/FinancialDashboard";
 import PriceTicker           from "@/components/finance/PriceTicker";
 import LifeEventsFab         from "@/components/forecasting/LifeEventsFab";
 import SettingsPanel         from "@/components/SettingsPanel";
+import ScenarioReportModal   from "@/components/ScenarioReportModal";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
 import { useBrowserBackNav } from "@/hooks/useBrowserBackNav";
@@ -69,6 +70,7 @@ export default function DashboardShell() {
         <Header view={appView} onViewChange={setAppView} mode="hub" />
         <SettingsPanel />
         <FinancesOverlay livePrices={prices.livePrices} />
+        <ScenarioReportModal livePrices={prices.livePrices} />
         <ScenariosHub livePrices={prices.livePrices} onOpen={() => setScenarioOpen(true)} />
       </div>
     );
@@ -86,6 +88,7 @@ export default function DashboardShell() {
       />
       <SettingsPanel />
       <FinancesOverlay livePrices={prices.livePrices} />
+      <ScenarioReportModal livePrices={prices.livePrices} />
 
       {/* Countdown — reflects the open scenario, across both deep-dive tabs.
           The portfolio price ticker rides on the same line to save a widget. */}

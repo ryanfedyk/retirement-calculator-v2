@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { runSimulation, findIndependencePoint } from "@/engine/calculator";
+import { estimateMonthlySocialSecurity } from "@/engine/social_security";
 import type { FinancialSnapshot, SimulationConfiguration } from "@/engine/calculator";
 import { DEFAULT_SIM_CONFIG, DEFAULT_SNAPSHOT } from "@/config/sharedConfig";
 
@@ -245,5 +246,50 @@ describe("required minimum distributions (RMDs)", () => {
     const traj = runSimulation(snap, cfg, 200);
     // No growth, no RMD yet → the pre-tax balance is untouched for years.
     expect(traj[24].retirement).toBeCloseTo(traj[0].retirement, -1);
+  });
+});
+
+describe("Social Security taxation & early-retiree benefit", () => {
+  function ssRetiree(annualRental: number) {
+    const cfg = baseConfig();
+    cfg.birth_year = YEAR - 68;          // age 68, already claiming
+    cfg.career_path.exit_year = YEAR;
+    cfg.career_path.use_sabbatical = false;
+    cfg.career_path.use_jump = false;
+    cfg.career_path.use_bridge = false;
+    cfg.income_profile.gross_annual_salary = 120_000; // career earnings → PIA
+    cfg.income_profile.monthly_rental_income = annualRental / 12;
+    cfg.social_security.start_age = 67;
+    cfg.spending.monthly_lifestyle = 0;
+    cfg.spending.healthcare_premium = 0;
+    cfg.spending.mortgage_payment = 0;
+    cfg.medicare.monthly_premium = 0;
+    return runSimulation(baseSnap(), cfg, 200);
+  }
+
+  it("taxes less of the benefit when other income is low (provisional income)", () => {
+    const lowIncome = ssRetiree(0)[0].socialSecurityNet;
+    const highIncome = ssRetiree(80_000)[0].socialSecurityNet;
+    // Same gross benefit; the low-income retiree keeps more of it (≈ untaxed),
+    // the high-income retiree has up to 85% of it pulled into taxable income.
+    expect(lowIncome).toBeGreaterThan(highIncome);
+    expect(lowIncome).toBeGreaterThan(40_000); // essentially untaxed at this income
+  });
+});
+
+describe("early-retiree Social Security benefit (AIME)", () => {
+  it("scales the benefit down for a shorter earnings record", () => {
+    const full = estimateMonthlySocialSecurity(120_000, 67, 35);
+    const short = estimateMonthlySocialSecurity(120_000, 67, 20);
+    // Meaningfully reduced, but not strictly proportional — the progressive PIA
+    // bend points give a higher replacement rate on the (now lower) AIME.
+    expect(short).toBeLessThan(full * 0.85);
+    expect(short).toBeGreaterThan(full * 0.5);
+  });
+
+  it("does not boost the benefit beyond a full 35-year record", () => {
+    const full = estimateMonthlySocialSecurity(120_000, 67, 35);
+    const over = estimateMonthlySocialSecurity(120_000, 67, 45);
+    expect(over).toBe(full);
   });
 });

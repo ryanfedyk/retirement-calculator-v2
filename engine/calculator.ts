@@ -199,6 +199,21 @@ function acaMaxContributionPct(fplRatio: number): number {
   return 0.085; // ARP cap: max 8.5% of income for any income level
 }
 
+// ── IRS Uniform Lifetime Table (2022+) ───────────────────────────────────────
+// RMD divisor by age: the required minimum distribution is the prior year-end
+// pre-tax balance divided by this factor. Table covers the RMD ages through the
+// projection horizon (100); below 72 there is no RMD (Infinity → zero draw).
+const RMD_DIVISORS: Record<number, number> = {
+  72: 27.4, 73: 26.5, 74: 25.5, 75: 24.6, 76: 23.7, 77: 22.9, 78: 22.0, 79: 21.1,
+  80: 20.2, 81: 19.4, 82: 18.5, 83: 17.7, 84: 16.8, 85: 16.0, 86: 15.2, 87: 14.4,
+  88: 13.7, 89: 12.9, 90: 12.2, 91: 11.5, 92: 10.8, 93: 10.1, 94: 9.5, 95: 8.9,
+  96: 8.4, 97: 7.8, 98: 7.3, 99: 6.8, 100: 6.4,
+};
+function rmdDivisor(age: number): number {
+  if (age < 72) return Infinity;
+  return RMD_DIVISORS[age] ?? 6.4; // hold the oldest factor past 100
+}
+
 // ── Main simulation ───────────────────────────────────────────────────────────
 
 export const runSimulation = (
@@ -291,6 +306,8 @@ export const runSimulation = (
   const CATCHUP_AGE     = 50;
   // Federal mortgage acquisition debt deductibility cap (post-12/16/2017 loans)
   const FED_MORTGAGE_CAP = 750_000;
+  // RMD start age (SECURE 2.0): 73 for those born 1951–1959, 75 for 1960+.
+  const RMD_START_AGE = (config.birth_year ?? 1980) >= 1960 ? 75 : 73;
 
   // Convert an annual percentage rate (e.g. 7) to its TRUE monthly compounding
   // factor: (1 + r)^(1/12) − 1. Dividing the annual rate by 12 overstates the
@@ -766,6 +783,32 @@ export const runSimulation = (
     }
 
     liquidCash += divestmentProceeds;
+
+    // ── Required Minimum Distributions (SECURE 2.0) ──────────────────────────
+    // Past the RMD age the IRS forces an annual withdrawal from pre-tax balances
+    // (Uniform Lifetime Table), taxed as ordinary income. The after-tax proceeds
+    // move to cash. This both realizes the deferred tax the FI haircut anticipates
+    // and can push a late-retirement household's income up — the model previously
+    // let traditional balances compound untouched forever.
+    if (monthOfYear === 0 && currentAge >= RMD_START_AGE && tradBalance > 0) {
+      const rmdGross = tradBalance / rmdDivisor(currentAge);
+      const rmdTaxInput = {
+        filingStatus:         config.tax_assumptions.filing_status,
+        state:                config.tax_assumptions.state_of_residence,
+        grossIncome:          annualW2Gross,
+        preTaxDeductions:     annualK401,
+        ficaExemptIncome:     annualRentalGross,
+        itemizedDeductions:   totalItemizedFed,
+        nyItemizedDeductions: totalItemizedNY,
+        longTermCapitalGains: 0,
+        shortTermCapitalGains: 0,
+      };
+      const baseOrdTax = calculateTaxRaw(rmdTaxInput).totalTax;
+      const withRmdTax = calculateTaxRaw({ ...rmdTaxInput, ficaExemptIncome: annualRentalGross + rmdGross }).totalTax;
+      const rmdTax = Math.max(0, withRmdTax - baseOrdTax);
+      tradBalance -= rmdGross;
+      liquidCash  += rmdGross - rmdTax;
+    }
 
     // ── Net flow ───────────────────────────────────────────────────────────
     liquidCash += monthlyOrdinaryNet - expense;

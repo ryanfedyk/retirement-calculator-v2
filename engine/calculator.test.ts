@@ -434,6 +434,36 @@ describe("ACA subsidy in early retirement (#11)", () => {
     expect(lowT[36].healthcareCost).toBeLessThan(highT[36].healthcareCost);
     expect(lowT[36].healthcareCost).toBeLessThan(2_000); // heavily subsidized at low income
   });
+
+  it("sizes healthcare by the real household, not a static aca_family_size", () => {
+    // A married couple + 2 kids, all pre-Medicare, paying their own coverage.
+    // The premium is the full-household figure, so the unsubsidized cost should
+    // equal that premium — NOT premium × headcount (the old aca_family_size=1
+    // bug divided by 1 and then multiplied by 4).
+    const cfg = baseConfig();
+    cfg.tax_assumptions.filing_status = "married_joint";
+    cfg.birth_year = YEAR - 60;
+    cfg.income_profile.partner_birth_year = YEAR - 60;
+    cfg.career_path.exit_year = YEAR;
+    cfg.career_path.use_sabbatical = false;
+    cfg.career_path.use_jump = false;
+    cfg.career_path.use_bridge = false;
+    cfg.income_profile.gross_annual_salary = 0;
+    cfg.spending.monthly_lifestyle = 3_000;
+    cfg.spending.mortgage_payment = 0;
+    cfg.spending.healthcare_premium = 2_000;       // full-household monthly premium
+    cfg.market_assumptions.inflation_rate = 0;
+    cfg.market_assumptions.healthcare_inflation_premium = 0;
+    cfg.tax_optimization.enable_aca_optimization = false; // isolate the per-capita math
+    cfg.tax_optimization.aca_family_size = 1;             // must be ignored now
+    cfg.children = [{ birthYear: YEAR - 8 }, { birthYear: YEAR - 10 }];
+    const snap = baseSnap();
+    snap.liquid_assets.cash_savings = 3_000_000;
+    const t = runSimulation(snap, cfg, 200);
+    // Annualized: ~$2,000/mo × 12 = $24,000, not $96,000.
+    expect(t[12].healthcareCost).toBeGreaterThan(23_000);
+    expect(t[12].healthcareCost).toBeLessThan(25_000);
+  });
 });
 
 describe("survivor transition for couples (#14)", () => {

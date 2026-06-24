@@ -79,12 +79,15 @@ export function runMonteCarlo(
   const seed = opts.seed ?? 0x9e3779b9;
   const sampleEvery = Math.max(1, Math.floor(opts.sampleEvery ?? 12));
 
-  // Mean real return = the same deterministic real rate the engine would use
-  // (nominal expected return, less volatility drag, deflated by inflation).
+  // Mean for the random draws = the ARITHMETIC expected real return, NOT the
+  // deterministic engine's drag-adjusted rate. In a stochastic model the
+  // geometric "volatility drag" emerges on its own from the variance of the
+  // draws (≈ σ²/2 over time); subtracting `volatility_drag` here as well would
+  // double-penalize returns and understate the success rate. So deflate the raw
+  // expected return by inflation and let σ generate the drag.
   const infl = config.market_assumptions.inflation_rate || 0;
-  const drag = config.market_assumptions.volatility_drag || 0;
-  const nominalEff = Math.max(0, config.market_assumptions.market_return_rate - drag);
-  const meanRealPct = ((1 + nominalEff / 100) / (1 + infl / 100) - 1) * 100;
+  const nominalMean = Math.max(0, config.market_assumptions.market_return_rate);
+  const meanRealPct = ((1 + nominalMean / 100) / (1 + infl / 100) - 1) * 100;
   const sdPct = opts.volatilityPct ?? config.market_assumptions.return_volatility ?? 15;
 
   const rand = mulberry32(seed);

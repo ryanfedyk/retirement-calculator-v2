@@ -276,7 +276,7 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
   p(`- **RMDs:** from age ${rmdStart} (SECURE 2.0), each year withdraws \`traditional_balance ÷ IRS_Uniform_Lifetime_divisor(age)\`, taxed as ordinary income; net proceeds move to cash.`);
   p(`- **Medicare/IRMAA:** at age ${config.medicare?.start_age ?? 65}, premiums of ${usd(config.medicare?.monthly_premium ?? 185)}/mo per adult apply, plus an IRMAA surcharge driven by MAGI from two years prior.`);
   if (config.tax_optimization?.enable_aca_optimization ?? true)
-    p(`- **ACA subsidies:** during pre-Medicare retirement/sabbatical, the self-paid premium is capped at an ARPA-style % of MAGI (household size ${config.tax_optimization?.aca_family_size ?? 4}), so keeping taxable income low yields larger subsidies.`);
+    p(`- **ACA subsidies:** during pre-Medicare retirement/sabbatical, the self-paid premium is capped at an ARPA-style % of MAGI. Household size for the Federal-Poverty-Line test is derived from the actual household — ${ta.filing_status === "married_joint" ? 2 : 1} adult(s) + ${kids.filter((k) => thisYear - k.birthYear < 22).length} child(ren) on the plan today (it tapers as kids age out) — so keeping taxable income low yields larger subsidies.`);
   if (config.tax_optimization?.enable_roth_conversion ?? true)
     p(`- **Roth conversions:** during a low-income sabbatical, traditional balances are converted up to the ${usd(config.tax_optimization?.roth_conversion_target_bracket ?? 206700)} taxable-income ceiling, paying tax now from cash.`);
   if (ta.filing_status === "married_joint" && (config.mortality?.first_death_age ?? 0) > 0) {
@@ -350,8 +350,9 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
     p();
     p(`The deterministic path above uses a single fixed real return. Monte Carlo instead draws a random annual real return each year from a normal distribution:`);
     p("```");
-    p(`return ~ Normal(mean = ${round1(toReal(eff, infl))}% real, σ = ${ma.return_volatility ?? 15}%)`);
+    p(`return ~ Normal(mean = ${round1(toReal(ma.market_return_rate, infl))}% real, σ = ${ma.return_volatility ?? 15}%)`);
     p("```");
+    p(`The mean is the **arithmetic** expected real return (the volatility drag is *not* re-applied here): the geometric "drag" emerges naturally from σ's variance over time, so subtracting it again would double-count.`);
     p(`across ${mc.runs} independent lifetime simulations. "Success" = spendable assets never hit zero once retired.`);
     p();
     p(`- **Success rate: ${Math.round(mc.successRate * 100)}%** of paths fund the plan to age 100.`);

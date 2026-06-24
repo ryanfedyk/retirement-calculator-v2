@@ -34,17 +34,29 @@ export default function ScenarioReportModal({ livePrices }: { livePrices: LivePr
 
   const liveGoog = livePrices["GOOG"]?.price ?? livePrices["GOOGL"]?.price ?? 0;
 
+  // Apply live market prices to the holdings before reporting — exactly as the
+  // dashboard does. Without this the report uses each holding's stored price
+  // (often 0, since prices are fetched at runtime, not persisted), valuing the
+  // whole portfolio at $0 and under-counting net worth.
+  const enrichedSnapshot = useMemo(() => ({
+    ...snapshot,
+    other_investments: (snapshot.other_investments ?? []).map((inv) => {
+      const info = livePrices[inv.symbol.toUpperCase()];
+      return info ? { ...inv, current_price: info.price } : inv;
+    }),
+  }), [snapshot, livePrices]);
+
   const report = useMemo(() => {
     if (!scenario) return "";
     return buildScenarioReport({
       scenarioName: scenario.name,
-      snapshot,
+      snapshot: enrichedSnapshot,
       config: scenario.config,
       liveGoogPrice: liveGoog,
       includeMonteCarlo: true,
       generatedAt: new Date().toISOString(),
     });
-  }, [scenario, snapshot, liveGoog]);
+  }, [scenario, enrichedSnapshot, liveGoog]);
 
   if (!open) return null;
 

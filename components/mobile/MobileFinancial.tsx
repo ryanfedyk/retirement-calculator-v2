@@ -1,10 +1,11 @@
 "use client";
 import { useState, useMemo } from "react";
-import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, ReferenceLine, CartesianGrid } from "recharts";
+import { ResponsiveContainer, AreaChart, Area, Line, XAxis, YAxis, Tooltip, ReferenceLine, CartesianGrid } from "recharts";
 import { AlertTriangle } from "lucide-react";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { runSimulation, findIndependencePoint } from "@/engine/calculator";
+import { runMonteCarlo } from "@/engine/montecarlo";
 import { getLifeEvents } from "@/lib/horizonUtils";
 import { useHorizonProfile } from "@/config/horizonConfig";
 import { buildMomentumCards } from "@/components/finance/MotivationWidgets";
@@ -22,7 +23,7 @@ const fmtM = (v: number) => {
 };
 const fmtFull = (v: number) => `${v < 0 ? "-" : ""}$${Math.abs(Math.round(v)).toLocaleString()}`;
 
-type View = "wealth" | "income" | "expenses";
+type View = "wealth" | "income" | "expenses" | "risk";
 
 interface Props {
   livePrices: LivePrices;
@@ -102,6 +103,22 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
     const maxYear = birthYear + ageCap;
     return chartData.filter(d => { const y = Number(String(d.date).split(" ")[1]); return !y || y <= maxYear; });
   }, [chartData, ageCap, birthYear]);
+
+  // Monte Carlo (sequence-of-returns) — only when the Risk view is open, since it
+  // runs hundreds of full projections. Mirrors the desktop Risk tab.
+  const monteCarlo = useMemo(
+    () => (view === "risk" ? runMonteCarlo(enrichedSnapshot, config, liveGoogPrice, { runs: 300 }) : null),
+    [view, enrichedSnapshot, config, liveGoogPrice]
+  );
+  const riskData = useMemo(() => {
+    if (!monteCarlo) return [];
+    const maxYear = ageCap >= 100 ? Infinity : birthYear + ageCap;
+    return monteCarlo.bands
+      .filter(b => { const y = Number(String(b.date).split(" ")[1]); return !y || y <= maxYear; })
+      .map(b => ({ date: b.date, p50: b.p50, range: [b.p10, b.p90] as [number, number] }));
+  }, [monteCarlo, ageCap, birthYear]);
+  const successPct = monteCarlo ? Math.round(monteCarlo.successRate * 100) : null;
+  const successColor = successPct == null ? C.inkSoft : successPct >= 85 ? "#2a7a68" : successPct >= 70 ? C.warm : "#c0492b";
 
   const cp = config.career_path;
   const findDate = (pred: (p: typeof traj[number]) => boolean) => traj.find(pred)?.date;
@@ -195,7 +212,7 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
       <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 20, padding: "16px 12px 12px", touchAction: "pan-y" }}>
         {/* View pills */}
         <div style={{ display: "flex", gap: 6, padding: "0 4px 14px", justifyContent: "center" }}>
-          {(["wealth", "income", "expenses"] as View[]).map(v => (
+          {(["wealth", "income", "expenses", "risk"] as View[]).map(v => (
             <button key={v} onClick={() => setView(v)} style={{
               flex: 1, padding: "9px 0", borderRadius: 999, border: "none", cursor: "pointer",
               fontSize: 12, fontWeight: 600, textTransform: "capitalize",
@@ -223,6 +240,32 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
           in today&rsquo;s dollars
         </div>
 
+        {view === "risk" && (
+          <div style={{ textAlign: "center", marginBottom: 8 }}>
+            <span style={{ fontSize: 26, fontWeight: 700, color: successColor, fontVariantNumeric: "tabular-nums" }}>{successPct ?? "—"}%</span>
+            <div style={{ fontSize: 11, color: C.inkSoft, marginTop: 2 }}>of return paths fund this plan to age {ageCap}</div>
+          </div>
+        )}
+
+        {view === "risk" ? (
+          <ResponsiveContainer width="100%" height={300}>
+            <AreaChart data={riskData} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
+              <defs>
+                <linearGradient id="mRisk" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={C.teal} stopOpacity={0.22} />
+                  <stop offset="95%" stopColor={C.teal} stopOpacity={0.04} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={C.borderSoft} />
+              <XAxis dataKey="date" tick={{ fill: C.inkFaint, fontSize: 9 }} axisLine={false} tickLine={false}
+                interval="preserveStartEnd" minTickGap={50} tickFormatter={(d: string) => d.split(" ")[1] ?? d} />
+              <YAxis tick={{ fill: C.inkFaint, fontSize: 9 }} axisLine={false} tickLine={false} width={40} tickFormatter={fmtM} domain={[0, "auto"]} />
+              <Tooltip content={<RiskTooltipMobile birthYear={birthYear} />} />
+              <Area type="monotone" dataKey="range" stroke="none" fill="url(#mRisk)" isAnimationActive={false} name="10th–90th pct" />
+              <Line type="monotone" dataKey="p50" stroke={C.teal} strokeWidth={2.5} dot={false} isAnimationActive={false} name="Median" />
+            </AreaChart>
+          </ResponsiveContainer>
+        ) : (
         <ResponsiveContainer width="100%" height={300}>
           <AreaChart data={cappedChartData} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
             <defs>
@@ -263,6 +306,7 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
             )}
           </AreaChart>
         </ResponsiveContainer>
+        )}
       </div>
 
       {/* AI Coach — insight below the chart */}
@@ -349,6 +393,32 @@ function MobileTooltip({ active, payload, label, birthYear, perYear, milestones 
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// Tooltip for the mobile Monte Carlo fan chart — optimistic / median / pessimistic
+// net worth at the hovered point across all simulated return sequences.
+function RiskTooltipMobile({ active, payload, label, birthYear }: any) {
+  if (!active || !payload?.length) return null;
+  const range = payload.find((p: any) => p.dataKey === "range")?.value as [number, number] | undefined;
+  const p50 = payload.find((p: any) => p.dataKey === "p50")?.value as number | undefined;
+  const yr = parseInt((label as string).split(" ")[1] ?? "");
+  const age = yr && birthYear ? yr - birthYear : null;
+  const Row = ({ k, v, c }: { k: string; v: number; c: string }) => (
+    <div style={{ display: "flex", justifyContent: "space-between", gap: 14, marginBottom: 2 }}>
+      <span style={{ color: c }}>{k}</span>
+      <span style={{ fontWeight: 600, color: C.ink, fontVariantNumeric: "tabular-nums" }}>{fmtFull(v)}</span>
+    </div>
+  );
+  return (
+    <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 12px", fontSize: 11, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", maxWidth: 220 }}>
+      <div style={{ color: C.inkSoft, fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 5 }}>
+        {label}{age ? ` · Age ${age}` : ""}
+      </div>
+      {range && <Row k="Optimistic" v={range[1]} c="#2a7a68" />}
+      {p50 != null && <Row k="Median" v={p50} c={C.teal} />}
+      {range && <Row k="Pessimistic" v={range[0]} c={C.warm} />}
     </div>
   );
 }

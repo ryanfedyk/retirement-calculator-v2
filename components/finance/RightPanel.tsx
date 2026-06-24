@@ -8,6 +8,7 @@ import { Flag, CheckCircle, TrendingUp, CalendarDays, Sparkles, AlertTriangle } 
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { runSimulation, findIndependencePoint } from "@/engine/calculator";
 import type { TrajectoryPoint } from "@/engine/calculator";
+import { runMonteCarlo } from "@/engine/montecarlo";
 import { MomentumTurnstile } from "./MotivationWidgets";
 import AiAnalysis from "./AiAnalysis";
 import { C } from "@/config/colors";
@@ -27,7 +28,7 @@ function fmtM(v: number) {
   return `$${v.toFixed(0)}`;
 }
 
-type ChartView = "wealth" | "income" | "expenses" | "timeline";
+type ChartView = "wealth" | "income" | "expenses" | "timeline" | "risk";
 
 // ── Reference line pill label ─────────────────────────────────────────────────
 // Renders a readable chip with background directly on the chart SVG
@@ -130,6 +131,32 @@ const ChartTooltip = ({ active, payload, label, birthYear, perYear }: any) => {
   );
 };
 
+// Tooltip for the Monte Carlo fan chart: the optimistic/median/pessimistic spread
+// of net worth at the hovered point across all simulated return sequences.
+const RiskTooltip = ({ active, payload, label, birthYear }: any) => {
+  if (!active || !payload?.length) return null;
+  const range = payload.find((p: any) => p.dataKey === "range")?.value as [number, number] | undefined;
+  const p50 = payload.find((p: any) => p.dataKey === "p50")?.value as number | undefined;
+  const yr = parseInt((label as string).split(" ")[1] ?? "");
+  const age = yr && birthYear ? yr - birthYear : null;
+  const Row = ({ k, v, c }: { k: string; v: number; c: string }) => (
+    <div style={{ display: "flex", justifyContent: "space-between", gap: 16, marginBottom: 3 }}>
+      <span style={{ color: c }}>{k}</span>
+      <span style={{ fontWeight: 600, color: C.ink, fontVariantNumeric: "tabular-nums" }}>{fmtM(v)}</span>
+    </div>
+  );
+  return (
+    <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 14px", fontSize: 11, boxShadow: "0 8px 24px rgba(0,0,0,0.08)" }}>
+      <div style={{ color: C.inkSoft, fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
+        {label}{age ? ` · Age ${age}` : ""}
+      </div>
+      {range && <Row k="Optimistic (90th)" v={range[1]} c="#2a7a68" />}
+      {p50 != null && <Row k="Median (50th)" v={p50} c={C.teal} />}
+      {range && <Row k="Pessimistic (10th)" v={range[0]} c={C.warm} />}
+    </div>
+  );
+};
+
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -214,6 +241,25 @@ export default function RightPanel({ livePrices }: Props) {
     const maxYear = birthYear + ageCap;
     return chartData.filter((d) => { const y = Number(String(d.date).split(" ")[1]); return !y || y <= maxYear; });
   }, [chartData, ageCap, birthYear]);
+
+  // ── Monte Carlo (sequence-of-returns risk) ────────────────────────────────
+  // Only computed while the Risk view is open — it runs hundreds of full
+  // projections (~0.5s), so we don't want it on every keystroke of other tabs.
+  const monteCarlo = useMemo(
+    () => (chartView === "risk" ? runMonteCarlo(enrichedSnapshot, config, liveGoogPrice, { runs: 400 }) : null),
+    [chartView, enrichedSnapshot, config, liveGoogPrice]
+  );
+  // Band data for the fan chart: [p10,p90] range area + p50 median line, capped
+  // to the selected age horizon. `range` is a tuple so recharts draws a band.
+  const riskChartData = useMemo(() => {
+    if (!monteCarlo) return [];
+    const maxYear = ageCap >= 100 ? Infinity : birthYear + ageCap;
+    return monteCarlo.bands
+      .filter((b) => { const y = Number(String(b.date).split(" ")[1]); return !y || y <= maxYear; })
+      .map((b) => ({ date: b.date, p50: b.p50, range: [b.p10, b.p90] as [number, number] }));
+  }, [monteCarlo, ageCap, birthYear]);
+  const successPct = monteCarlo ? Math.round(monteCarlo.successRate * 100) : null;
+  const successColor = successPct == null ? C.inkSoft : successPct >= 85 ? "#2a7a68" : successPct >= 70 ? C.warm : "#c0492b";
 
   // Reference lines for phases / milestones
   const findDate = (pred: (p: TrajectoryPoint) => boolean) => trajectoryData.find(pred)?.date;
@@ -385,10 +431,13 @@ export default function RightPanel({ livePrices }: Props) {
               {chartView === "timeline" ? "Life & Career Timeline" :
                chartView === "income"   ? "Income Breakdown" :
                chartView === "expenses" ? "Expense Breakdown" :
+               chartView === "risk"     ? "Outcome Range" :
                "Wealth Trajectory"}
             </div>
             <div style={{ fontSize: 10, color: C.inkSoft, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-              {chartView === "timeline" ? "Month-by-month phases & milestones" : `Projection to age ${ageCap} · in today's dollars`}
+              {chartView === "timeline" ? "Month-by-month phases & milestones" :
+               chartView === "risk"     ? `${monteCarlo?.runs ?? 0} randomized return paths · in today's dollars` :
+               `Projection to age ${ageCap} · in today's dollars`}
             </div>
           </div>
 
@@ -414,6 +463,7 @@ export default function RightPanel({ livePrices }: Props) {
                   {v.charAt(0).toUpperCase() + v.slice(1)}
                 </TabBtn>
               ))}
+              <TabBtn active={chartView === "risk"} onClick={() => setChartView("risk")}>Risk</TabBtn>
               <div style={{ width: 1, background: C.border, margin: "4px 2px" }} />
               <TabBtn active={chartView === "timeline"} onClick={() => setChartView("timeline")}>
                 <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -428,6 +478,36 @@ export default function RightPanel({ livePrices }: Props) {
         <div style={{ flex: 1, padding: "8px 20px 16px", minHeight: 0, overflow: "hidden" }}>
           {chartView === "timeline" ? (
             <LifeCalendar data={trajectoryData} config={config} />
+          ) : chartView === "risk" ? (
+            <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+              {/* Success probability — the headline of the risk view */}
+              <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 6 }}>
+                <span style={{ fontSize: 30, fontWeight: 700, color: successColor, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
+                  {successPct ?? "—"}%
+                </span>
+                <span style={{ fontSize: 12, color: C.inkSoft }}>
+                  of return sequences fund this plan through age {ageCap}
+                </span>
+              </div>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={riskChartData} margin={{ top: 12, right: 16, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="riskBand" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%"  stopColor={C.teal} stopOpacity={0.22} />
+                      <stop offset="95%" stopColor={C.teal} stopOpacity={0.05} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={C.borderSoft} />
+                  <XAxis dataKey="date" axisLine={false} tickLine={false}
+                    tick={{ fill: C.inkFaint, fontSize: 10 }} minTickGap={32} interval="preserveStartEnd" />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fill: C.inkFaint, fontSize: 10 }}
+                    tickFormatter={fmtM} width={52} domain={[0, "auto"]} />
+                  <Tooltip content={<RiskTooltip birthYear={birthYear} />} />
+                  <Area type="monotone" dataKey="range" stroke="none" fill="url(#riskBand)" name="10th–90th percentile" isAnimationActive={false} />
+                  <Line type="monotone" dataKey="p50" stroke={C.teal} strokeWidth={2.5} dot={false} name="Median" isAnimationActive={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
           ) : (
             <ResponsiveContainer width="100%" height={446}>
               <AreaChart data={cappedChartData} margin={{ top: 16, right: 16, left: 0, bottom: 0 }}

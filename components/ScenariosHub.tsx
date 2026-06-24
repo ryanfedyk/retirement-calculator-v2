@@ -8,6 +8,7 @@
  * countdown and both deep-dive tabs.
  */
 import { useMemo, useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Plus, Copy, Trash2, Sparkles, MoreVertical, Wallet, Eye, EyeOff, ChevronRight, Pencil } from "lucide-react";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
@@ -34,18 +35,44 @@ const iconBtn: React.CSSProperties = {
 
 /** Three-dot overflow menu on a scenario card: rename / duplicate / delete.
  * Stops click propagation so using it never opens the scenario. Rename is the
- * primary way to edit a name on touch devices (where tap-to-edit is disabled). */
+ * primary way to edit a name on touch devices (where tap-to-edit is disabled).
+ * The menu renders through a portal with fixed positioning so it's never
+ * clipped by the card grid / horizontal scroll strip, and flips upward when it
+ * would otherwise run off the bottom of the screen. */
 function CardMenu({ canDelete, onRename, onDuplicate, onDelete }: {
   canDelete: boolean; onRename?: () => void; onDuplicate: () => void; onDelete: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const [coords, setCoords] = useState<{ top: number; right: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const itemCount = (onRename ? 1 : 0) + 1 + (canDelete ? 1 : 0);
+
   useEffect(() => {
     if (!open) return;
-    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, [open]);
+    const place = () => {
+      const r = btnRef.current?.getBoundingClientRect();
+      if (!r) return;
+      const menuH = itemCount * 38 + 10;
+      const below = r.bottom + 4;
+      // Flip up if the menu would run off the bottom of the viewport.
+      const top = below + menuH > window.innerHeight ? Math.max(8, r.top - 4 - menuH) : below;
+      setCoords({ top, right: Math.max(8, window.innerWidth - r.right) });
+    };
+    place();
+    const onDocClick = (e: MouseEvent) => {
+      if (menuRef.current?.contains(e.target as Node) || btnRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
+    };
+    document.addEventListener("mousedown", onDocClick);
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      document.removeEventListener("mousedown", onDocClick);
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [open, itemCount]);
 
   const item = (Icon: typeof Copy, label: string, fn: () => void, danger = false) => (
     <button
@@ -59,8 +86,9 @@ function CardMenu({ canDelete, onRename, onDuplicate, onDelete }: {
   );
 
   return (
-    <div ref={ref} style={{ position: "relative", flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+    <div style={{ position: "relative", flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
       <button
+        ref={btnRef}
         aria-label="Scenario options" onClick={() => setOpen((o) => !o)}
         style={iconBtn}
         onMouseEnter={(e) => (e.currentTarget.style.background = C.bg)}
@@ -68,12 +96,17 @@ function CardMenu({ canDelete, onRename, onDuplicate, onDelete }: {
       >
         <MoreVertical size={16} />
       </button>
-      {open && (
-        <div style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", zIndex: 20, minWidth: 150, background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", padding: 5 }}>
+      {open && coords && createPortal(
+        <div
+          ref={menuRef}
+          onClick={(e) => e.stopPropagation()}
+          style={{ position: "fixed", top: coords.top, right: coords.right, zIndex: 1000, minWidth: 160, background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.18)", padding: 5 }}
+        >
           {onRename && item(Pencil, "Rename", onRename)}
           {item(Copy, "Duplicate", onDuplicate)}
           {canDelete && item(Trash2, "Delete", onDelete, true)}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -191,9 +224,9 @@ function ScenarioCard({
         border: `1px solid ${C.border}`, boxShadow: `0 1px 3px ${C.border}`,
         padding: "12px 14px 14px", display: "flex", flexDirection: "column", gap: 10,
         opacity: hidden ? 0.55 : 1, transition: "border-color 0.15s, opacity 0.15s",
-        // On mobile the cards live in a horizontal strip — fix the width so a peek
-        // of the next card hints that the row scrolls.
-        ...(isMobile ? { flex: "0 0 auto", width: "78%", maxWidth: 320, scrollSnapAlign: "start" } : {}),
+        // On mobile the cards live in a horizontal strip — keep them compact so
+        // more than one shows, with a peek of the next hinting that it scrolls.
+        ...(isMobile ? { flex: "0 0 auto", width: "47%", maxWidth: 200, scrollSnapAlign: "start" } : {}),
       }}
       onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.teal; }}
       onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; }}
@@ -384,7 +417,7 @@ export default function ScenariosHub({ livePrices, onOpen }: { livePrices: LiveP
               cursor: "pointer", background: "transparent", borderRadius: 12, border: `1.5px dashed ${C.border}`,
               padding: 14, display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "center",
               gap: 8, color: C.inkSoft, transition: "all 0.15s",
-              ...(isMobile ? { flex: "0 0 auto", width: "55%", maxWidth: 240, scrollSnapAlign: "start" } : {}),
+              ...(isMobile ? { flex: "0 0 auto", width: "40%", maxWidth: 170, scrollSnapAlign: "start" } : {}),
             }}
             onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.teal; e.currentTarget.style.color = C.teal; }}
             onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.inkSoft; }}

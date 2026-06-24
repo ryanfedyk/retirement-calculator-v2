@@ -1,13 +1,13 @@
 "use client";
 import { useState, useMemo } from "react";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, ReferenceLine, CartesianGrid } from "recharts";
-import { ChevronRight, AlertTriangle } from "lucide-react";
+import { ChevronRight, AlertTriangle, X } from "lucide-react";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { runSimulation, findIndependencePoint } from "@/engine/calculator";
 import { getLifeEvents } from "@/lib/horizonUtils";
 import { useHorizonProfile } from "@/config/horizonConfig";
-import { TodaysDelta, MomentumCards } from "@/components/finance/MotivationWidgets";
+import { TodaysDelta, buildMomentumCards } from "@/components/finance/MotivationWidgets";
 import AiAnalysis from "@/components/finance/AiAnalysis";
 import PriceTicker from "@/components/finance/PriceTicker";
 import ScenarioLevers from "@/components/finance/ScenarioLevers";
@@ -38,6 +38,8 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
   const [view, setView] = useState<View>("wealth");
   const [ageCap, setAgeCap] = useState<75 | 100>(100);
   const [insightTab, setInsightTab] = useState<"today" | "ai">("today");
+  // Metric cards the user has dismissed this session (they return on reload).
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
 
   const googInfo      = livePrices["GOOG"] ?? livePrices["GOOGL"];
   const liveGoogPrice = googInfo?.price ?? 0;
@@ -68,6 +70,21 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
     realReturn: (config.market_assumptions.market_return_rate - config.market_assumptions.inflation_rate) / 100,
     yearsToRetirement: Math.max(0, 65 - (new Date().getFullYear() - birthYear)),
   });
+
+  // Top metric strip — Financial Independence first, then the momentum cards
+  // (Coast FI / Freedom ratio / Years funded), all in one horizontal scroller.
+  const metricCards = useMemo(() => {
+    const fi = {
+      id: "fi", hero: true, tag: "Financial Independence",
+      value: indep ? indep.date : "30+ yrs", unit: "",
+      blurb: `${fmtM(currentNW)} now · ${Math.round(progress)}% to ${fmtM(swrTarget)}`,
+      color: C.teal, pct: progress as number | null,
+    };
+    const momentum = today
+      ? buildMomentumCards(today, config).map((c) => ({ id: c.tag, hero: false, ...c }))
+      : [];
+    return [fi, ...momentum];
+  }, [indep, currentNW, progress, swrTarget, today, config]);
 
   // Sample yearly (every 12 months) to keep the mobile chart light & legible.
   const chartData = useMemo(() => traj
@@ -148,29 +165,15 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
 
       <FireMoments netWorth={currentNW} swrTarget={swrTarget} isIndependent={today?.isIndependent ?? false} savingsRate={savingsRate} coastFI={coastFI} />
 
-      {/* Hero metric */}
-      <div style={{
-        background: `linear-gradient(135deg, ${C.tealDark}, ${C.teal})`,
-        borderRadius: 24, padding: "22px 22px 20px", color: "white",
-        boxShadow: `0 10px 30px ${C.teal}40`,
-      }}>
-        <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", opacity: 0.85 }}>
-          Financial Independence
+      {/* Metric strip — Financial Independence first, then momentum cards, in one
+          horizontal scroller. Each card is dismissable. */}
+      {metricCards.some((c) => !dismissed.has(c.id)) && (
+        <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 4, scrollSnapType: "x proximity", WebkitOverflowScrolling: "touch" }}>
+          {metricCards.filter((c) => !dismissed.has(c.id)).map((c) => (
+            <MetricCard key={c.id} {...c} onDismiss={() => setDismissed((p) => new Set(p).add(c.id))} />
+          ))}
         </div>
-        <div style={{ fontSize: 40, fontWeight: 300, letterSpacing: "-0.02em", lineHeight: 1.1, marginTop: 4 }}>
-          {indep ? indep.date : "30+ yrs"}
-        </div>
-        <div style={{ marginTop: 14, height: 6, borderRadius: 999, background: "rgba(255,255,255,0.25)" }}>
-          <div style={{ height: "100%", borderRadius: 999, background: "white", width: `${progress}%`, transition: "width 0.6s ease" }} />
-        </div>
-        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8, fontSize: 12, opacity: 0.9 }}>
-          <span>{fmtM(currentNW)} now</span>
-          <span>{Math.round(progress)}% to {fmtM(swrTarget)}</span>
-        </div>
-      </div>
-
-      {/* Momentum metrics — swipe horizontally (Coast FI / Freedom ratio / Years funded) */}
-      {today && <MomentumCards point={today} config={config} />}
+      )}
 
       {/* Scenario levers — drive the trajectory live */}
       <ScenarioLevers />
@@ -303,6 +306,47 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
             : <Chip label="Path" value="Straight to exit" />}
         </div>
       </button>
+    </div>
+  );
+}
+
+// A single metric card in the top scroll strip. `hero` (Financial Independence)
+// gets the teal gradient so it still reads as primary while sitting in the row.
+function MetricCard({ tag, value, unit, blurb, color, pct, hero, onDismiss }: {
+  tag: string; value: string; unit?: string; blurb: string; color: string;
+  pct?: number | null; hero?: boolean; onDismiss: () => void;
+}) {
+  const soft = hero ? "rgba(255,255,255,0.85)" : C.inkSoft;
+  return (
+    <div style={{
+      position: "relative", flex: "0 0 auto", width: "80%", maxWidth: 340, scrollSnapAlign: "start",
+      background: hero ? `linear-gradient(135deg, ${C.tealDark}, ${C.teal})` : C.bgCard,
+      border: hero ? "none" : `1px solid ${C.border}`, borderRadius: 20, padding: "16px 18px",
+      minHeight: 150, display: "flex", flexDirection: "column",
+      boxShadow: hero ? `0 10px 30px ${C.teal}40` : "none",
+    }}>
+      <button
+        onClick={onDismiss}
+        aria-label={`Dismiss ${tag}`}
+        style={{
+          position: "absolute", top: 10, right: 10, width: 26, height: 26, borderRadius: "50%",
+          border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+          background: hero ? "rgba(255,255,255,0.18)" : C.bg, color: hero ? "white" : C.inkFaint,
+        }}
+      >
+        <X size={15} />
+      </button>
+      <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: soft, paddingRight: 30 }}>{tag}</div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 6 }}>
+        <span style={{ fontSize: 30, fontWeight: 300, letterSpacing: "-0.02em", color: hero ? "white" : color, fontVariantNumeric: "tabular-nums" }}>{value}</span>
+        {unit ? <span style={{ fontSize: 12, color: soft }}>{unit}</span> : null}
+      </div>
+      <div style={{ fontSize: 12, color: hero ? "rgba(255,255,255,0.92)" : C.inkMid, marginTop: 6, lineHeight: 1.5, flex: 1 }}>{blurb}</div>
+      {pct != null && (
+        <div style={{ marginTop: 10, height: 6, borderRadius: 999, background: hero ? "rgba(255,255,255,0.25)" : C.bg }}>
+          <div style={{ height: "100%", borderRadius: 999, background: hero ? "white" : color, width: `${Math.min(100, pct)}%`, transition: "width 0.6s ease" }} />
+        </div>
+      )}
     </div>
   );
 }

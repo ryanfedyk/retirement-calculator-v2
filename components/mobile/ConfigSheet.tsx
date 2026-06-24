@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { X, Trash2, Plus, Wallet, ChevronRight } from "lucide-react";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
@@ -16,6 +16,7 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
   const age = thisYear - (config.birth_year || profile.birthYear || 1985);
   const [openId, setOpenId] = useState<string | null>("career");
   const [newEvent, setNewEvent] = useState({ name: "", year: 2030, cost: 50_000 });
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (open) {
@@ -23,6 +24,12 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
       document.body.style.overflow = "hidden";
       return () => { document.body.style.overflow = prev; };
     }
+  }, [open]);
+
+  // The sheet stays mounted (slides off-screen), so reset its scroll to the top
+  // each time it's opened rather than reopening wherever it was last left.
+  useEffect(() => {
+    if (open) requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: 0 }));
   }, [open]);
 
   const cp = config.career_path;
@@ -43,7 +50,8 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
         boxShadow: "0 -8px 40px rgba(0,0,0,0.18)",
         transform: open ? "translateY(0)" : "translateY(100%)",
         transition: "transform 0.32s cubic-bezier(0.32,0.72,0,1)",
-        height: "92vh", display: "flex", flexDirection: "column",
+        // dvh (not vh) so the sheet's top isn't hidden behind the browser chrome.
+        height: "92dvh", maxHeight: "92dvh", display: "flex", flexDirection: "column",
       }}>
         {/* Grabber + header */}
         <div style={{ flexShrink: 0, padding: "8px 20px 12px" }}>
@@ -64,7 +72,7 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
         </div>
 
         {/* Scrollable body */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "0 16px calc(28px + env(safe-area-inset-bottom))", WebkitOverflowScrolling: "touch" }}>
+        <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "0 16px calc(28px + env(safe-area-inset-bottom))", WebkitOverflowScrolling: "touch" }}>
 
           {/* Shortcut to the shared balance sheet — assets/holdings/529s live in
               "Your finances" (shared across scenarios), not in this per-scenario plan. */}

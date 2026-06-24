@@ -70,7 +70,7 @@ const Section = ({ title, children }: { title: string; children: React.ReactNode
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 export default function ConfigPanel() {
-  const { config, snapshot, updateCareerPath, updateIncomeProfile, updateMarketAssumptions, updateSpending, resetToDefaults } = useFinancialStore();
+  const { config, snapshot, updateCareerPath, updateIncomeProfile, updateMarketAssumptions, updateSpending, updateNestedConfig, resetToDefaults } = useFinancialStore();
   const confirm = useConfirm();
   const cp = config.career_path;
   const ip = config.income_profile;
@@ -150,6 +150,16 @@ export default function ConfigPanel() {
         <NumField label="LTC Duration (years)" value={sp.ltc_years ?? 3} step={1}
           onChange={v => updateSpending({ ltc_years: v })} />
       </Section>
+
+      {/* Survivor transition — couples only */}
+      {config.tax_assumptions.filing_status === "married_joint" && (
+        <Section title="Survivor (Couples)">
+          <NumField label="First-Death Age (0 = off)" value={config.mortality?.first_death_age ?? 0} step={1}
+            onChange={v => updateNestedConfig("mortality", { first_death_age: v })} />
+          <NumField label="Survivor Spend %" value={Math.round((config.mortality?.survivor_spending_factor ?? 0.75) * 100)} step={5} suffix="%"
+            onChange={v => updateNestedConfig("mortality", { survivor_spending_factor: v / 100 })} />
+        </Section>
+      )}
 
       {/* Reset */}
       <button

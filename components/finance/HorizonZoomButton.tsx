@@ -23,7 +23,7 @@ export default function HorizonZoomButton({
       title={ageCap === 100 ? "Zoom in — focus on the years to age 75" : "Zoom out — show the full horizon to age 100"}
       aria-label={ageCap === 100 ? "Zoom in to age 75" : "Zoom out to age 100"}
       style={{
-        position: "absolute", right: 14, bottom: 30, zIndex: 3,
+        position: "absolute", right: 24, bottom: 52, zIndex: 3,
         display: "flex", alignItems: "center", justifyContent: "center", width: size, height: size,
         borderRadius: 8, border: `1px solid ${C.border}`, background: `${C.bgCard}f0`,
         color: C.inkMid, cursor: "pointer", boxShadow: `0 1px 4px ${C.border}`, backdropFilter: "blur(2px)",

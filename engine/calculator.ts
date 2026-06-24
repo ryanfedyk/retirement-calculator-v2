@@ -238,6 +238,30 @@ function taxableSocialSecurity(
   return Math.min(0.85 * ssGross, 0.85 * (provisional - base2) + tier50);
 }
 
+// ── Medicare IRMAA surcharge (2025 Part B + D, by MAGI from 2 years prior) ────
+// High-income Medicare beneficiaries pay an income-related surcharge on top of
+// the standard Part B premium. Tiers are (single MAGI, MFJ MAGI) → total monthly
+// Part B + D IRMAA add-on above the ~$185 standard premium. Returns the monthly
+// SURCHARGE per beneficiary (0 below the first threshold).
+const IRMAA_TIERS: { single: number; joint: number; surcharge: number }[] = [
+  { single: 106_000, joint: 212_000, surcharge: 0 },
+  { single: 133_000, joint: 266_000, surcharge: 74 + 13 },
+  { single: 167_000, joint: 334_000, surcharge: 185 + 34 },
+  { single: 200_000, joint: 400_000, surcharge: 296 + 54 },
+  { single: 500_000, joint: 750_000, surcharge: 407 + 74 },
+  { single: Infinity, joint: Infinity, surcharge: 444 + 81 },
+];
+function irmaaMonthlySurcharge(
+  magi: number,
+  filing: 'single' | 'married_joint' | 'married_separate' | 'head_household',
+): number {
+  const joint = filing === 'married_joint';
+  for (const t of IRMAA_TIERS) {
+    if (magi <= (joint ? t.joint : t.single)) return t.surcharge;
+  }
+  return IRMAA_TIERS[IRMAA_TIERS.length - 1].surcharge;
+}
+
 // ── Main simulation ───────────────────────────────────────────────────────────
 
 export const runSimulation = (
@@ -353,12 +377,24 @@ export const runSimulation = (
   // slower and dominated the per-month cost (hundreds of runs under Monte Carlo).
   const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
+  // Running tally of realized taxable income (≈ MAGI) per calendar year. Used for
+  // IRMAA, whose surcharge is set by MAGI from two years prior. Each January we
+  // bank the year just completed and reset the accumulator.
+  const magiByYear = new Map<number, number>();
+  let magiThisYear = 0;
+
   // ── Main simulation loop (runs through age 100; see monthsToSimulate) ──────
   for (let month = 0; month < monthsToSimulate; month++) {
 
     const totalMonths = startMonth + month;
     const currentYear = startYear + Math.floor(totalMonths / 12);
     const monthOfYear = totalMonths % 12;
+
+    // Bank the completed year's MAGI at each year boundary.
+    if (monthOfYear === 0 && month > 0) {
+      magiByYear.set(currentYear - 1, magiThisYear);
+      magiThisYear = 0;
+    }
     const currentDate = new Date(currentYear, monthOfYear, 1);
     const yearsPassed = month / 12;
     const currentAge  = currentYear - (config.birth_year || 1980);
@@ -628,6 +664,7 @@ export const runSimulation = (
     // SS entirely (so we compute federal-only by passing state 'NONE'). The
     // taxable portion stacks on top of other ordinary income (rental).
     let socialSecurityIncome = 0;
+    let taxableSSForMagi = 0;
     if (config.social_security) {
       const claimAge = config.social_security.start_age;
       let ssMonthly = 0;
@@ -657,6 +694,7 @@ export const runSimulation = (
       const grossSSAnnual = ssMonthly * 12; // SS is inflation-indexed → flat in real terms
       // Graduated taxable portion (0–85%) by provisional income, not a flat 85%.
       const taxableSSAnnual = taxableSocialSecurity(grossSSAnnual, annualRentalGross + annualW2Gross, config.tax_assumptions.filing_status);
+      taxableSSForMagi = taxableSSAnnual;
 
       const ssBaseTax = calculateTaxRaw({
         filingStatus: config.tax_assumptions.filing_status, state: "NONE",
@@ -674,6 +712,11 @@ export const runSimulation = (
       liquidCash += socialSecurityIncome;
       }
     }
+
+    // Accumulate this month's recurring taxable income toward the year's MAGI
+    // (wages net of 401k, rental, and the taxable portion of Social Security).
+    // Lumpy items — RMDs, realized capital gains — are added at their own sites.
+    magiThisYear += Math.max(0, annualW2Gross - annualK401) / 12 + annualRentalGross / 12 + taxableSSForMagi / 12;
 
     // Healthcare
     const partnerIsWorking = ip.use_partner_income && ip.partner_has_health_insurance &&
@@ -701,9 +744,18 @@ export const runSimulation = (
     // top: a ~2%/yr real escalation compounded over a long retirement.
     const medInflMult = Math.pow(1 + (config.market_assumptions.healthcare_inflation_premium ?? 2) / 100, yearsPassed);
 
+    // IRMAA: Medicare beneficiaries with high income pay a surcharge set by their
+    // MAGI from two years prior. Fall back to a current-year estimate before two
+    // years of history exist (e.g. someone already 65+ at the start of the plan).
+    const irmaaMagi = magiByYear.get(currentYear - 2)
+      ?? (Math.max(0, annualW2Gross - annualK401) + annualRentalGross + taxableSSForMagi);
+    const irmaaSurcharge = adultsOnMed > 0
+      ? irmaaMonthlySurcharge(irmaaMagi, config.tax_assumptions.filing_status)
+      : 0;
+
     let selfPaidHealthcare: number;
     {
-      const medCost        = (config.medicare?.monthly_premium ?? 0) * adultsOnMed;
+      const medCost        = ((config.medicare?.monthly_premium ?? 0) + irmaaSurcharge) * adultsOnMed;
       const baseFamilySize = Math.max(1, opt?.aca_family_size ?? 4);
       const perCapita      = config.spending.healthcare_premium / baseFamilySize;
       const coveredKids    = (config.children ?? []).filter(
@@ -818,6 +870,7 @@ export const runSimulation = (
         const withSaleTax = calculateTaxRaw({ filingStatus: config.tax_assumptions.filing_status, state: config.tax_assumptions.state_of_residence, grossIncome: annualW2Gross, preTaxDeductions: annualK401, ficaExemptIncome: annualRentalGross, itemizedDeductions: totalItemizedFed, nyItemizedDeductions: totalItemizedNY, longTermCapitalGains: annualLTCG, shortTermCapitalGains: 0 });
 
         divestmentProceeds = grossSale - (withSaleTax.totalTax - baseTax.totalTax) / 12;
+        magiThisYear += capGain; // realized LTCG counts toward MAGI
         currentGoogShares -= sharesToSell;
       }
 
@@ -833,6 +886,7 @@ export const runSimulation = (
         const withSaleTax = calculateTaxRaw({ filingStatus: config.tax_assumptions.filing_status, state: config.tax_assumptions.state_of_residence, grossIncome: annualW2Gross, preTaxDeductions: annualK401, ficaExemptIncome: annualRentalGross, itemizedDeductions: totalItemizedFed, nyItemizedDeductions: totalItemizedNY, longTermCapitalGains: gain, shortTermCapitalGains: 0 });
 
         divestmentProceeds = grossProceeds - (withSaleTax.totalTax - baseTax.totalTax);
+        magiThisYear += gain; // realized LTCG counts toward MAGI
         currentGoogShares  = 0;
       }
     }
@@ -863,6 +917,7 @@ export const runSimulation = (
       const rmdTax = Math.max(0, withRmdTax - baseOrdTax);
       tradBalance -= rmdGross;
       liquidCash  += rmdGross - rmdTax;
+      magiThisYear += rmdGross; // RMDs are fully taxable ordinary income → MAGI
     }
 
     // ── Net flow ───────────────────────────────────────────────────────────
@@ -897,10 +952,14 @@ export const runSimulation = (
         const avgBasis   = totalSh > 0 ? totalBasis / totalSh : 0;
         const netPerShare = currentGoogPrice - emergencyTaxRate * Math.max(0, currentGoogPrice - avgBasis);
         const proceeds = currentGoogShares * Math.max(0, netPerShare);
+        const gainPerShare = Math.max(0, currentGoogPrice - avgBasis);
         if (proceeds >= deficit) {
-          currentGoogShares -= deficit / Math.max(0.01, netPerShare);
+          const sold = deficit / Math.max(0.01, netPerShare);
+          currentGoogShares -= sold;
+          magiThisYear += sold * gainPerShare;
           deficit = 0;
         } else {
+          magiThisYear += currentGoogShares * gainPerShare;
           deficit -= proceeds;
           currentGoogShares = 0;
         }
@@ -916,12 +975,14 @@ export const runSimulation = (
         const grossNeeded  = deficit / netPerDollar;
         if (grossNeeded >= inv.currentValue) {
           deficit -= inv.currentValue * netPerDollar;
+          magiThisYear += inv.currentValue * gainFraction;
           inv.shares = 0;
           inv.currentValue = 0;
         } else {
           const frac = grossNeeded / inv.currentValue;
           inv.shares *= (1 - frac);
           inv.currentValue -= grossNeeded;
+          magiThisYear += grossNeeded * gainFraction;
           deficit = 0;
         }
       }
@@ -930,9 +991,12 @@ export const runSimulation = (
       if (deficit > 0 && currentJumpStockValue > 0) {
         const proceeds = currentJumpStockValue * 0.75;
         if (proceeds >= deficit) {
-          currentJumpStockValue -= deficit / 0.75;
+          const drawn = deficit / 0.75;
+          currentJumpStockValue -= drawn;
+          magiThisYear += drawn; // basis untracked → treat the draw as gain
           deficit = 0;
         } else {
+          magiThisYear += currentJumpStockValue;
           deficit -= proceeds;
           currentJumpStockValue = 0;
         }
@@ -943,9 +1007,11 @@ export const runSimulation = (
         const grossNeeded = deficit / 0.70;
         if (grossNeeded >= tradBalance) {
           deficit -= tradBalance * 0.70;
+          magiThisYear += tradBalance; // pre-tax withdrawal is ordinary income
           tradBalance = 0;
         } else {
           tradBalance -= grossNeeded;
+          magiThisYear += grossNeeded;
           deficit = 0;
         }
       }

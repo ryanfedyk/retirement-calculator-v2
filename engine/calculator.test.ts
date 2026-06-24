@@ -369,3 +369,36 @@ describe("Phase 4 polish: dividend drag & marginal bonus", () => {
     expect(t.marginalRate).toBeGreaterThan(t.ordinaryEffectiveRate);
   });
 });
+
+describe("Medicare IRMAA surcharge (MAGI-based)", () => {
+  function medicareRetiree(annualRental: number): SimulationConfiguration {
+    const cfg = baseConfig();
+    cfg.birth_year = YEAR - 66;          // age 66, on Medicare
+    cfg.career_path.exit_year = YEAR;
+    cfg.career_path.use_sabbatical = false;
+    cfg.career_path.use_jump = false;
+    cfg.career_path.use_bridge = false;
+    cfg.income_profile.gross_annual_salary = 0;
+    cfg.income_profile.monthly_rental_income = annualRental / 12;
+    cfg.income_profile.rental_income_growth_rate = 0;
+    cfg.spending.monthly_lifestyle = 0;
+    cfg.spending.healthcare_premium = 0;   // isolate Medicare premium + IRMAA
+    cfg.spending.mortgage_payment = 0;
+    cfg.medicare.monthly_premium = 185;
+    cfg.market_assumptions.inflation_rate = 0;
+    cfg.market_assumptions.healthcare_inflation_premium = 0;
+    cfg.social_security.social_security_linked = false;
+    cfg.social_security.monthly_amount = 0;
+    return cfg;
+  }
+
+  it("charges a high-income retiree more for Medicare than a low-income one", () => {
+    const hi = runSimulation(baseSnap(), medicareRetiree(300_000), 200);
+    const lo = runSimulation(baseSnap(), medicareRetiree(0), 200);
+    // By year 3+ the 2-years-prior MAGI is established. The high earner pays the
+    // base premium plus a sizable IRMAA surcharge; the low earner pays only base.
+    expect(hi[40].healthcareCost).toBeGreaterThan(lo[40].healthcareCost + 3_000);
+    // Low earner: just the standard premium ($185/mo ≈ $2,220/yr), no surcharge.
+    expect(lo[40].healthcareCost).toBeCloseTo(185 * 12, -2);
+  });
+});

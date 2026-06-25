@@ -2,6 +2,7 @@
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { useConfirm } from "@/components/ui/DialogProvider";
+import BaselineLinkBadge from "@/components/finance/BaselineLinkBadge";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -103,6 +104,7 @@ export default function ConfigPanel() {
 
       {/* Income */}
       <Section title="Income">
+        <BaselineLinkBadge section="income_profile" />
         <NumField label="Gross Salary" value={ip.gross_annual_salary} step={1000} prefix="$"
           onChange={v => updateIncomeProfile({ gross_annual_salary: v })} />
         <NumField label="Bonus Rate" value={ip.target_bonus_rate * 100} step={1} suffix="%"
@@ -121,6 +123,7 @@ export default function ConfigPanel() {
 
       {/* Market Assumptions */}
       <Section title="Market Assumptions">
+        <BaselineLinkBadge section="market_assumptions" />
         <NumField label="Employer Stock Growth" value={ma.goog_growth_rate} step={0.5} suffix="%"
           onChange={v => updateMarketAssumptions({ goog_growth_rate: v })} />
         <NumField label="Market Return" value={ma.market_return_rate} step={0.5} suffix="%"
@@ -135,6 +138,7 @@ export default function ConfigPanel() {
 
       {/* Spending */}
       <Section title="Spending">
+        <BaselineLinkBadge section="spending" />
         <NumField label="Monthly Lifestyle" value={sp.monthly_lifestyle} step={250} prefix="$"
           onChange={v => updateSpending({ monthly_lifestyle: v })} />
         <NumField label="Mortgage Payment" value={sp.mortgage_payment} step={100} prefix="$"

@@ -6,6 +6,7 @@ import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
 import TickerAutocomplete from "@/components/finance/TickerAutocomplete";
 import LinkedNumberField from "@/components/finance/LinkedNumberField";
+import BaselineLinkBadge from "@/components/finance/BaselineLinkBadge";
 import { money, inputStyle, Field, Num, TextInput, Toggle, Two, Section } from "./sheetUI";
 
 export default function ConfigSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -131,6 +132,7 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
 
           {/* ── Income ── */}
           <Section title="Income" accent="#4aab92" {...sec("income")}>
+            <BaselineLinkBadge section="income_profile" variant="mobile" />
             <Field label="Gross Annual Salary">
               <Num prefix="$" step={1000} value={ip.gross_annual_salary || 0}
                 onChange={v => updateNestedConfig("income_profile", { gross_annual_salary: v, google_net_monthly: Math.round(v * 0.65 / 12) })} />
@@ -180,6 +182,7 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
 
           {/* ── Spending & Lifestyle ── */}
           <Section title="Spending & Lifestyle" accent={C.warm} {...sec("spending")}>
+            <BaselineLinkBadge section="spending" variant="mobile" />
             <Field label="Monthly Spend (excl. rent/mortgage & healthcare)"><Num prefix="$" step={250} value={sp.monthly_lifestyle} onChange={v => updateNestedConfig("spending", { monthly_lifestyle: v })} /></Field>
             <Field label="Monthly Mortgage / Rent Payment"><Num prefix="$" step={100} value={sp.mortgage_payment} onChange={v => updateNestedConfig("spending", { mortgage_payment: v })} /></Field>
             <Field label="Healthcare Premium ($/mo, pre-65)"><Num prefix="$" step={100} value={sp.healthcare_premium} onChange={v => updateNestedConfig("spending", { healthcare_premium: v })} /></Field>
@@ -218,6 +221,7 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
 
           {/* ── Market Assumptions ── */}
           <Section title="Market Assumptions" accent="#7a6da8" {...sec("market")}>
+            <BaselineLinkBadge section="market_assumptions" variant="mobile" />
             <Two>
               <Field label="Market Return (%)"><Num step={0.1} value={ma.market_return_rate} onChange={v => updateNestedConfig("market_assumptions", { market_return_rate: v })} /></Field>
               <Field label="Volatility Drag (%)"><Num step={0.1} value={ma.volatility_drag} onChange={v => updateNestedConfig("market_assumptions", { volatility_drag: v })} /></Field>
@@ -252,6 +256,7 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
 
           {/* ── Life Events ── */}
           <Section title="Life Events" accent="#c4784e" {...sec("events")}>
+            <BaselineLinkBadge section="life_events" variant="mobile" />
             {(config.life_events || []).map((evt, idx) => (
               <div key={idx} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", borderRadius: 10, background: C.bgCard, border: `1px solid ${C.borderSoft}`, marginBottom: 8 }}>
                 <div><div style={{ fontSize: 13, fontWeight: 600, color: C.ink }}>{evt.name}</div><div style={{ fontSize: 11, color: C.inkSoft }}>{evt.year} · {money(evt.cost)}</div></div>

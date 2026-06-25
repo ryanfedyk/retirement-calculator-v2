@@ -80,14 +80,18 @@ export function useScenarioSuggestions(livePrices: LivePrices): Suggestion[] {
     const thisYear = new Date().getFullYear();
 
     const list: Idea[] = [
-      { title: "Retire 1 year earlier", unlink: [], apply: (c) => { c.career_path.exit_year -= 1; } },
-      { title: "Retire 1 year later",   unlink: [], apply: (c) => { c.career_path.exit_year += 1; } },
+      { title: "Reclaim a year", unlink: [], apply: (c) => { c.career_path.exit_year -= 1; } },
+      { title: "Trade a year for security", unlink: [], apply: (c) => { c.career_path.exit_year += 1; } },
       {
-        title: "Take a sabbatical", unlink: [], when: () => !cp.use_sabbatical,
-        apply: (c) => { c.career_path.use_sabbatical = true; c.career_path.sabbatical_duration = 1; },
+        title: "Take a gap year to travel", unlink: ["life_events"], when: () => !cp.use_sabbatical,
+        apply: (c) => {
+          c.career_path.use_sabbatical = true;
+          c.career_path.sabbatical_duration = 1;
+          c.life_events = [...(c.life_events ?? []), { name: "Gap-year travel", year: thisYear + 1, cost: 40_000, auto: false }];
+        },
       },
       {
-        title: "Change careers", unlink: ["income_profile.jump_gross_annual", "income_profile.jump_bonus_rate"],
+        title: "Follow your passion", unlink: ["income_profile.jump_gross_annual", "income_profile.jump_bonus_rate"],
         when: () => !cp.use_jump,
         apply: (c) => {
           c.career_path.use_jump = true;
@@ -97,31 +101,36 @@ export function useScenarioSuggestions(livePrices: LivePrices): Suggestion[] {
         },
       },
       {
-        title: `Trim spending to ${fmtK(trimmed)}/mo`, unlink: ["spending.monthly_lifestyle"],
+        title: "Downshift to part-time", unlink: ["income_profile.monthly_parttime_income"],
+        when: () => (config.income_profile.monthly_parttime_income ?? 0) === 0,
+        apply: (c) => { c.income_profile.monthly_parttime_income = 3_000; },
+      },
+      {
+        title: "Simplify your lifestyle", unlink: ["spending.monthly_lifestyle"],
         when: () => trimmed < spend,
         apply: (c) => { c.spending.monthly_lifestyle = trimmed; },
       },
       {
-        title: "Buy a second home", unlink: ["life_events", "spending.monthly_lifestyle"],
+        title: "Buy a vacation cabin", unlink: ["life_events", "spending.monthly_lifestyle"],
         apply: (c) => {
-          c.life_events = [...(c.life_events ?? []), { name: "Second home", year: thisYear + 3, cost: 250_000, auto: false }];
+          c.life_events = [...(c.life_events ?? []), { name: "Vacation cabin", year: thisYear + 3, cost: 250_000, auto: false }];
           c.spending.monthly_lifestyle += 1_200; // carrying costs (taxes, upkeep, insurance)
         },
       },
       {
-        title: "Markets cool to 6%", unlink: ["market_assumptions.market_return_rate"],
+        title: "Relocate somewhere tax-friendly", unlink: ["tax_assumptions.state_of_residence"],
+        when: () => !NO_TAX_STATES.has(config.tax_assumptions.state_of_residence),
+        apply: (c) => { c.tax_assumptions.state_of_residence = "FL"; },
+      },
+      {
+        title: "Weather a cooler market", unlink: ["market_assumptions.market_return_rate"],
         when: () => ret > 6,
         apply: (c) => { c.market_assumptions.market_return_rate = 6; },
       },
       {
-        title: "Markets heat up to 10%", unlink: ["market_assumptions.market_return_rate"],
+        title: "Ride a booming market", unlink: ["market_assumptions.market_return_rate"],
         when: () => ret < 10,
         apply: (c) => { c.market_assumptions.market_return_rate = 10; },
-      },
-      {
-        title: "Move to a no-tax state", unlink: ["tax_assumptions.state_of_residence"],
-        when: () => !NO_TAX_STATES.has(config.tax_assumptions.state_of_residence),
-        apply: (c) => { c.tax_assumptions.state_of_residence = "FL"; },
       },
     ];
     return list.filter((i) => !i.when || i.when(config));

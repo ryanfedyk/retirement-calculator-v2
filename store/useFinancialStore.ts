@@ -103,6 +103,8 @@ interface FinancialStore extends HorizonState {
   setActiveScenario:(id: string) => void;
   /** Create a scenario from the baseline, apply a tweak, and switch to it. */
   buildScenarioFromBaseline: (name: string, section: keyof SimulationConfiguration, patch: Record<string, unknown>) => void;
+  /** Add a scenario from a fully-formed config (e.g. an offshoot of an existing scenario) and switch to it. */
+  addScenarioFromConfig: (name: string, config: SimulationConfiguration, unlinked?: string[]) => void;
 
   setLivePrice:    (price: number) => void;
   resetToDefaults: () => void;
@@ -389,6 +391,14 @@ export const useFinancialStore = create<FinancialStore>()(
             ? Object.keys(patch).map((k) => `${String(section)}.${k}`)
             : String(section) === "life_events" ? ["life_events"] : [];
           const sc: Scenario = { id, name, config, unlinked };
+          return { scenarios: [...s.scenarios, sc], activeScenarioId: id, config };
+        }),
+
+      addScenarioFromConfig: (name, cfg, unlinked = []) =>
+        set((s) => {
+          const id = newId();
+          const config = { ...structuredClone(cfg), birth_year: yearOfISO(s.profile.birthDate), children: projectChildren(s.profile) };
+          const sc: Scenario = { id, name, config, unlinked: Array.from(new Set(unlinked)) };
           return { scenarios: [...s.scenarios, sc], activeScenarioId: id, config };
         }),
 

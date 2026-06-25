@@ -82,7 +82,7 @@ export default function SettingsPanel() {
   const setOpen = useUIStore(s => s.setSettingsOpen);
   const dollarMode = useUIStore(s => s.dollarMode);
   const setDollarMode = useUIStore(s => s.setDollarMode);
-  const { config, profile, updateProfile, updateConfig, updateNestedConfig, setChildren, resetToDefaults } = useFinancialStore();
+  const { baseline, profile, updateProfile, updateConfig, updateBaseline, setChildren, resetToDefaults } = useFinancialStore();
   const confirm = useConfirm();
 
   useEffect(() => {
@@ -91,14 +91,18 @@ export default function SettingsPanel() {
     return () => document.removeEventListener("keydown", onKey);
   }, [open, setOpen]);
 
-  const ip = config.income_profile;
-  const ss = config.social_security;
-  const ta = config.tax_assumptions;
+  // Settings edits the shared **baseline** — the "real you" that flows into every
+  // scenario unless a scenario has overridden a given field.
+  const ip = baseline.income_profile;
+  const ss = baseline.social_security;
+  const ta = baseline.tax_assumptions;
+  const sp = baseline.spending;
+  const ma = baseline.market_assumptions;
   const kids = profile.children;
   // Suggested W-4 allowances ≈ self (+ spouse) + dependents.
   const suggestedAllowances = (ta.filing_status === "married_joint" ? 2 : 1) + kids.length;
   const thisYear = new Date().getFullYear();
-  const age = thisYear - (config.birth_year || profile.birthYear || 1985);
+  const age = thisYear - (profile.birthYear || 1985);
   const setAge = (a: number) => {
     const birthYear = thisYear - Math.max(0, a);
     updateProfile({ birthYear });
@@ -189,24 +193,66 @@ export default function SettingsPanel() {
               <Plus size={15} /> Add child
             </button>
 
-            <Toggle label="I have a partner" on={ip.use_partner_income || false} onChange={v => updateNestedConfig("income_profile", { use_partner_income: v })} />
+            <Toggle label="I have a partner" on={ip.use_partner_income || false} onChange={v => updateBaseline("income_profile", { use_partner_income: v })} />
             {ip.use_partner_income && (
               <Field label="Partner's Age" hint="Informs their Medicare and Social Security timing. Partner income & retirement year are set in the plan (Additional Income).">
                 <Num value={ip.partner_birth_year ? thisYear - ip.partner_birth_year : age}
-                  onChange={v => updateNestedConfig("income_profile", { partner_birth_year: thisYear - Math.max(0, v) })} />
+                  onChange={v => updateBaseline("income_profile", { partner_birth_year: thisYear - Math.max(0, v) })} />
               </Field>
             )}
+          </Section>
+
+          {/* ── Baseline plan defaults ── */}
+          <div style={{ fontSize: 11, color: C.inkFaint, marginBottom: 14, lineHeight: 1.5, padding: "10px 12px", borderRadius: 10, background: C.tealWash, border: `1px solid ${C.tealLight}` }}>
+            These are your <strong>baseline</strong> numbers. Every scenario starts from them — update a figure here (say, a raise) and it flows into all your scenarios, except ones where you&apos;ve overridden that field.
+          </div>
+
+          {/* ── Income ── */}
+          <Section title="Income" accent="#4aab92">
+            <Field label="Gross Annual Salary"><Num prefix="$" step={1000} value={ip.gross_annual_salary} onChange={v => updateBaseline("income_profile", { gross_annual_salary: v })} /></Field>
+            <Two>
+              <Field label="Annual Raise (%)"><Num step={0.1} value={ip.income_growth_rate ?? 0} onChange={v => updateBaseline("income_profile", { income_growth_rate: v })} /></Field>
+              <Field label="Target Bonus (%)"><Num value={ip.target_bonus_rate ?? 0} onChange={v => updateBaseline("income_profile", { target_bonus_rate: v })} /></Field>
+            </Two>
+            <Field label="Annual Equity Grant"><Num prefix="$" step={1000} value={ip.annual_equity_grant ?? 0} onChange={v => updateBaseline("income_profile", { annual_equity_grant: v })} /></Field>
+            <Two>
+              <Field label="401(k) / yr"><Num prefix="$" step={500} value={ip.annual_401k_contribution ?? 0} onChange={v => updateBaseline("income_profile", { annual_401k_contribution: v })} /></Field>
+              <Field label="Backdoor Roth / yr"><Num prefix="$" step={500} value={ip.annual_backdoor_roth ?? 0} onChange={v => updateBaseline("income_profile", { annual_backdoor_roth: v })} /></Field>
+            </Two>
+            <Field label="Monthly Rental Income"><Num prefix="$" step={100} value={ip.monthly_rental_income ?? 0} onChange={v => updateBaseline("income_profile", { monthly_rental_income: v })} /></Field>
+          </Section>
+
+          {/* ── Spending ── */}
+          <Section title="Spending" accent={C.warm}>
+            <Field label="Monthly Lifestyle (excl. mortgage & healthcare)"><Num prefix="$" step={250} value={sp.monthly_lifestyle} onChange={v => updateBaseline("spending", { monthly_lifestyle: v })} /></Field>
+            <Two>
+              <Field label="Mortgage / Rent ($/mo)"><Num prefix="$" step={100} value={sp.mortgage_payment} onChange={v => updateBaseline("spending", { mortgage_payment: v })} /></Field>
+              <Field label="Healthcare ($/mo, pre-65)"><Num prefix="$" step={100} value={sp.healthcare_premium} onChange={v => updateBaseline("spending", { healthcare_premium: v })} /></Field>
+            </Two>
+            <Field label="Long-Term Care ($/yr, today's $; 0 = off)"><Num prefix="$" step={5000} value={sp.ltc_annual_cost ?? 0} onChange={v => updateBaseline("spending", { ltc_annual_cost: v })} /></Field>
+          </Section>
+
+          {/* ── Market Assumptions ── */}
+          <Section title="Market Assumptions" accent="#7a6da8">
+            <Two>
+              <Field label="Market Return (%)"><Num step={0.1} value={ma.market_return_rate} onChange={v => updateBaseline("market_assumptions", { market_return_rate: v })} /></Field>
+              <Field label="Inflation (%)"><Num step={0.25} value={ma.inflation_rate} onChange={v => updateBaseline("market_assumptions", { inflation_rate: v })} /></Field>
+            </Two>
+            <Two>
+              <Field label="Volatility Drag (%)"><Num step={0.1} value={ma.volatility_drag} onChange={v => updateBaseline("market_assumptions", { volatility_drag: v })} /></Field>
+              <Field label="Healthcare Inflation over CPI (%)"><Num step={0.25} value={ma.healthcare_inflation_premium ?? 2} onChange={v => updateBaseline("market_assumptions", { healthcare_inflation_premium: v })} /></Field>
+            </Two>
           </Section>
 
           {/* ── Location & Taxes ── */}
           <Section title="Location & Taxes" accent={C.inkMid}>
             <Field label="State of Residence">
-              <Select value={ta.state_of_residence} onChange={e => updateNestedConfig("tax_assumptions", { state_of_residence: e.target.value as any })}>
+              <Select value={ta.state_of_residence} onChange={e => updateBaseline("tax_assumptions", { state_of_residence: e.target.value as any })}>
                 {STATE_OPTIONS.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
               </Select>
             </Field>
             <Field label="Filing Status">
-              <Select value={ta.filing_status} onChange={e => updateNestedConfig("tax_assumptions", { filing_status: e.target.value as any })}>
+              <Select value={ta.filing_status} onChange={e => updateBaseline("tax_assumptions", { filing_status: e.target.value as any })}>
                 <option value="single">Single</option>
                 <option value="married_joint">Married Filing Jointly</option>
                 <option value="married_separate">Married Filing Separately</option>
@@ -214,23 +260,23 @@ export default function SettingsPanel() {
               </Select>
             </Field>
             <Field label="Deductions (W-4)" hint={`Allowances you claim on your W-4 — like 1, 2, 3, 4… for the people in your household. Each lowers taxable income (~$4,300); the standard deduction applies on top. Your household: ${suggestedAllowances} (you${ta.filing_status === "married_joint" ? " + spouse" : ""}${kids.length ? ` + ${kids.length} kid${kids.length > 1 ? "s" : ""}` : ""}).`}>
-              <Stepper value={ta.w4_allowances ?? suggestedAllowances} onChange={v => updateNestedConfig("tax_assumptions", { w4_allowances: v })} />
+              <Stepper value={ta.w4_allowances ?? suggestedAllowances} onChange={v => updateBaseline("tax_assumptions", { w4_allowances: v })} />
             </Field>
           </Section>
 
           {/* ── Social Security & Medicare ── */}
           <Section title="Social Security & Medicare" accent={C.inkSoft}>
             <Two>
-              <Field label="SS Claim Age"><Num value={ss?.start_age ?? 67} onChange={v => updateNestedConfig("social_security", { start_age: v } as any)} /></Field>
+              <Field label="SS Claim Age"><Num value={ss?.start_age ?? 67} onChange={v => updateBaseline("social_security", { start_age: v } as any)} /></Field>
               <Field label="SS Monthly ($)">
                 <LinkedNumberField
                   linked={ss?.social_security_linked !== false}
                   displayValue={ss?.social_security_linked !== false
                     ? estimateMonthlySocialSecurity(ip.gross_annual_salary, ss?.start_age ?? 67)
                     : (ss?.monthly_amount ?? 0)}
-                  onOverride={() => updateNestedConfig("social_security", { social_security_linked: false, monthly_amount: estimateMonthlySocialSecurity(ip.gross_annual_salary, ss?.start_age ?? 67) } as any)}
-                  onChange={v => updateNestedConfig("social_security", { monthly_amount: v, social_security_linked: false } as any)}
-                  onRelink={() => updateNestedConfig("social_security", { social_security_linked: true } as any)} />
+                  onOverride={() => updateBaseline("social_security", { social_security_linked: false, monthly_amount: estimateMonthlySocialSecurity(ip.gross_annual_salary, ss?.start_age ?? 67) } as any)}
+                  onChange={v => updateBaseline("social_security", { monthly_amount: v, social_security_linked: false } as any)}
+                  onRelink={() => updateBaseline("social_security", { social_security_linked: true } as any)} />
               </Field>
             </Two>
             <div style={{ fontSize: 10, color: C.inkFaint, marginTop: -6, marginBottom: 12 }}>
@@ -244,15 +290,15 @@ export default function SettingsPanel() {
                     displayValue={ss?.partner_ss_linked !== false
                       ? estimateMonthlySocialSecurity(ip.partner_gross_annual_salary || 0, ss?.start_age ?? 67)
                       : (ss?.partner_monthly_amount ?? 0)}
-                    onOverride={() => updateNestedConfig("social_security", { partner_ss_linked: false, partner_monthly_amount: estimateMonthlySocialSecurity(ip.partner_gross_annual_salary || 0, ss?.start_age ?? 67) } as any)}
-                    onChange={v => updateNestedConfig("social_security", { partner_monthly_amount: v, partner_ss_linked: false } as any)}
-                    onRelink={() => updateNestedConfig("social_security", { partner_ss_linked: true } as any)} />
+                    onOverride={() => updateBaseline("social_security", { partner_ss_linked: false, partner_monthly_amount: estimateMonthlySocialSecurity(ip.partner_gross_annual_salary || 0, ss?.start_age ?? 67) } as any)}
+                    onChange={v => updateBaseline("social_security", { partner_monthly_amount: v, partner_ss_linked: false } as any)}
+                    onRelink={() => updateBaseline("social_security", { partner_ss_linked: true } as any)} />
                 </Field>
               </>
             )}
             <Two>
-              <Field label="Medicare Age"><Num value={config.medicare?.start_age ?? 65} onChange={v => updateNestedConfig("medicare", { start_age: v } as any)} /></Field>
-              <Field label="Medicare $/mo"><Num prefix="$" step={25} value={config.medicare?.monthly_premium ?? 185} onChange={v => updateNestedConfig("medicare", { monthly_premium: v } as any)} /></Field>
+              <Field label="Medicare Age"><Num value={baseline.medicare?.start_age ?? 65} onChange={v => updateBaseline("medicare", { start_age: v } as any)} /></Field>
+              <Field label="Medicare $/mo"><Num prefix="$" step={25} value={baseline.medicare?.monthly_premium ?? 185} onChange={v => updateBaseline("medicare", { monthly_premium: v } as any)} /></Field>
             </Two>
           </Section>
 

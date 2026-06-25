@@ -66,7 +66,7 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
  */
 export default function OnboardingFlow() {
   const { user } = useAuth();
-  const { updateProfile, updateConfig, updateNestedSnapshot, setChildren } = useFinancialStore();
+  const { updateProfile, updateConfig, updateNestedSnapshot, setChildren, seedBaseline } = useFinancialStore();
 
   const [step, setStep] = useState(0);
 
@@ -193,6 +193,9 @@ export default function OnboardingFlow() {
 
     updateProfile({ name: name.trim(), birthYear: by, retirementYear: fiYear, retirementMonth: 0, onboarded: true });
     updateConfig(cfg);
+    // The onboarding answers ARE the baseline — so every scenario (and future
+    // ones) starts from the user's real income, spending, taxes, etc.
+    seedBaseline(cfg);
     updateNestedSnapshot("liquid_assets", { cash_savings: snap.liquid_assets.cash_savings });
     updateNestedSnapshot("retirement_assets", { k401: snap.retirement_assets.k401, roth_ira: snap.retirement_assets.roth_ira });
     setChildren(validKids());

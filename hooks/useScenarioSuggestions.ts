@@ -1,14 +1,14 @@
 "use client";
 /**
  * useScenarioSuggestions — the "What if…" engine. Derives a handful of tweaks
- * from the active scenario (leave sooner/later, trim spend, cooler markets),
+ * from your **baseline** (leave sooner/later, trim spend, cooler markets),
  * previews each one's impact on the FI date, and exposes a `build()` that turns
- * a suggestion into a real, named scenario (clone active → apply → switch).
+ * a suggestion into a real, named scenario (fresh from baseline → apply → switch).
  *
  * Shared by the Scenarios hub (desktop) and the mobile scenario bar.
  */
 import { useMemo } from "react";
-import { useFinancialStore } from "@/store/useFinancialStore";
+import { useFinancialStore, configFromBaseline } from "@/store/useFinancialStore";
 import { runSimulation, continuousFiMonth, type SimulationConfiguration } from "@/engine/calculator";
 import { C } from "@/config/colors";
 import type { LivePrices } from "@/hooks/useLivePrices";
@@ -43,7 +43,11 @@ export interface Suggestion {
 }
 
 export function useScenarioSuggestions(livePrices: LivePrices): Suggestion[] {
-  const { config, snapshot, duplicateScenario, updateNestedConfig } = useFinancialStore();
+  const { baseline, profile, snapshot, buildScenarioFromBaseline } = useFinancialStore();
+
+  // Ideas are framed against the baseline ("the real you"), not whatever scenario
+  // happens to be active — and the scenario each one creates starts from it too.
+  const config = useMemo(() => configFromBaseline(baseline, profile), [baseline, profile]);
 
   const liveGoogPrice = (livePrices["GOOG"] ?? livePrices["GOOGL"])?.price ?? 0;
   const enrichedSnapshot = useMemo(() => ({
@@ -91,8 +95,8 @@ export function useScenarioSuggestions(livePrices: LivePrices): Suggestion[] {
         nwDelta: Math.abs(dMoney) < 1000 ? "≈ same" : signM(dMoney),
         nwColor: Math.abs(dMoney) < 1000 ? C.inkSoft : dMoney > 0 ? C.tealDark : C.warm,
         nwLabel,
-        build: () => { duplicateScenario(s.title); updateNestedConfig(s.section, s.patch); },
+        build: () => buildScenarioFromBaseline(s.title, s.section, s.patch),
       };
     });
-  }, [specs, config, enrichedSnapshot, liveGoogPrice, duplicateScenario, updateNestedConfig]);
+  }, [specs, config, enrichedSnapshot, liveGoogPrice, buildScenarioFromBaseline]);
 }

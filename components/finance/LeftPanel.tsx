@@ -276,7 +276,6 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
         {/* ── Income (baseline cash flow) ── */}
         <AccCard {...acc("fin_income")} hidden={!showFacts} title="Income" color="#4aab92">
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <BaselineLinkBadge section="income_profile" />
             <div>
               <FieldLabel>Gross Annual Salary</FieldLabel>
               <Input type="number" step={1000} value={bip.gross_annual_salary || 0}
@@ -311,7 +310,6 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
         {/* ── Spending (baseline cash flow) ── */}
         <AccCard {...acc("fin_spending")} hidden={!showFacts} title="Spending" color={C.warm}>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <BaselineLinkBadge section="spending" />
             <div><FieldLabel>Monthly Lifestyle (excl. mortgage &amp; healthcare)</FieldLabel>
               <Input type="number" step={250} value={bsp.monthly_lifestyle}
                 onChange={e => updateBaseline("spending", { monthly_lifestyle: +e.target.value || 0 })} /></div>
@@ -435,6 +433,7 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
         {/* ── Income Modeling ── */}
         <AccCard {...acc("income")} hidden={!showLevers} title="Income Modeling" color="#4aab92">
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <BaselineLinkBadge section="income_profile" />
             <div>
               <FieldLabel>Gross Annual Salary</FieldLabel>
               <Input type="number" step={1000} value={ip.gross_annual_salary || 0}
@@ -527,6 +526,7 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
         {/* ── Market & Lifestyle ── */}
         <AccCard {...acc("market")} hidden={!showLevers} title="Market & Lifestyle" color={C.warm}>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <BaselineLinkBadge section="market_assumptions" />
             <Row>
               <div><FieldLabel>Market Return (%)</FieldLabel>
                 <Input type="number" step={0.1} value={ma.market_return_rate}
@@ -543,6 +543,7 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
             </Row>
 
             <SectionDivider />
+            <BaselineLinkBadge section="spending" />
 
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
@@ -642,6 +643,7 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
 
         {/* ── Life Events ── */}
         <AccCard {...acc("events")} hidden={!showLevers} title="Life Events" color="#c4784e">
+          <BaselineLinkBadge section="life_events" />
           <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
             {(config.life_events || []).map((evt, idx) => (
               <div key={idx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: C.bg, borderRadius: 7, padding: "8px 10px", border: `1px solid ${C.borderSoft}` }}>

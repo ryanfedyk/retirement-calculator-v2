@@ -5,7 +5,6 @@ import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import TickerAutocomplete from "@/components/finance/TickerAutocomplete";
 import LinkedNumberField from "@/components/finance/LinkedNumberField";
-import BaselineLinkBadge from "@/components/finance/BaselineLinkBadge";
 import { Field, Num, Two, Section, inputStyle, labelStyle } from "./sheetUI";
 
 // The shared "Your finances" picture — cash flow (income & spending) plus the
@@ -26,7 +25,6 @@ export default function MobileFinancesSections() {
     <>
       {/* ── Income (baseline cash flow) ── */}
       <Section title="Income" accent="#4aab92" {...sec("income")}>
-        <BaselineLinkBadge section="income_profile" variant="mobile" />
         <Field label="Gross Annual Salary"><Num prefix="$" step={1000} value={ip.gross_annual_salary} onChange={v => updateBaseline("income_profile", { gross_annual_salary: v })} /></Field>
         <Two>
           <Field label="Annual Raise (%)"><Num step={0.1} value={ip.income_growth_rate ?? 0} onChange={v => updateBaseline("income_profile", { income_growth_rate: v })} /></Field>
@@ -43,7 +41,6 @@ export default function MobileFinancesSections() {
 
       {/* ── Spending (baseline cash flow) ── */}
       <Section title="Spending" accent={C.warm} {...sec("spending")}>
-        <BaselineLinkBadge section="spending" variant="mobile" />
         <Field label="Monthly Lifestyle (excl. mortgage & healthcare)"><Num prefix="$" step={250} value={sp.monthly_lifestyle} onChange={v => updateBaseline("spending", { monthly_lifestyle: v })} /></Field>
         <Two>
           <Field label="Mortgage / Rent ($/mo)"><Num prefix="$" step={100} value={sp.mortgage_payment} onChange={v => updateBaseline("spending", { mortgage_payment: v })} /></Field>

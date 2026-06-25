@@ -1,14 +1,16 @@
 "use client";
 /**
- * useScenarioSuggestions — the "What if…" engine. Derives a handful of tweaks
- * from your **baseline** (leave sooner/later, trim spend, cooler markets),
- * previews each one's impact on the FI date, and exposes a `build()` that turns
- * a suggestion into a real, named scenario (fresh from baseline → apply → switch).
+ * useScenarioSuggestions — the "Ideas to try" engine. Takes the scenario you're
+ * currently looking at and spins off a diverse set of what-ifs (retire a year
+ * sooner/later, take a sabbatical, change careers, trim spending, buy a second
+ * home, cooler/hotter markets, move to a no-tax state…). Each previews its
+ * impact on the FI date and ending net worth, and `build()` turns it into a real
+ * scenario — a true offshoot of the one you started from.
  *
- * Shared by the Scenarios hub (desktop) and the mobile scenario bar.
+ * Consumed by the Scenarios hub.
  */
 import { useMemo } from "react";
-import { useFinancialStore, configFromBaseline } from "@/store/useFinancialStore";
+import { useFinancialStore } from "@/store/useFinancialStore";
 import { runSimulation, continuousFiMonth, type SimulationConfiguration } from "@/engine/calculator";
 import { C } from "@/config/colors";
 import type { LivePrices } from "@/hooks/useLivePrices";
@@ -23,8 +25,17 @@ const signM = (v: number) => `${v >= 0 ? "+" : "−"}${fmtM(Math.abs(v))}`;
 const fiMonthToDate = (m: number) => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth() + Math.round(m), 1); };
 const fmtDate = (d: Date) => d.toLocaleString("default", { month: "short", year: "numeric" });
 
-type Section = "career_path" | "spending" | "market_assumptions";
-interface Spec { title: string; section: Section; patch: Record<string, number> }
+const NO_TAX_STATES = new Set(["AK", "FL", "NH", "NV", "SD", "TN", "TX", "WA", "WY", "NONE"]);
+
+/** A what-if applied to a cloned config, plus the baseline paths it forks. */
+interface Idea {
+  title: string;
+  apply: (cfg: SimulationConfiguration) => void;
+  /** Shared-baseline leaf paths this idea overrides (so the offshoot stays linked elsewhere). */
+  unlink: string[];
+  /** Only offer the idea when it actually differs from the current scenario. */
+  when?: (cfg: SimulationConfiguration) => boolean;
+}
 
 export interface Suggestion {
   title: string;
@@ -33,21 +44,23 @@ export interface Suggestion {
   /** e.g. "4 mo earlier" / "no change" / "—" */
   fiDelta: string;
   fiColor: string;
-  /** Signed net-worth delta at the horizon vs the active scenario, e.g. "+$1.2M" */
+  /** Signed net-worth delta at the horizon vs the source scenario, e.g. "+$1.2M" */
   nwDelta: string;
   nwColor: string;
   /** Label for the horizon year, e.g. "Net worth ’55" */
   nwLabel: string;
-  /** Create the scenario: clones the active one, applies the tweak, switches to it. */
+  /** Create the scenario: an offshoot of the active one with this tweak applied. */
   build: () => void;
 }
 
 export function useScenarioSuggestions(livePrices: LivePrices): Suggestion[] {
-  const { baseline, profile, snapshot, buildScenarioFromBaseline } = useFinancialStore();
+  const { config, scenarios, activeScenarioId, snapshot, addScenarioFromConfig } = useFinancialStore();
 
-  // Ideas are framed against the baseline ("the real you"), not whatever scenario
-  // happens to be active — and the scenario each one creates starts from it too.
-  const config = useMemo(() => configFromBaseline(baseline, profile), [baseline, profile]);
+  // Offshoots riff off the scenario you're currently in.
+  const baseUnlinked = useMemo(
+    () => scenarios.find((x) => x.id === activeScenarioId)?.unlinked ?? [],
+    [scenarios, activeScenarioId],
+  );
 
   const liveGoogPrice = (livePrices["GOOG"] ?? livePrices["GOOGL"])?.price ?? 0;
   const enrichedSnapshot = useMemo(() => ({
@@ -58,17 +71,60 @@ export function useScenarioSuggestions(livePrices: LivePrices): Suggestion[] {
     }),
   }), [snapshot, livePrices]);
 
-  const specs = useMemo<Spec[]>(() => {
-    const exit = config.career_path.exit_year;
+  const ideas = useMemo<Idea[]>(() => {
+    const cp = config.career_path;
     const spend = config.spending.monthly_lifestyle;
     const ret = config.market_assumptions.market_return_rate;
-    const list: Spec[] = [
-      { title: `Leave in ${exit - 1}`, section: "career_path", patch: { exit_year: exit - 1 } },
-      { title: `Work through ${exit + 1}`, section: "career_path", patch: { exit_year: exit + 1 } },
-      { title: `Spend ${fmtK(Math.max(0, spend - 1000))}/mo`, section: "spending", patch: { monthly_lifestyle: Math.max(0, spend - 1000) } },
-      { title: `Markets cool to ${(ret - 2).toFixed(0)}%`, section: "market_assumptions", patch: { market_return_rate: ret - 2 } },
+    const salary = config.income_profile.gross_annual_salary;
+    const trimmed = Math.round(spend * 0.85);
+    const thisYear = new Date().getFullYear();
+
+    const list: Idea[] = [
+      { title: "Retire 1 year earlier", unlink: [], apply: (c) => { c.career_path.exit_year -= 1; } },
+      { title: "Retire 1 year later",   unlink: [], apply: (c) => { c.career_path.exit_year += 1; } },
+      {
+        title: "Take a sabbatical", unlink: [], when: () => !cp.use_sabbatical,
+        apply: (c) => { c.career_path.use_sabbatical = true; c.career_path.sabbatical_duration = 1; },
+      },
+      {
+        title: "Change careers", unlink: ["income_profile.jump_gross_annual", "income_profile.jump_bonus_rate"],
+        when: () => !cp.use_jump,
+        apply: (c) => {
+          c.career_path.use_jump = true;
+          c.career_path.jump_duration = 5;
+          c.income_profile.jump_gross_annual = Math.round(salary * 0.7);
+          c.income_profile.jump_bonus_rate = 5;
+        },
+      },
+      {
+        title: `Trim spending to ${fmtK(trimmed)}/mo`, unlink: ["spending.monthly_lifestyle"],
+        when: () => trimmed < spend,
+        apply: (c) => { c.spending.monthly_lifestyle = trimmed; },
+      },
+      {
+        title: "Buy a second home", unlink: ["life_events", "spending.monthly_lifestyle"],
+        apply: (c) => {
+          c.life_events = [...(c.life_events ?? []), { name: "Second home", year: thisYear + 3, cost: 250_000, auto: false }];
+          c.spending.monthly_lifestyle += 1_200; // carrying costs (taxes, upkeep, insurance)
+        },
+      },
+      {
+        title: "Markets cool to 6%", unlink: ["market_assumptions.market_return_rate"],
+        when: () => ret > 6,
+        apply: (c) => { c.market_assumptions.market_return_rate = 6; },
+      },
+      {
+        title: "Markets heat up to 10%", unlink: ["market_assumptions.market_return_rate"],
+        when: () => ret < 10,
+        apply: (c) => { c.market_assumptions.market_return_rate = 10; },
+      },
+      {
+        title: "Move to a no-tax state", unlink: ["tax_assumptions.state_of_residence"],
+        when: () => !NO_TAX_STATES.has(config.tax_assumptions.state_of_residence),
+        apply: (c) => { c.tax_assumptions.state_of_residence = "FL"; },
+      },
     ];
-    return list;
+    return list.filter((i) => !i.when || i.when(config));
   }, [config]);
 
   return useMemo(() => {
@@ -77,8 +133,9 @@ export function useScenarioSuggestions(livePrices: LivePrices): Suggestion[] {
     const baseFi = continuousFiMonth(baseTraj);
     const baseFinal = baseTraj[baseTraj.length - 1]?.totalNetWorth ?? 0;
 
-    return specs.map((s) => {
-      const tweaked: SimulationConfiguration = { ...config, [s.section]: { ...(config[s.section] as object), ...s.patch } } as SimulationConfiguration;
+    return ideas.map((idea) => {
+      const tweaked = structuredClone(config);
+      idea.apply(tweaked);
       const traj = runSimulation(enrichedSnapshot, tweaked, liveGoogPrice);
       const fi = continuousFiMonth(traj);
       const finalNW = traj[traj.length - 1]?.totalNetWorth ?? 0;
@@ -88,15 +145,15 @@ export function useScenarioSuggestions(livePrices: LivePrices): Suggestion[] {
       const dMoney = finalNW - baseFinal;
 
       return {
-        title: s.title,
+        title: idea.title,
         fiDate: fi != null ? fmtDate(fiMonthToDate(fi)) : "30+ yrs",
         fiDelta: dMonths == null ? "—" : dMonths === 0 ? "no change" : `${Math.abs(dMonths)} mo ${earlier ? "earlier" : "later"}`,
         fiColor: dMonths == null || dMonths === 0 ? C.inkFaint : earlier ? C.tealDark : C.warm,
         nwDelta: Math.abs(dMoney) < 1000 ? "≈ same" : signM(dMoney),
         nwColor: Math.abs(dMoney) < 1000 ? C.inkSoft : dMoney > 0 ? C.tealDark : C.warm,
         nwLabel,
-        build: () => buildScenarioFromBaseline(s.title, s.section, s.patch),
+        build: () => addScenarioFromConfig(idea.title, tweaked, [...baseUnlinked, ...idea.unlink]),
       };
     });
-  }, [specs, config, enrichedSnapshot, liveGoogPrice, buildScenarioFromBaseline]);
+  }, [ideas, config, enrichedSnapshot, liveGoogPrice, baseUnlinked, addScenarioFromConfig]);
 }

@@ -24,7 +24,7 @@ export default function Header({ view, onViewChange, mode, onBack }: Props) {
       borderBottom: `1px solid ${C.border}`,
       padding: "14px 32px",
     }}>
-      <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+      <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-x-4 gap-y-3" style={{ minHeight: 36 }}>
         {/* Wordmark (doubles as the "home" affordance in a deep-dive) + scenario picker */}
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           {mode === "scenario" ? (

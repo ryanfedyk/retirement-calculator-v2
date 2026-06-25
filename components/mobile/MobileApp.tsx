@@ -210,7 +210,7 @@ function MobileAccountMenu() {
             padding: "10px", background: "transparent", border: "none", borderRadius: 8,
             color: C.inkMid, fontSize: 14, cursor: "pointer", textAlign: "left",
           }}>
-            <Settings size={15} /> Settings
+            <Settings size={15} /> Profile
           </button>
           <button onClick={() => { setOpen(false); signOutUser(); }} style={{
             width: "100%", display: "flex", alignItems: "center", gap: 8, marginTop: 2,

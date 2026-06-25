@@ -7,6 +7,8 @@ import {
   DEFAULT_SIM_CONFIG,
   DEFAULT_PROFILE,
   buildLifeEvents,
+  yearOfISO,
+  isoDate,
   type UserProfile,
 } from "@/config/sharedConfig";
 
@@ -107,9 +109,10 @@ interface FinancialStore extends HorizonState {
   hydrate: (state: Partial<HorizonState>) => void;
 }
 
-/** Keep config.children (consumed by the engine) in sync with profile.children. */
+/** Keep config.children (consumed by the engine) in sync with profile.children.
+ *  Profile stores full birthdays; the engine works in whole years. */
 function projectChildren(profile: UserProfile): SimulationConfiguration["children"] {
-  return profile.children.map((c) => ({ birthYear: c.birthYear }));
+  return profile.children.map((c) => ({ birthYear: yearOfISO(c.birthDate) }));
 }
 
 const newId = () =>
@@ -196,7 +199,7 @@ export function configFromBaseline(baseline: Baseline, profile: UserProfile): Si
     (config[sec] as unknown) = structuredClone(baseline[sec]);
   }
   config.life_events = structuredClone(baseline.life_events ?? []);
-  config.birth_year = profile.birthYear;
+  config.birth_year = yearOfISO(profile.birthDate);
   config.children = projectChildren(profile);
   config.career_path = { ...config.career_path, exit_year: profile.retirementYear };
   return config;
@@ -227,7 +230,7 @@ export const useFinancialStore = create<FinancialStore>()(
           const hasKids = children.length > 0;
           const hadKids = s.profile.children.length > 0;
 
-          const youngestBirthYear = hasKids ? Math.max(...children.map((c) => c.birthYear)) : 0;
+          const youngestBirthYear = hasKids ? Math.max(...children.map((c) => yearOfISO(c.birthDate))) : 0;
           const emptyNestSpend =
             hasKids && !hadKids
               ? Math.round(s.baseline.spending.monthly_lifestyle * 0.85)
@@ -398,7 +401,7 @@ export const useFinancialStore = create<FinancialStore>()(
           const remaining = s.scenarios.filter((x) => x.id !== id);
           if (id !== s.activeScenarioId) return { scenarios: remaining };
           const next = remaining[0];
-          const config = { ...next.config, birth_year: s.profile.birthYear, children: projectChildren(s.profile) };
+          const config = { ...next.config, birth_year: yearOfISO(s.profile.birthDate), children: projectChildren(s.profile) };
           return {
             scenarios: remaining.map((x) => (x.id === next.id ? { ...x, config } : x)),
             activeScenarioId: next.id,
@@ -410,7 +413,7 @@ export const useFinancialStore = create<FinancialStore>()(
         set((s) => {
           const sc = s.scenarios.find((x) => x.id === id);
           if (!sc) return {};
-          const config = { ...sc.config, birth_year: s.profile.birthYear, children: projectChildren(s.profile) };
+          const config = { ...sc.config, birth_year: yearOfISO(s.profile.birthDate), children: projectChildren(s.profile) };
           return {
             activeScenarioId: id,
             config,
@@ -456,7 +459,7 @@ export const useFinancialStore = create<FinancialStore>()(
     },
     {
       name:    "horizon-financial-v10",
-      version: 10,
+      version: 11,
       storage: createJSONStorage(() => localStorage),
       partialize: (s) => ({
         profile: s.profile, snapshot: s.snapshot, baseline: s.baseline, config: s.config,
@@ -464,6 +467,21 @@ export const useFinancialStore = create<FinancialStore>()(
       }),
       migrate: (persisted: unknown) => {
         const p = persisted as Partial<HorizonState> & { config?: SimulationConfiguration };
+
+        // v11: birth years → full birthdays (ISO). Old data only had a year (and a
+        // month for kids); default the missing day to the 1st so nothing breaks.
+        const prof = p?.profile as (UserProfile & { birthYear?: number }) | undefined;
+        if (prof) {
+          const legacy = prof as unknown as { birthYear?: number; birthDate?: string };
+          if (legacy.birthDate == null && legacy.birthYear != null) prof.birthDate = isoDate(legacy.birthYear);
+          delete legacy.birthYear;
+          if (Array.isArray(prof.children)) {
+            prof.children = prof.children.map((c) => {
+              const k = c as { name: string; birthDate?: string; birthYear?: number; birthMonth?: number };
+              return { name: k.name, birthDate: k.birthDate ?? isoDate(k.birthYear ?? new Date().getFullYear() - 8, k.birthMonth ?? 0) };
+            });
+          }
+        }
         if (p && (!p.scenarios || !p.scenarios.length)) {
           const config = p.config ?? DEFAULT_SIM_CONFIG;
           const seeded = makeDefaultScenarios(config);

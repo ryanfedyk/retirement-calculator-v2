@@ -109,7 +109,7 @@ export function useHorizonProfile(): HorizonProfile {
       },
       children: profile.children.map((c) => ({
         name: c.name,
-        birthDate: new Date(c.birthYear, c.birthMonth, 1),
+        birthDate: new Date(c.birthDate),
       })),
     }),
     [profile]

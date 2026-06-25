@@ -4,12 +4,13 @@ import { Plus, Trash2, Sparkles } from "lucide-react";
 import { C } from "@/config/colors";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { useFinancialStore } from "@/store/useFinancialStore";
-import { DEFAULT_SIM_CONFIG, DEFAULT_SNAPSHOT } from "@/config/sharedConfig";
+import { DEFAULT_SIM_CONFIG, DEFAULT_SNAPSHOT, isoDate, yearOfISO } from "@/config/sharedConfig";
 import { runSimulation, findIndependencePoint } from "@/engine/calculator";
 import { STATE_OPTIONS } from "@/engine/state_tax";
 import { launchConfetti } from "@/lib/fx/confetti";
 
 const CURRENT_YEAR = new Date().getFullYear();
+const TODAY_ISO = new Date().toISOString().slice(0, 10);
 
 const optNum = (s: string): number | undefined => {
   const n = Number(String(s).replace(/,/g, ""));
@@ -54,9 +55,7 @@ function MoneyField({ label, value, onChange, placeholder }: {
   );
 }
 
-type KidDraft = { name: string; month: string; year: string };
-
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+type KidDraft = { name: string; birthDate: string };
 
 /**
  * Onboarding that captures the data that actually moves a retirement
@@ -72,11 +71,11 @@ export default function OnboardingFlow() {
 
   // Step 1 — You
   const [name, setName] = useState(user?.displayName ?? "");
-  const [birthYear, setBirthYear] = useState<string>(String(CURRENT_YEAR - 40));
+  const [birthDate, setBirthDate] = useState<string>(isoDate(CURRENT_YEAR - 40));
 
   // Step 2 — Household
   const [hasPartner, setHasPartner] = useState(false);
-  const [partnerAge, setPartnerAge] = useState<string>("");
+  const [partnerBirthDate, setPartnerBirthDate] = useState<string>("");
   const [partnerSalary, setPartnerSalary] = useState<string>("");
   const [kids, setKids] = useState<KidDraft[]>([]);
 
@@ -94,8 +93,8 @@ export default function OnboardingFlow() {
   const [filing, setFiling] = useState<string>("single");
   const [stateCode, setStateCode] = useState<string>("NONE");
 
-  const by = Number(birthYear);
-  const essentialsValid = name.trim().length > 0 && by >= 1920 && by <= CURRENT_YEAR;
+  const by = yearOfISO(birthDate);
+  const essentialsValid = name.trim().length > 0 && !!birthDate && by >= 1920 && by <= CURRENT_YEAR;
 
   const STEP_META = [
     { title: "Let’s chart your horizon", subtitle: "Two essentials to begin — you can refine everything later." },
@@ -112,17 +111,17 @@ export default function OnboardingFlow() {
   // ── Kid helpers ──
   // New kids start at a real, editable birthday (not ghosted placeholder) so the
   // year stepper works immediately and nothing gets silently dropped.
-  const addKid = () => setKids((k) => [...k, { name: "", month: "0", year: String(CURRENT_YEAR - 8) }]);
+  const addKid = () => setKids((k) => [...k, { name: "", birthDate: isoDate(CURRENT_YEAR - 8, 0, 1) }]);
   const removeKid = (i: number) => setKids((k) => k.filter((_, idx) => idx !== i));
   const updateKid = (i: number, patch: Partial<KidDraft>) =>
     setKids((k) => k.map((kid, idx) => (idx === i ? { ...kid, ...patch } : kid)));
 
-  const kidYearValid = (k: KidDraft) => { const y = Number(k.year); return y >= 1990 && y <= CURRENT_YEAR + 30; };
+  const kidYearValid = (k: KidDraft) => { const y = yearOfISO(k.birthDate); return !!k.birthDate && y >= 1990 && y <= CURRENT_YEAR + 30; };
   const kidsValid = kids.every(kidYearValid);
 
   const validKids = () => kids
     .filter(kidYearValid)
-    .map((k) => ({ name: k.name.trim() || "Child", birthYear: Number(k.year), birthMonth: Number(k.month) || 0 }));
+    .map((k) => ({ name: k.name.trim() || "Child", birthDate: k.birthDate }));
 
   // Build the full config + snapshot from the inputs (defaults fill the blanks).
   // Used for BOTH the reveal projection and the committed plan, so the dashboard
@@ -137,14 +136,16 @@ export default function OnboardingFlow() {
     cfg.income_profile.use_partner_income = hasPartner;
     if (hasPartner) {
       cfg.income_profile.partner_gross_annual_salary = num(partnerSalary, 0);
-      const pa = optNum(partnerAge);
-      if (pa !== undefined) cfg.income_profile.partner_birth_year = CURRENT_YEAR - pa;
+      if (partnerBirthDate) {
+        cfg.income_profile.partner_birth_date = partnerBirthDate;
+        cfg.income_profile.partner_birth_year = yearOfISO(partnerBirthDate);
+      }
     }
     cfg.spending.monthly_lifestyle = num(monthlySpend, cfg.spending.monthly_lifestyle);
     cfg.spending.mortgage_payment = num(housing, 0);
     cfg.tax_assumptions.filing_status = filing as typeof cfg.tax_assumptions.filing_status;
     cfg.tax_assumptions.state_of_residence = stateCode as typeof cfg.tax_assumptions.state_of_residence;
-    cfg.children = validKids().map((k) => ({ birthYear: k.birthYear }));
+    cfg.children = validKids().map((k) => ({ birthYear: yearOfISO(k.birthDate) }));
 
     const snap = structuredClone(DEFAULT_SNAPSHOT);
     snap.liquid_assets.cash_savings = num(savings, 0);
@@ -171,7 +172,7 @@ export default function OnboardingFlow() {
     const progress = p0 && p0.swrTarget > 0 ? Math.min(100, Math.round((p0.investableAssets / p0.swrTarget) * 100)) : 0;
     return { fi: false as const, progress };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onReveal, essentialsValid, by, salary, partnerSalary, partnerAge, hasPartner, monthlySpend, housing, filing, stateCode, savings, k401, roth, kids]);
+  }, [onReveal, essentialsValid, by, salary, partnerSalary, partnerBirthDate, hasPartner, monthlySpend, housing, filing, stateCode, savings, k401, roth, kids]);
 
   // Celebrate on the reveal.
   useEffect(() => {
@@ -191,7 +192,7 @@ export default function OnboardingFlow() {
     cfg.career_path.exit_year = fiYear;
     cfg.divestment_strategy.end_year = fiYear;
 
-    updateProfile({ name: name.trim(), birthYear: by, retirementYear: fiYear, retirementMonth: 0, onboarded: true });
+    updateProfile({ name: name.trim(), birthDate, retirementYear: fiYear, retirementMonth: 0, onboarded: true });
     updateConfig(cfg);
     // The onboarding answers ARE the baseline — so every scenario (and future
     // ones) starts from the user's real income, spending, taxes, etc.
@@ -235,12 +236,12 @@ export default function OnboardingFlow() {
                   <input style={fieldStyle} type="text" placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} />
                 </div>
                 <div>
-                  <label style={labelStyle}>Birth year</label>
-                  <input style={fieldStyle} type="number" inputMode="numeric" placeholder="1985" min={1920} max={CURRENT_YEAR}
-                         value={birthYear} onChange={(e) => setBirthYear(e.target.value)} />
+                  <label style={labelStyle}>Your birthday</label>
+                  <input style={fieldStyle} type="date" max={TODAY_ISO}
+                         value={birthDate} onChange={(e) => setBirthDate(e.target.value)} />
                   {user?.displayName && (
                     <p style={{ fontSize: 12, color: C.inkFaint, marginTop: 6, lineHeight: 1.4 }}>
-                      We pulled your name from Google — but Google doesn’t share your birth year, so pop it in here.
+                      We pulled your name from Google — but Google doesn’t share your birthday, so pop it in here.
                     </p>
                   )}
                 </div>
@@ -263,8 +264,8 @@ export default function OnboardingFlow() {
                 {hasPartner && (
                   <div style={{ display: "flex", gap: 10 }}>
                     <div style={{ flex: 1 }}>
-                      <label style={labelStyle}>Partner age {optionalTag}</label>
-                      <input style={fieldStyle} type="number" inputMode="numeric" placeholder="40" value={partnerAge} onChange={(e) => setPartnerAge(e.target.value)} />
+                      <label style={labelStyle}>Partner birthday {optionalTag}</label>
+                      <input style={fieldStyle} type="date" max={TODAY_ISO} value={partnerBirthDate} onChange={(e) => setPartnerBirthDate(e.target.value)} />
                     </div>
                     <div style={{ flex: 1.4 }}>
                       <MoneyField label={<>Partner salary {optionalTag}</>} value={partnerSalary} onChange={setPartnerSalary} placeholder="90,000" />
@@ -277,27 +278,21 @@ export default function OnboardingFlow() {
                   return (
                   <div key={i}>
                   <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
-                    <div style={{ flex: 1.4 }}>
+                    <div style={{ flex: 1.3 }}>
                       <label style={labelStyle}>Child name</label>
                       <input style={fieldStyle} type="text" placeholder="Child’s name" value={kid.name} onChange={(e) => updateKid(i, { name: e.target.value })} />
                     </div>
-                    <div style={{ flex: 0.9 }}>
-                      <label style={labelStyle}>Born</label>
-                      <select style={selectStyle} value={kid.month} onChange={(e) => updateKid(i, { month: e.target.value })}>
-                        {MONTHS.map((m, mi) => <option key={mi} value={mi}>{m}</option>)}
-                      </select>
-                    </div>
-                    <div style={{ flex: 0.8 }}>
-                      <label style={labelStyle}>Year</label>
-                      <input style={{ ...fieldStyle, ...(yearBad ? { borderColor: C.warm } : {}) }} type="number" inputMode="numeric" min={1990} max={CURRENT_YEAR + 30}
-                             value={kid.year} onChange={(e) => updateKid(i, { year: e.target.value })} />
+                    <div style={{ flex: 1.1 }}>
+                      <label style={labelStyle}>Birthday</label>
+                      <input style={{ ...fieldStyle, ...(yearBad ? { borderColor: C.warm } : {}) }} type="date" max={TODAY_ISO}
+                             value={kid.birthDate} onChange={(e) => updateKid(i, { birthDate: e.target.value })} />
                     </div>
                     <button onClick={() => removeKid(i)} aria-label="Remove child"
                       style={{ flexShrink: 0, height: 40, width: 40, display: "flex", alignItems: "center", justifyContent: "center", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 8, color: C.warm, cursor: "pointer" }}>
                       <Trash2 size={16} />
                     </button>
                   </div>
-                  {yearBad && <p style={{ fontSize: 12, color: C.warm, marginTop: 5 }}>Add a birth year so we can time college and benefits.</p>}
+                  {yearBad && <p style={{ fontSize: 12, color: C.warm, marginTop: 5 }}>Add a birthday so we can time college and benefits.</p>}
                   </div>
                   );
                 })}

@@ -36,7 +36,7 @@ interface Props {
 }
 
 export default function MobileFinancial({ livePrices, pricesFetching, onRefreshPrices, onOpenConfig }: Props) {
-  const { config, snapshot } = useFinancialStore();
+  const { config, snapshot, profile } = useFinancialStore();
   const dollarMode = useUIStore((s) => s.dollarMode);
   const inflationRate = config.market_assumptions.inflation_rate || 0;
   const dollarBasisLabel = dollarMode === "future" ? "future (nominal) dollars" : "today’s dollars";
@@ -84,10 +84,10 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
       color: C.teal, pct: progress as number | null,
     };
     const momentum = today
-      ? buildMomentumCards(today, config).map((c) => ({ id: c.tag, hero: false, ...c }))
+      ? buildMomentumCards(today, config, traj, profile.birthDate).map((c) => ({ id: c.tag, hero: false, ...c }))
       : [];
     return [fi, ...momentum];
-  }, [indep, currentNW, progress, swrTarget, today, config]);
+  }, [indep, currentNW, progress, swrTarget, today, config, traj, profile.birthDate]);
 
   // Sample yearly (every 12 months) to keep the mobile chart light & legible.
   // Re-express in the global money basis first (month-0 metrics are unaffected).

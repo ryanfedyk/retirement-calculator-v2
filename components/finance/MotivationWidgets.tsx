@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { TrendingUp, TrendingDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { C } from "@/config/colors";
 import { continuousFiMonth, type TrajectoryPoint, type FinancialSnapshot, type SimulationConfiguration } from "@/engine/calculator";
+import { monthOfISO, dayOfISO, ageFromISO } from "@/config/sharedConfig";
 
 const fmtM = (v: number) => {
   const a = Math.abs(v);
@@ -110,9 +111,9 @@ export function TodaysDelta({ trajectory, snapshot, symbol = "", price }: {
 }
 
 // ── 2. Momentum turnstile ─────────────────────────────────────────────────────
-export function MomentumTurnstile({ point, config }: { point: TrajectoryPoint; config: SimulationConfiguration }) {
+export function MomentumTurnstile({ point, config, trajectory, birthDate }: { point: TrajectoryPoint; config: SimulationConfiguration; trajectory?: TrajectoryPoint[]; birthDate?: string }) {
   const [idx, setIdx] = useState(0);
-  const cards = useMemo(() => buildMomentumCards(point, config), [point, config]);
+  const cards = useMemo(() => buildMomentumCards(point, config, trajectory, birthDate), [point, config, trajectory, birthDate]);
 
   useEffect(() => {
     const id = setInterval(() => setIdx(i => (i + 1) % cards.length), 6000);
@@ -162,8 +163,8 @@ const navBtn: React.CSSProperties = {
 
 // Same momentum metrics, but as separate cards you swipe through horizontally
 // (one-at-a-time scroll snap with a peek of the next). Used on mobile.
-export function MomentumCards({ point, config }: { point: TrajectoryPoint; config: SimulationConfiguration }) {
-  const cards = useMemo(() => buildMomentumCards(point, config), [point, config]);
+export function MomentumCards({ point, config, trajectory, birthDate }: { point: TrajectoryPoint; config: SimulationConfiguration; trajectory?: TrajectoryPoint[]; birthDate?: string }) {
+  const cards = useMemo(() => buildMomentumCards(point, config, trajectory, birthDate), [point, config, trajectory, birthDate]);
   return (
     <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 4, WebkitOverflowScrolling: "touch", scrollSnapType: "x mandatory" }}>
       {cards.map(card => (
@@ -189,7 +190,7 @@ export function MomentumCards({ point, config }: { point: TrajectoryPoint; confi
   );
 }
 
-export function buildMomentumCards(point: TrajectoryPoint, config: SimulationConfiguration) {
+export function buildMomentumCards(point: TrajectoryPoint, config: SimulationConfiguration, trajectory?: TrajectoryPoint[], birthDate?: string) {
   const investable = point.investableAssets;
   const fiTarget   = point.swrTarget;
   const expenses   = point.annualExpenseNeed;
@@ -206,7 +207,7 @@ export function buildMomentumCards(point: TrajectoryPoint, config: SimulationCon
   const freedomPct = expenses > 0 ? (passive / expenses) * 100 : 0;
   const yearsFunded = expenses > 0 ? investable / expenses : 0;
 
-  return [
+  const cards: { tag: string; value: string; unit: string; blurb: string; color: string; pct: number | null }[] = [
     {
       tag: "Coast FI",
       value: reachedCoast ? "Reached" : String(coastYear),
@@ -231,4 +232,26 @@ export function buildMomentumCards(point: TrajectoryPoint, config: SimulationCon
       color: "#7a6da8", pct: Math.min(100, (yearsFunded / 25) * 100),
     },
   ];
+
+  // A delightful birthday fact — what your projected net worth looks like on
+  // your next birthday. Needs the full trajectory (monthly points) + birthday.
+  if (trajectory?.length && birthDate) {
+    const now = new Date();
+    const next = new Date(now.getFullYear(), monthOfISO(birthDate), dayOfISO(birthDate));
+    if (next <= now) next.setFullYear(next.getFullYear() + 1);
+    const monthsAway = (next.getFullYear() - now.getFullYear()) * 12 + (next.getMonth() - now.getMonth());
+    const pt = trajectory[Math.min(Math.max(0, monthsAway), trajectory.length - 1)];
+    if (pt) {
+      const turning = ageFromISO(birthDate, next);
+      cards.unshift({
+        tag: "Next birthday",
+        value: fmtM(pt.totalNetWorth),
+        unit: `at ${turning} 🎂`,
+        blurb: `On your birthday in ${next.getFullYear()}, your projected net worth is about ${fmtM(pt.totalNetWorth)} — a year of compounding, captured.`,
+        color: C.tealDark, pct: null,
+      });
+    }
+  }
+
+  return cards;
 }

@@ -168,7 +168,7 @@ interface Props {
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 export default function RightPanel({ livePrices }: Props) {
-  const { snapshot, config } = useFinancialStore();
+  const { snapshot, config, profile } = useFinancialStore();
   const dollarMode = useUIStore((s) => s.dollarMode);
   const setPlanPanelOpen = useUIStore((s) => s.setPlanPanelOpen);
   const planPanelOpen = useUIStore((s) => s.planPanelOpen);
@@ -615,7 +615,7 @@ export default function RightPanel({ livePrices }: Props) {
       </div>
 
       {insightTab === "today" && todayPoint && (
-        <MomentumTurnstile point={todayPoint} config={config} />
+        <MomentumTurnstile point={todayPoint} config={config} trajectory={trajectoryData} birthDate={profile.birthDate} />
       )}
 
       {/* ── AI Analysis ── */}

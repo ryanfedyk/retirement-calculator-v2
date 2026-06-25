@@ -14,7 +14,7 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
   const setFinancesOpen = useUIStore((s) => s.setFinancesOpen);
   const kids = profile.children;
   const thisYear = new Date().getFullYear();
-  const age = thisYear - (config.birth_year || profile.birthYear || 1985);
+  const age = thisYear - (config.birth_year || 1985);
   const [openId, setOpenId] = useState<string | null>("career");
   const [newEvent, setNewEvent] = useState({ name: "", year: 2030, cost: 50_000 });
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -176,7 +176,7 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
                 <Toggle label="Partner Supplies Insurance" on={ip.partner_has_health_insurance || false} onChange={v => updateNestedConfig("income_profile", { partner_has_health_insurance: v })} />
               </>
             ) : (
-              <div style={{ fontSize: 11, color: C.inkFaint }}>Add a partner in Settings → Family to model their income.</div>
+              <div style={{ fontSize: 11, color: C.inkFaint }}>Add a partner in Profile → Family to model their income.</div>
             )}
           </Section>
 

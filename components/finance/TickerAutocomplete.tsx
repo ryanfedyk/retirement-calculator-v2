@@ -51,6 +51,10 @@ export default function TickerAutocomplete({
   // Suppress the search that would otherwise fire right after a pick (the value
   // change from selecting shouldn't reopen the menu).
   const skipNext = useRef(false);
+  // Only auto-open the suggestions while the input is actually focused — so a
+  // pre-filled value (e.g. an existing ticker when its card mounts) never pops
+  // the dropdown open on its own.
+  const focused = useRef(false);
 
   // Debounced search on the typed value.
   useEffect(() => {
@@ -66,7 +70,7 @@ export default function TickerAutocomplete({
         if (!active) return;
         setResults(data.results ?? []);
         setHighlight(-1);
-        setOpen((data.results ?? []).length > 0);
+        setOpen(focused.current && (data.results ?? []).length > 0);
       } catch {
         if (active) { setResults([]); setOpen(false); }
       }
@@ -130,7 +134,8 @@ export default function TickerAutocomplete({
         autoComplete="off"
         spellCheck={false}
         onChange={e => onChange(e.target.value.toUpperCase())}
-        onFocus={() => { if (results.length > 0) setOpen(true); }}
+        onFocus={() => { focused.current = true; if (results.length > 0) setOpen(true); }}
+        onBlur={() => { focused.current = false; }}
         onKeyDown={onKeyDown}
         style={inputStyle ?? DEFAULT_INPUT}
       />

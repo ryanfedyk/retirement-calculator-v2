@@ -1,13 +1,13 @@
 "use client";
-import { RotateCcw } from "lucide-react";
+import { Unlink, RotateCcw } from "lucide-react";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
 
 /**
- * Shows, for a baseline-linked section of the active scenario, whether any field
- * has been overridden — and offers a one-click reset back to the shared baseline.
- * Renders nothing while the section is fully linked, so it only appears once a
- * scenario has deliberately forked something.
+ * A quiet indicator that the active scenario has overridden one or more fields
+ * in a baseline-linked section, with a one-tap reset back to the baseline. A
+ * broken-link icon reads as "unlinked from the global"; the reset is an icon
+ * (tooltip), not a loud label. Renders nothing while the section is fully linked.
  */
 export default function BaselineLinkBadge({ section, variant = "desktop" }: { section: string; variant?: "desktop" | "mobile" }) {
   const unlinked = useFinancialStore((s) => s.scenarios.find((x) => x.id === s.activeScenarioId)?.unlinked ?? []);
@@ -16,23 +16,22 @@ export default function BaselineLinkBadge({ section, variant = "desktop" }: { se
   const forked = unlinked.filter((p) => p === section || p.startsWith(`${section}.`));
   if (!forked.length) return null;
 
-  const fontSize = variant === "mobile" ? 11 : 9.5;
+  const fontSize = variant === "mobile" ? 11 : 10;
+  const icon = variant === "mobile" ? 13 : 11;
   return (
-    <div style={{ gridColumn: "1 / -1", display: "flex", alignItems: "center", gap: 8, marginBottom: variant === "mobile" ? 10 : 4 }}>
-      <span style={{ fontSize, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: C.warm }}>
-        Overridden for this scenario
-      </span>
+    <div style={{ gridColumn: "1 / -1", display: "flex", alignItems: "center", gap: 5, marginBottom: variant === "mobile" ? 10 : 6, color: C.inkFaint }}>
+      <Unlink size={icon} />
+      <span style={{ fontSize }}>Overridden</span>
       <button
         type="button"
         onClick={() => forked.forEach((p) => resetToBaseline(p))}
-        title="Reset to your baseline"
-        style={{
-          display: "flex", alignItems: "center", gap: 4, marginLeft: "auto",
-          background: "none", border: "none", cursor: "pointer", color: C.teal,
-          fontSize, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", padding: 0,
-        }}
+        title="Reset to baseline"
+        aria-label="Reset to baseline"
+        style={{ display: "inline-flex", alignItems: "center", background: "none", border: "none", cursor: "pointer", color: C.inkSoft, padding: 2 }}
+        onMouseEnter={(e) => (e.currentTarget.style.color = C.teal)}
+        onMouseLeave={(e) => (e.currentTarget.style.color = C.inkSoft)}
       >
-        <RotateCcw size={variant === "mobile" ? 13 : 11} /> Reset to baseline
+        <RotateCcw size={icon} />
       </button>
     </div>
   );

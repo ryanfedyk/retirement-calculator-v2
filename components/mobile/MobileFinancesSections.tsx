@@ -5,21 +5,53 @@ import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import TickerAutocomplete from "@/components/finance/TickerAutocomplete";
 import LinkedNumberField from "@/components/finance/LinkedNumberField";
+import BaselineLinkBadge from "@/components/finance/BaselineLinkBadge";
 import { Field, Num, Two, Section, inputStyle, labelStyle } from "./sheetUI";
 
-// The shared "Your finances" facts — assets/liabilities, portfolio holdings and
-// 529s. These edit the global snapshot (same across every scenario), so on
-// mobile they live in the Your-finances overlay rather than the per-scenario
-// "Scenario plan" sheet. Touch-friendly twin of LeftPanel's `variant="finances"`.
+// The shared "Your finances" picture — cash flow (income & spending) plus the
+// balance sheet (assets/liabilities, holdings, 529s). Income & spending edit the
+// shared **baseline** (they flow to every scenario unless overridden); the
+// balance sheet edits the global snapshot (identical across scenarios). Touch-
+// friendly twin of LeftPanel's `variant="finances"`.
 export default function MobileFinancesSections() {
-  const { snapshot, profile, updateNestedSnapshot } = useFinancialStore();
+  const { snapshot, profile, baseline, updateNestedSnapshot, updateBaseline } = useFinancialStore();
   const kids = profile.children;
-  const [openId, setOpenId] = useState<string | null>("assets");
+  const ip = baseline.income_profile;
+  const sp = baseline.spending;
+  const [openId, setOpenId] = useState<string | null>("income");
   const [newInv, setNewInv] = useState({ symbol: "", name: "", shares: "", ret: "7", retLinked: true });
   const sec = (id: string) => ({ openId, setOpenId, id });
 
   return (
     <>
+      {/* ── Income (baseline cash flow) ── */}
+      <Section title="Income" accent="#4aab92" {...sec("income")}>
+        <BaselineLinkBadge section="income_profile" variant="mobile" />
+        <Field label="Gross Annual Salary"><Num prefix="$" step={1000} value={ip.gross_annual_salary} onChange={v => updateBaseline("income_profile", { gross_annual_salary: v })} /></Field>
+        <Two>
+          <Field label="Annual Raise (%)"><Num step={0.1} value={ip.income_growth_rate ?? 0} onChange={v => updateBaseline("income_profile", { income_growth_rate: v })} /></Field>
+          <Field label="Target Bonus (%)"><Num value={ip.target_bonus_rate ?? 0} onChange={v => updateBaseline("income_profile", { target_bonus_rate: v })} /></Field>
+        </Two>
+        <Field label="Annual Equity Grant"><Num prefix="$" step={1000} value={ip.annual_equity_grant ?? 0} onChange={v => updateBaseline("income_profile", { annual_equity_grant: v })} /></Field>
+        <Two>
+          <Field label="401(k) / yr"><Num prefix="$" step={500} value={ip.annual_401k_contribution ?? 0} onChange={v => updateBaseline("income_profile", { annual_401k_contribution: v })} /></Field>
+          <Field label="Backdoor Roth / yr"><Num prefix="$" step={500} value={ip.annual_backdoor_roth ?? 0} onChange={v => updateBaseline("income_profile", { annual_backdoor_roth: v })} /></Field>
+        </Two>
+        <Field label="Monthly Rental Income"><Num prefix="$" step={100} value={ip.monthly_rental_income ?? 0} onChange={v => updateBaseline("income_profile", { monthly_rental_income: v })} /></Field>
+        <div style={{ fontSize: 11, color: C.inkFaint, marginTop: 2, lineHeight: 1.5 }}>Your baseline cash flow — flows to every scenario unless a scenario overrides it.</div>
+      </Section>
+
+      {/* ── Spending (baseline cash flow) ── */}
+      <Section title="Spending" accent={C.warm} {...sec("spending")}>
+        <BaselineLinkBadge section="spending" variant="mobile" />
+        <Field label="Monthly Lifestyle (excl. mortgage & healthcare)"><Num prefix="$" step={250} value={sp.monthly_lifestyle} onChange={v => updateBaseline("spending", { monthly_lifestyle: v })} /></Field>
+        <Two>
+          <Field label="Mortgage / Rent ($/mo)"><Num prefix="$" step={100} value={sp.mortgage_payment} onChange={v => updateBaseline("spending", { mortgage_payment: v })} /></Field>
+          <Field label="Healthcare ($/mo, pre-65)"><Num prefix="$" step={100} value={sp.healthcare_premium} onChange={v => updateBaseline("spending", { healthcare_premium: v })} /></Field>
+        </Two>
+        <Field label="Long-Term Care ($/yr, today's $; 0 = off)"><Num prefix="$" step={5000} value={sp.ltc_annual_cost ?? 0} onChange={v => updateBaseline("spending", { ltc_annual_cost: v })} /></Field>
+      </Section>
+
       {/* ── Assets & Liabilities ── */}
       <Section title="Assets & Liabilities" accent={C.teal} {...sec("assets")}>
         <Field label="Cash Savings"><Num prefix="$" step={1000} value={snapshot.liquid_assets.cash_savings} onChange={v => updateNestedSnapshot("liquid_assets", { cash_savings: v })} /></Field>

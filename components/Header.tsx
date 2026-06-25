@@ -226,7 +226,7 @@ function AccountMenu() {
             onMouseEnter={e => (e.currentTarget.style.background = C.bg)}
             onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
           >
-            <Settings size={14} /> Settings
+            <Settings size={14} /> Profile
           </button>
           <button
             onClick={() => { setOpen(false); signOutUser(); }}

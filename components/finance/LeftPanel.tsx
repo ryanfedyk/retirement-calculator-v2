@@ -6,6 +6,7 @@ import { C } from "@/config/colors";
 import { DEFAULT_SNAPSHOT, DEFAULT_SIM_CONFIG } from "@/config/sharedConfig";
 import TickerAutocomplete from "./TickerAutocomplete";
 import LinkedNumberField from "./LinkedNumberField";
+import BaselineLinkBadge from "./BaselineLinkBadge";
 import type { LivePrices } from "./FinancialDashboard";
 
 // ── Styled primitives ─────────────────────────────────────────────────────────
@@ -214,10 +215,10 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
   // same across every scenario — they live in the finances variant only.
   const showFacts  = variant === "finances";
   const showLevers = variant === "sidebar";
-  const { config, snapshot, profile, updateNestedConfig, updateNestedSnapshot, updateConfig, setChildren } = useFinancialStore();
+  const { config, snapshot, profile, baseline, updateNestedConfig, updateNestedSnapshot, updateConfig, updateBaseline, setChildren } = useFinancialStore();
   const kids = profile.children;
   const thisYear = new Date().getFullYear();
-  const age = thisYear - (config.birth_year || profile.birthYear || 1985);
+  const age = thisYear - (config.birth_year || 1985);
   const [newEvent, setNewEvent] = useState({ name: "", year: 2030, cost: 50_000 });
   const [newInvSym,  setNewInvSym]  = useState("");
   const [newInvName, setNewInvName] = useState("");
@@ -229,9 +230,12 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
   const ip = config.income_profile;
   const ma = config.market_assumptions;
   const sp = config.spending;
+  // Finances variant edits the shared baseline cash flow (income & spending).
+  const bip = baseline.income_profile;
+  const bsp = baseline.spending;
 
   // Accordion: essentials open by default; everything else collapsed.
-  const [openIds, setOpenIds] = useState<Set<string>>(new Set(variant === "finances" ? ["assets", "holdings"] : ["career", "market"]));
+  const [openIds, setOpenIds] = useState<Set<string>>(new Set(variant === "finances" ? ["fin_income", "assets"] : ["career", "market"]));
   const toggle = (id: string) => setOpenIds(prev => {
     const next = new Set(prev);
     next.has(id) ? next.delete(id) : next.add(id);
@@ -268,6 +272,62 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
       </div>
 
       <div style={{ padding: "14px 16px", flex: 1 }}>
+
+        {/* ── Income (baseline cash flow) ── */}
+        <AccCard {...acc("fin_income")} hidden={!showFacts} title="Income" color="#4aab92">
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <BaselineLinkBadge section="income_profile" />
+            <div>
+              <FieldLabel>Gross Annual Salary</FieldLabel>
+              <Input type="number" step={1000} value={bip.gross_annual_salary || 0}
+                onChange={e => updateBaseline("income_profile", { gross_annual_salary: +e.target.value || 0 })} />
+            </div>
+            <Row>
+              <div><FieldLabel>Annual Raise (%)</FieldLabel>
+                <Input type="number" step={0.1} value={bip.income_growth_rate ?? 0}
+                  onChange={e => updateBaseline("income_profile", { income_growth_rate: +e.target.value || 0 })} /></div>
+              <div><FieldLabel>Target Bonus (%)</FieldLabel>
+                <Input type="number" step={1} value={bip.target_bonus_rate ?? 0}
+                  onChange={e => updateBaseline("income_profile", { target_bonus_rate: +e.target.value || 0 })} /></div>
+            </Row>
+            <div><FieldLabel>Annual Equity Grant ($)</FieldLabel>
+              <Input type="number" step={1000} value={bip.annual_equity_grant ?? 0}
+                onChange={e => updateBaseline("income_profile", { annual_equity_grant: +e.target.value || 0 })} /></div>
+            <Row>
+              <div><FieldLabel>401(k) / yr ($)</FieldLabel>
+                <Input type="number" step={500} value={bip.annual_401k_contribution ?? 0}
+                  onChange={e => updateBaseline("income_profile", { annual_401k_contribution: +e.target.value || 0 })} /></div>
+              <div><FieldLabel>Backdoor Roth / yr ($)</FieldLabel>
+                <Input type="number" step={500} value={bip.annual_backdoor_roth ?? 0}
+                  onChange={e => updateBaseline("income_profile", { annual_backdoor_roth: +e.target.value || 0 })} /></div>
+            </Row>
+            <div><FieldLabel>Monthly Rental Income ($)</FieldLabel>
+              <Input type="number" step={100} value={bip.monthly_rental_income ?? 0}
+                onChange={e => updateBaseline("income_profile", { monthly_rental_income: +e.target.value || 0 })} /></div>
+            <div style={{ fontSize: 9, color: C.inkFaint, lineHeight: 1.5 }}>Your baseline cash flow — flows to every scenario unless a scenario overrides it.</div>
+          </div>
+        </AccCard>
+
+        {/* ── Spending (baseline cash flow) ── */}
+        <AccCard {...acc("fin_spending")} hidden={!showFacts} title="Spending" color={C.warm}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <BaselineLinkBadge section="spending" />
+            <div><FieldLabel>Monthly Lifestyle (excl. mortgage &amp; healthcare)</FieldLabel>
+              <Input type="number" step={250} value={bsp.monthly_lifestyle}
+                onChange={e => updateBaseline("spending", { monthly_lifestyle: +e.target.value || 0 })} /></div>
+            <Row>
+              <div><FieldLabel>Mortgage / Rent ($/mo)</FieldLabel>
+                <Input type="number" step={100} value={bsp.mortgage_payment}
+                  onChange={e => updateBaseline("spending", { mortgage_payment: +e.target.value || 0 })} /></div>
+              <div><FieldLabel>Healthcare ($/mo, pre-65)</FieldLabel>
+                <Input type="number" step={100} value={bsp.healthcare_premium}
+                  onChange={e => updateBaseline("spending", { healthcare_premium: +e.target.value || 0 })} /></div>
+            </Row>
+            <div><FieldLabel>Long-Term Care ($/yr, today&apos;s $; 0 = off)</FieldLabel>
+              <Input type="number" step={5000} value={bsp.ltc_annual_cost ?? 0}
+                onChange={e => updateBaseline("spending", { ltc_annual_cost: +e.target.value || 0 })} /></div>
+          </div>
+        </AccCard>
 
         {/* ── Assets & Liabilities ── */}
         <AccCard {...acc("assets")} hidden={!showFacts} title="Assets & Liabilities" color={C.teal}>
@@ -459,7 +519,7 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
                   onChange={v => updateNestedConfig("income_profile", { partner_has_health_insurance: v })} />
               </>
             ) : (
-              <div style={{ fontSize: 9, color: C.inkFaint }}>Add a partner in Settings → Family to model their income.</div>
+              <div style={{ fontSize: 9, color: C.inkFaint }}>Add a partner in Profile → Family to model their income.</div>
             )}
           </div>
         </AccCard>

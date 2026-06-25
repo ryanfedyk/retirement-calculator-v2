@@ -71,7 +71,8 @@ export interface SimulationConfiguration {
     use_partner_income?: boolean;
     partner_gross_annual_salary?: number;
     partner_employment_start_year?: number;
-    partner_birth_year?: number;          // Partner's birth year — informs their Medicare/SS timing
+    partner_birth_year?: number;          // Partner's birth year — informs their Medicare/SS timing (derived from partner_birth_date)
+    partner_birth_date?: string;          // Partner's full birthday, ISO "YYYY-MM-DD" (source of truth; year projected for the sim)
     partner_has_health_insurance?: boolean;
     partner_retirement_year?: number;
   };

@@ -7,6 +7,7 @@ import { useUIStore } from "@/store/useUIStore";
 import { useConfirm } from "@/components/ui/DialogProvider";
 import { STATE_OPTIONS } from "@/engine/state_tax";
 import { estimateMonthlySocialSecurity } from "@/engine/social_security";
+import { ageFromISO, isoDate, yearOfISO } from "@/config/sharedConfig";
 import LinkedNumberField from "@/components/finance/LinkedNumberField";
 
 // ── Primitives (touch-friendly; fontSize 16 avoids iOS zoom) ──────────────────
@@ -35,6 +36,12 @@ const Num = ({ value, onChange, step = 1, prefix }: { value: number; onChange: (
       onChange={e => onChange(e.target.value === "" ? 0 : +e.target.value)}
       style={{ ...inputStyle, paddingLeft: prefix ? 24 : 12 }} />
   </div>
+);
+const todayISO = new Date().toISOString().slice(0, 10);
+const DateField = ({ value, onChange }: { value: string; onChange: (v: string) => void }) => (
+  <input type="date" max={todayISO} value={value || ""}
+    onChange={e => { if (e.target.value) onChange(e.target.value); }}
+    style={{ ...inputStyle, cursor: "pointer" }} />
 );
 const Select = (props: React.SelectHTMLAttributes<HTMLSelectElement>) => (
   <select {...props} style={{ ...inputStyle, appearance: "none", cursor: "pointer" }} />
@@ -73,9 +80,10 @@ const Section = ({ title, accent, children }: { title: string; accent: string; c
 );
 
 /**
- * Global Settings — the stable "who you are" facts (age, family, location,
- * taxes, Social Security & Medicare), separated from the scenario "plan" in the
- * main config panel. Opened from the profile menu.
+ * Profile — the stable "who you are" facts (birthday, family, location, taxes,
+ * Social Security & Medicare) plus the baseline market assumptions and the one
+ * true app setting (Display). The money that changes most — income and
+ * spending — lives in "Your finances" instead. Opened from the profile menu.
  */
 export default function SettingsPanel() {
   const open = useUIStore(s => s.settingsOpen);
@@ -91,23 +99,24 @@ export default function SettingsPanel() {
     return () => document.removeEventListener("keydown", onKey);
   }, [open, setOpen]);
 
-  // Settings edits the shared **baseline** — the "real you" that flows into every
+  // Profile edits the shared **baseline** — the "real you" that flows into every
   // scenario unless a scenario has overridden a given field.
   const ip = baseline.income_profile;
   const ss = baseline.social_security;
   const ta = baseline.tax_assumptions;
-  const sp = baseline.spending;
   const ma = baseline.market_assumptions;
   const kids = profile.children;
   // Suggested W-4 allowances ≈ self (+ spouse) + dependents.
   const suggestedAllowances = (ta.filing_status === "married_joint" ? 2 : 1) + kids.length;
   const thisYear = new Date().getFullYear();
-  const age = thisYear - (profile.birthYear || 1985);
-  const setAge = (a: number) => {
-    const birthYear = thisYear - Math.max(0, a);
-    updateProfile({ birthYear });
-    updateConfig({ birth_year: birthYear });
+  const age = ageFromISO(profile.birthDate);
+  const setBirthDate = (iso: string) => {
+    updateProfile({ birthDate: iso });
+    updateConfig({ birth_year: yearOfISO(iso) });
   };
+  const partnerBirthDate = ip.partner_birth_date ?? (ip.partner_birth_year ? isoDate(ip.partner_birth_year) : profile.birthDate);
+  const setPartnerBirthDate = (iso: string) =>
+    updateBaseline("income_profile", { partner_birth_date: iso, partner_birth_year: yearOfISO(iso) });
 
   return (
     <>
@@ -123,8 +132,8 @@ export default function SettingsPanel() {
         display: "flex", flexDirection: "column",
       }}>
         <div style={{ flexShrink: 0, padding: "18px 20px 14px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <h2 style={{ fontSize: 17, fontWeight: 600, color: C.ink }}>Settings</h2>
-          <button onClick={() => setOpen(false)} aria-label="Close settings"
+          <h2 style={{ fontSize: 17, fontWeight: 600, color: C.ink }}>Profile</h2>
+          <button onClick={() => setOpen(false)} aria-label="Close profile"
             style={{ width: 34, height: 34, borderRadius: "50%", border: `1px solid ${C.border}`, background: C.bgCard, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
             <X size={17} color={C.inkSoft} />
           </button>
@@ -132,117 +141,45 @@ export default function SettingsPanel() {
 
         <div style={{ flex: 1, overflowY: "auto", padding: "18px 20px calc(28px + env(safe-area-inset-bottom))" }}>
 
-          {/* ── You ── */}
-          <Section title="You" accent={C.teal}>
-            <Field label="Your Age" hint={`Birth year ${thisYear - age} · used for taxes, Medicare timing, and the projection horizon`}>
-              <Num value={age} onChange={setAge} />
-            </Field>
-          </Section>
-
-          {/* ── Display ── */}
-          <Section title="Display" accent="#3a7d9c">
-            <Field
-              label="Dollar amounts"
-              hint={
-                dollarMode === "future"
-                  ? "Future dollars — face value in each year, inflated by your CPI assumption. Big numbers, but a dollar buys less."
-                  : "Today's dollars — every figure in current purchasing power, so amounts across years are directly comparable."
-              }
-            >
-              <div style={{ display: "flex", background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 10, padding: 3, gap: 3 }}>
-                {([["today", "Today's $"], ["future", "Future $"]] as const).map(([id, label]) => {
-                  const active = dollarMode === id;
-                  return (
-                    <button
-                      key={id}
-                      onClick={() => setDollarMode(id)}
-                      aria-pressed={active}
-                      style={{
-                        flex: 1, padding: "9px 12px", borderRadius: 8, border: "none", cursor: "pointer",
-                        fontSize: 14, fontWeight: 600,
-                        background: active ? C.teal : "transparent",
-                        color: active ? "#fff" : C.inkMid,
-                        transition: "all 0.15s",
-                      }}
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
+          {/* ── About You ── */}
+          <Section title="About You" accent={C.teal}>
+            <Field label="Your Birthday" hint={`Age ${age} · your birthday keeps taxes, Medicare timing, the projection horizon and milestones precise.`}>
+              <DateField value={profile.birthDate} onChange={setBirthDate} />
             </Field>
           </Section>
 
           {/* ── Family ── */}
           <Section title="Family" accent="#7a6da8">
             <div style={{ fontSize: 11, color: C.inkFaint, marginBottom: 12, lineHeight: 1.5 }}>
-              Adding kids plots their milestones, plans college costs, and sets the empty-nest phase.
+              Adding kids plots their milestones, plans college costs, and sets the empty-nest phase. Full birthdays make milestone timing exact.
             </div>
             {kids.map((child, idx) => (
-              <div key={idx} style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr auto", gap: 8, alignItems: "center", marginBottom: 8 }}>
+              <div key={idx} style={{ display: "grid", gridTemplateColumns: "1.3fr 1.2fr auto", gap: 8, alignItems: "center", marginBottom: 8 }}>
                 <input placeholder="Child's name" value={child.name} style={inputStyle}
                   onChange={e => setChildren(kids.map((c, i) => i === idx ? { ...c, name: e.target.value } : c))} />
-                <input type="number" inputMode="numeric" placeholder="Birth yr" value={child.birthYear} style={inputStyle}
-                  onChange={e => setChildren(kids.map((c, i) => i === idx ? { ...c, birthYear: +e.target.value || c.birthYear } : c))} />
+                <DateField value={child.birthDate}
+                  onChange={iso => setChildren(kids.map((c, i) => i === idx ? { ...c, birthDate: iso } : c))} />
                 <button onClick={() => setChildren(kids.filter((_, i) => i !== idx))} aria-label="Remove child"
                   style={{ background: "none", border: "none", cursor: "pointer", color: C.inkFaint, display: "flex" }}><Trash2 size={17} /></button>
               </div>
             ))}
-            <button onClick={() => setChildren([...kids, { name: "", birthYear: thisYear - 5, birthMonth: 0 }])}
+            <button onClick={() => setChildren([...kids, { name: "", birthDate: isoDate(thisYear - 5, 0, 1) }])}
               style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px", borderRadius: 10, border: `1px solid ${C.tealLight}`, background: C.tealWash, color: C.tealDark, fontSize: 14, fontWeight: 600, cursor: "pointer", marginBottom: 14 }}>
               <Plus size={15} /> Add child
             </button>
 
             <Toggle label="I have a partner" on={ip.use_partner_income || false} onChange={v => updateBaseline("income_profile", { use_partner_income: v })} />
             {ip.use_partner_income && (
-              <Field label="Partner's Age" hint="Informs their Medicare and Social Security timing. Partner income & retirement year are set in the plan (Additional Income).">
-                <Num value={ip.partner_birth_year ? thisYear - ip.partner_birth_year : age}
-                  onChange={v => updateBaseline("income_profile", { partner_birth_year: thisYear - Math.max(0, v) })} />
+              <Field label="Partner's Birthday" hint="Informs their Medicare and Social Security timing. Partner income & retirement year are set in the Scenario plan (Additional Income).">
+                <DateField value={partnerBirthDate} onChange={setPartnerBirthDate} />
               </Field>
             )}
           </Section>
 
-          {/* ── Baseline plan defaults ── */}
+          {/* ── Baseline note ── income & spending now live in Your Finances. */}
           <div style={{ fontSize: 11, color: C.inkFaint, marginBottom: 14, lineHeight: 1.5, padding: "10px 12px", borderRadius: 10, background: C.tealWash, border: `1px solid ${C.tealLight}` }}>
-            These are your <strong>baseline</strong> numbers. Every scenario starts from them — update a figure here (say, a raise) and it flows into all your scenarios, except ones where you&apos;ve overridden that field.
+            The sections below are your <strong>baseline</strong> assumptions — every scenario starts from them, except where you&apos;ve overridden a field. Looking for income or spending? They now live in <strong>Your Finances</strong>.
           </div>
-
-          {/* ── Income ── */}
-          <Section title="Income" accent="#4aab92">
-            <Field label="Gross Annual Salary"><Num prefix="$" step={1000} value={ip.gross_annual_salary} onChange={v => updateBaseline("income_profile", { gross_annual_salary: v })} /></Field>
-            <Two>
-              <Field label="Annual Raise (%)"><Num step={0.1} value={ip.income_growth_rate ?? 0} onChange={v => updateBaseline("income_profile", { income_growth_rate: v })} /></Field>
-              <Field label="Target Bonus (%)"><Num value={ip.target_bonus_rate ?? 0} onChange={v => updateBaseline("income_profile", { target_bonus_rate: v })} /></Field>
-            </Two>
-            <Field label="Annual Equity Grant"><Num prefix="$" step={1000} value={ip.annual_equity_grant ?? 0} onChange={v => updateBaseline("income_profile", { annual_equity_grant: v })} /></Field>
-            <Two>
-              <Field label="401(k) / yr"><Num prefix="$" step={500} value={ip.annual_401k_contribution ?? 0} onChange={v => updateBaseline("income_profile", { annual_401k_contribution: v })} /></Field>
-              <Field label="Backdoor Roth / yr"><Num prefix="$" step={500} value={ip.annual_backdoor_roth ?? 0} onChange={v => updateBaseline("income_profile", { annual_backdoor_roth: v })} /></Field>
-            </Two>
-            <Field label="Monthly Rental Income"><Num prefix="$" step={100} value={ip.monthly_rental_income ?? 0} onChange={v => updateBaseline("income_profile", { monthly_rental_income: v })} /></Field>
-          </Section>
-
-          {/* ── Spending ── */}
-          <Section title="Spending" accent={C.warm}>
-            <Field label="Monthly Lifestyle (excl. mortgage & healthcare)"><Num prefix="$" step={250} value={sp.monthly_lifestyle} onChange={v => updateBaseline("spending", { monthly_lifestyle: v })} /></Field>
-            <Two>
-              <Field label="Mortgage / Rent ($/mo)"><Num prefix="$" step={100} value={sp.mortgage_payment} onChange={v => updateBaseline("spending", { mortgage_payment: v })} /></Field>
-              <Field label="Healthcare ($/mo, pre-65)"><Num prefix="$" step={100} value={sp.healthcare_premium} onChange={v => updateBaseline("spending", { healthcare_premium: v })} /></Field>
-            </Two>
-            <Field label="Long-Term Care ($/yr, today's $; 0 = off)"><Num prefix="$" step={5000} value={sp.ltc_annual_cost ?? 0} onChange={v => updateBaseline("spending", { ltc_annual_cost: v })} /></Field>
-          </Section>
-
-          {/* ── Market Assumptions ── */}
-          <Section title="Market Assumptions" accent="#7a6da8">
-            <Two>
-              <Field label="Market Return (%)"><Num step={0.1} value={ma.market_return_rate} onChange={v => updateBaseline("market_assumptions", { market_return_rate: v })} /></Field>
-              <Field label="Inflation (%)"><Num step={0.25} value={ma.inflation_rate} onChange={v => updateBaseline("market_assumptions", { inflation_rate: v })} /></Field>
-            </Two>
-            <Two>
-              <Field label="Volatility Drag (%)"><Num step={0.1} value={ma.volatility_drag} onChange={v => updateBaseline("market_assumptions", { volatility_drag: v })} /></Field>
-              <Field label="Healthcare Inflation over CPI (%)"><Num step={0.25} value={ma.healthcare_inflation_premium ?? 2} onChange={v => updateBaseline("market_assumptions", { healthcare_inflation_premium: v })} /></Field>
-            </Two>
-          </Section>
 
           {/* ── Location & Taxes ── */}
           <Section title="Location & Taxes" accent={C.inkMid}>
@@ -283,23 +220,67 @@ export default function SettingsPanel() {
               {ss?.social_security_linked !== false ? "Estimated from your income · ✎ to override" : "Manual · ↺ to re-estimate"}
             </div>
             {ip.use_partner_income && (
-              <>
-                <Field label="Partner SS Monthly ($)" hint={`Begins when your partner reaches age ${ss?.start_age ?? 67}. ${ss?.partner_ss_linked !== false ? "Estimated from their income · ✎ to override" : "Manual · ↺ to re-estimate"}`}>
-                  <LinkedNumberField
-                    linked={ss?.partner_ss_linked !== false}
-                    displayValue={ss?.partner_ss_linked !== false
-                      ? estimateMonthlySocialSecurity(ip.partner_gross_annual_salary || 0, ss?.start_age ?? 67)
-                      : (ss?.partner_monthly_amount ?? 0)}
-                    onOverride={() => updateBaseline("social_security", { partner_ss_linked: false, partner_monthly_amount: estimateMonthlySocialSecurity(ip.partner_gross_annual_salary || 0, ss?.start_age ?? 67) } as any)}
-                    onChange={v => updateBaseline("social_security", { partner_monthly_amount: v, partner_ss_linked: false } as any)}
-                    onRelink={() => updateBaseline("social_security", { partner_ss_linked: true } as any)} />
-                </Field>
-              </>
+              <Field label="Partner SS Monthly ($)" hint={`Begins when your partner reaches age ${ss?.start_age ?? 67}. ${ss?.partner_ss_linked !== false ? "Estimated from their income · ✎ to override" : "Manual · ↺ to re-estimate"}`}>
+                <LinkedNumberField
+                  linked={ss?.partner_ss_linked !== false}
+                  displayValue={ss?.partner_ss_linked !== false
+                    ? estimateMonthlySocialSecurity(ip.partner_gross_annual_salary || 0, ss?.start_age ?? 67)
+                    : (ss?.partner_monthly_amount ?? 0)}
+                  onOverride={() => updateBaseline("social_security", { partner_ss_linked: false, partner_monthly_amount: estimateMonthlySocialSecurity(ip.partner_gross_annual_salary || 0, ss?.start_age ?? 67) } as any)}
+                  onChange={v => updateBaseline("social_security", { partner_monthly_amount: v, partner_ss_linked: false } as any)}
+                  onRelink={() => updateBaseline("social_security", { partner_ss_linked: true } as any)} />
+              </Field>
             )}
             <Two>
               <Field label="Medicare Age"><Num value={baseline.medicare?.start_age ?? 65} onChange={v => updateBaseline("medicare", { start_age: v } as any)} /></Field>
               <Field label="Medicare $/mo"><Num prefix="$" step={25} value={baseline.medicare?.monthly_premium ?? 185} onChange={v => updateBaseline("medicare", { monthly_premium: v } as any)} /></Field>
             </Two>
+          </Section>
+
+          {/* ── Market Assumptions (advanced) ── */}
+          <Section title="Market Assumptions" accent="#7a6da8">
+            <Two>
+              <Field label="Market Return (%)"><Num step={0.1} value={ma.market_return_rate} onChange={v => updateBaseline("market_assumptions", { market_return_rate: v })} /></Field>
+              <Field label="Inflation (%)"><Num step={0.25} value={ma.inflation_rate} onChange={v => updateBaseline("market_assumptions", { inflation_rate: v })} /></Field>
+            </Two>
+            <Two>
+              <Field label="Volatility Drag (%)"><Num step={0.1} value={ma.volatility_drag} onChange={v => updateBaseline("market_assumptions", { volatility_drag: v })} /></Field>
+              <Field label="Healthcare Inflation over CPI (%)"><Num step={0.25} value={ma.healthcare_inflation_premium ?? 2} onChange={v => updateBaseline("market_assumptions", { healthcare_inflation_premium: v })} /></Field>
+            </Two>
+          </Section>
+
+          {/* ── Display ── the only true app setting. */}
+          <Section title="Display" accent="#3a7d9c">
+            <Field
+              label="Dollar amounts"
+              hint={
+                dollarMode === "future"
+                  ? "Future dollars — face value in each year, inflated by your CPI assumption. Big numbers, but a dollar buys less."
+                  : "Today's dollars — every figure in current purchasing power, so amounts across years are directly comparable."
+              }
+            >
+              <div style={{ display: "flex", background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 10, padding: 3, gap: 3 }}>
+                {([["today", "Today's $"], ["future", "Future $"]] as const).map(([id, label]) => {
+                  const active = dollarMode === id;
+                  return (
+                    <button
+                      key={id}
+                      onClick={() => setDollarMode(id)}
+                      aria-pressed={active}
+                      style={{
+                        flex: 1, padding: "9px 12px", borderRadius: 8, border: "none", cursor: "pointer",
+                        fontSize: 14, fontWeight: 600,
+                        background: active ? C.teal : "transparent",
+                        color: active ? "#fff" : C.inkMid,
+                        transition: "all 0.15s",
+                      }}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </Field>
           </Section>
 
           {/* ── Reset ── */}

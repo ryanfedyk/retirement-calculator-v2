@@ -12,20 +12,42 @@ import type { SimulationConfiguration, FinancialSnapshot } from "@/engine/calcul
 
 const CURRENT_YEAR = new Date().getFullYear();
 
+// ── Birthday helpers ─────────────────────────────────────────────────────────
+// Birthdays are stored as ISO date strings ("YYYY-MM-DD") — the canonical,
+// unchanging fact — so age, milestone timing and birthday facts stay correct as
+// time passes. The engine still works in whole years; these helpers project a
+// date down to the year/month/age it needs.
+export const isoDate = (year: number, month0 = 0, day = 1) =>
+  `${year}-${String(month0 + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+/** Year from an ISO date (string slice, so it's timezone-proof). */
+export const yearOfISO = (iso: string) => Number(iso?.slice(0, 4)) || CURRENT_YEAR;
+/** 0-indexed month from an ISO date (0 = January). */
+export const monthOfISO = (iso: string) => (Number(iso?.slice(5, 7)) || 1) - 1;
+/** Day-of-month from an ISO date. */
+export const dayOfISO = (iso: string) => Number(iso?.slice(8, 10)) || 1;
+/** Precise age at a given date (defaults to today), accounting for month/day. */
+export const ageFromISO = (iso: string, at: Date = new Date()) => {
+  if (!iso) return 0;
+  let age = at.getFullYear() - yearOfISO(iso);
+  const m = monthOfISO(iso);
+  if (at.getMonth() < m || (at.getMonth() === m && at.getDate() < dayOfISO(iso))) age--;
+  return Math.max(0, age);
+};
+
 // ── User Profile ─────────────────────────────────────────────────────────────
 export interface UserProfile {
   name: string;
-  birthYear: number;
+  birthDate: string;       // ISO "YYYY-MM-DD"
   retirementYear: number;
   retirementMonth: number; // 0-indexed (0 = January)
-  children: { name: string; birthYear: number; birthMonth: number }[];
+  children: { name: string; birthDate: string }[];
   corporateStartYear: number;
   onboarded: boolean;
 }
 
 export const DEFAULT_PROFILE: UserProfile = {
   name: "",
-  birthYear: CURRENT_YEAR - 40,
+  birthDate: isoDate(CURRENT_YEAR - 40),
   retirementYear: CURRENT_YEAR + 10,
   retirementMonth: 0,
   children: [],
@@ -74,7 +96,7 @@ export function buildLifeEvents(
 ): SimulationConfiguration["life_events"] {
   const events: SimulationConfiguration["life_events"] = [];
   for (const child of children) {
-    const collegeStart = child.birthYear + collegeAgeStart;
+    const collegeStart = yearOfISO(child.birthDate) + collegeAgeStart;
     for (let yr = collegeStart; yr < collegeStart + 4; yr++) {
       events.push({
         name: `${child.name} — College Year ${yr - collegeStart + 1}`,
@@ -154,7 +176,7 @@ export const DEFAULT_SIM_CONFIG: SimulationConfiguration = {
     ltc_start_age:            80,
     ltc_years:                3,
   },
-  birth_year: DEFAULT_PROFILE.birthYear,
+  birth_year: yearOfISO(DEFAULT_PROFILE.birthDate),
   use_equity_comp: false,
   social_security: {
     start_age:      67,

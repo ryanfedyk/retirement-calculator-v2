@@ -553,9 +553,9 @@ export default function RightPanel({ livePrices }: Props) {
                   <>
                     <Area type="monotone" dataKey="totalNetWorth" stroke={C.teal} strokeWidth={2.5}
                       fill="url(#wealthGrad)" name="Active Strategy" />
-                    <Line type="monotone" dataKey="earlierNetWorth" stroke="#80c4ae" strokeWidth={1.5}
+                    <Line type="monotone" dataKey="earlierNetWorth" stroke={C.warm} strokeWidth={1.5}
                       strokeDasharray="4 4" dot={false} name="Exit 1yr Early" />
-                    <Line type="monotone" dataKey="laterNetWorth" stroke={C.warm} strokeWidth={1.5}
+                    <Line type="monotone" dataKey="laterNetWorth" stroke="#3a7d9c" strokeWidth={1.5}
                       strokeDasharray="4 4" dot={false} name="Exit 1yr Late" />
                     {renderRefLines()}
                   </>
@@ -587,8 +587,8 @@ export default function RightPanel({ livePrices }: Props) {
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
           {[
             { label: "Active Strategy",  color: C.teal,    dash: false },
-            { label: "Exit 1yr Early",   color: "#80c4ae", dash: true  },
-            { label: "Exit 1yr Late",    color: C.warm,    dash: true  },
+            { label: "Exit 1yr Early",   color: C.warm,    dash: true  },
+            { label: "Exit 1yr Late",    color: "#3a7d9c", dash: true  },
             { label: "Retire",           color: "#2a7a68", dash: true  },
             { label: "FI",              color: "#80c4ae", dash: true  },
             { label: "Mortgage Free",    color: C.inkFaint, dash: true },

@@ -90,11 +90,19 @@ export function useScenarioSuggestions(livePrices: LivePrices): Suggestion[] {
       { title: "Reclaim a year", detail: `Leave a year earlier — exit ${exit - 1}`, unlink: [], apply: (c) => { c.career_path.exit_year -= 1; } },
       { title: "Trade a year for security", detail: `Work one more year — exit ${exit + 1}`, unlink: [], apply: (c) => { c.career_path.exit_year += 1; } },
       {
-        title: "Take a gap year to travel", detail: "A 1-year sabbatical plus a $40k travel year", unlink: ["life_events"], when: () => !cp.use_sabbatical,
+        title: "Take a gap year to travel", detail: "A 1-year sabbatical + $40k of travel, then a bridge role back to work",
+        unlink: ["life_events", "income_profile.bridge_gross_annual"], when: () => !cp.use_sabbatical,
         apply: (c) => {
           c.career_path.use_sabbatical = true;
           c.career_path.sabbatical_duration = 1;
           c.life_events = [...(c.life_events ?? []), { name: "Gap-year travel", year: thisYear + 1, cost: 40_000, auto: false }];
+          // A sabbatical returns to work, not straight to retirement — ease back
+          // in with a bridge role unless a jump/bridge is already modeled.
+          if (!c.career_path.use_jump && !c.career_path.use_bridge) {
+            c.career_path.use_bridge = true;
+            c.career_path.bridge_duration = 3;
+            c.income_profile.bridge_gross_annual = bridgeSalary;
+          }
         },
       },
       {
@@ -146,8 +154,11 @@ export function useScenarioSuggestions(livePrices: LivePrices): Suggestion[] {
         apply: (c) => { c.market_assumptions.market_return_rate = 10; },
       },
     ];
-    return list.filter((i) => !i.when || i.when(config));
-  }, [config]);
+    // Drop ideas that don't differ from the current scenario, and ones you've
+    // already turned into a scenario (built ideas are named after the idea).
+    const existingNames = new Set(scenarios.map((s) => s.name));
+    return list.filter((i) => (!i.when || i.when(config)) && !existingNames.has(i.title));
+  }, [config, scenarios]);
 
   return useMemo(() => {
     const nwLabel = `Net worth ’${String(new Date().getFullYear() + 30).slice(2)}`;

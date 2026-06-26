@@ -157,7 +157,7 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
     (milestoneMap[s] ||= []).push({ label, c });
   };
   const by = config.birth_year ?? 1980;
-  addMile(retireDate, "Career Exit", "#2a7a68");
+  addMile(retireDate, hasPostPhases ? "Career Exit" : "Retire", "#2a7a68");
   if (cp.use_sabbatical) addMile(findDate(d => d.currentPhase === "SABBATICAL"), "Sabbatical begins", "#d98a3d");
   if (cp.use_jump)       addMile(findDate(d => d.currentPhase === "JUMP"),       "Career jump begins", "#2a9d7f");
   if (cp.use_bridge)     addMile(findDate(d => d.currentPhase === "BRIDGE"),     "Bridge job begins", "#3a7d9c");

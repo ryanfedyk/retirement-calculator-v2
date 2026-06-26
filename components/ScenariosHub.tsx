@@ -157,8 +157,14 @@ function EditableName({ name, onCommit, editing, setEditing, clickToEdit }: {
 /** Suggested tweaks as a quiet, secondary strip — visually subordinate to the
  * real scenario cards above (lighter "ghost" cards, muted text, smaller) so
  * suggestions read as optional ideas, not as competing saved plans. */
-function SuggestionsStrip({ suggestions }: { suggestions: Suggestion[] }) {
+function SuggestionsStrip({ suggestions, isMobile }: { suggestions: Suggestion[]; isMobile: boolean }) {
   if (!suggestions.length) return null;
+
+  // Mobile: a horizontally-scrollable strip (scroll-snap, with the next card
+  // peeking). Desktop: wrap, so every idea is visible without a hidden scrollbar.
+  const containerStyle: React.CSSProperties = isMobile
+    ? { display: "flex", gap: 10, overflowX: "auto", paddingBottom: 6, scrollSnapType: "x proximity", WebkitOverflowScrolling: "touch" }
+    : { display: "flex", flexWrap: "wrap", gap: 10 };
 
   return (
     <div style={{ marginTop: 36 }}>
@@ -168,7 +174,7 @@ function SuggestionsStrip({ suggestions }: { suggestions: Suggestion[] }) {
         <span style={{ fontSize: 10, color: C.inkFaint }}>· tap to add as a scenario</span>
       </div>
 
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+      <div className={isMobile ? "no-scrollbar" : undefined} style={containerStyle}>
         {suggestions.map((s, j) => (
           <button
             key={j}
@@ -176,6 +182,7 @@ function SuggestionsStrip({ suggestions }: { suggestions: Suggestion[] }) {
             title={`Create a new scenario: ${s.title}`}
             style={{
               flex: "0 0 auto", width: 190, textAlign: "left",
+              ...(isMobile ? { scrollSnapAlign: "start" } : {}),
               display: "flex", flexDirection: "column", gap: 6, padding: "11px 13px", borderRadius: 10,
               border: `1px dashed ${C.border}`, background: "transparent", cursor: "pointer",
               transition: "border-color 0.15s, background 0.15s",
@@ -473,7 +480,7 @@ export default function ScenariosHub({ livePrices, onOpen }: { livePrices: LiveP
         </div>
 
         {/* Suggested scenarios — sideways-scrolling strip */}
-        <SuggestionsStrip suggestions={suggestions} />
+        <SuggestionsStrip suggestions={suggestions} isMobile={isMobile} />
       </div>
     </div>
   );

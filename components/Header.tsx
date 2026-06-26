@@ -20,6 +20,7 @@ interface Props {
 export default function Header({ view, onViewChange, mode, onBack }: Props) {
   return (
     <header style={{
+      position: "sticky", top: 0, zIndex: 40,
       background: C.bgHeader,
       borderBottom: `1px solid ${C.border}`,
       padding: "14px 32px",

@@ -328,7 +328,7 @@ export default function RightPanel({ livePrices }: Props) {
   const milestones: Milestone[] = (() => {
     const m: Milestone[] = [];
     // Primary — the headline financial milestones
-    if (retireDateStr)   m.push({ x: retireDateStr,   stroke: "#2a7a68", label: "Retire",     primary: true  });
+    if (retireDateStr)   m.push({ x: retireDateStr,   stroke: "#2a7a68", label: hasPostPhases ? "Career Exit" : "Retire", primary: true  });
     if (indepPoint)      m.push({ x: indepPoint.date, stroke: "#80c4ae", label: "FI",         primary: true  });
     if (mortgageDateStr) m.push({ x: mortgageDateStr, stroke: "#9bbdb4", label: "Paid Off",   primary: true  });
     if (enDateStr)       m.push({ x: enDateStr,       stroke: C.warm,    label: "Empty Nest", primary: true  });
@@ -619,7 +619,8 @@ export default function RightPanel({ livePrices }: Props) {
             { label: "Active Strategy",  color: C.teal,    dash: false },
             { label: "Exit 1yr Early",   color: C.warm,    dash: true  },
             { label: "Exit 1yr Late",    color: "#3a7d9c", dash: true  },
-            { label: "Retire",           color: "#2a7a68", dash: true  },
+            { label: hasPostPhases ? "Career Exit" : "Retire", color: "#2a7a68", dash: true  },
+            ...(hasPostPhases ? [{ label: "Full Retirement", color: "#7a6da8", dash: true }] : []),
             { label: "FI",              color: "#80c4ae", dash: true  },
             { label: "Mortgage Free",    color: C.inkFaint, dash: true },
           ].map(({ label, color, dash }) => (

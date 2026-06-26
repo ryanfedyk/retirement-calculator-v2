@@ -1,6 +1,6 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
-import { Check, Cloud, LogOut, AlertCircle, Settings, ChevronDown, Wallet, LineChart, Compass } from "lucide-react";
+import { Check, Cloud, LogOut, AlertCircle, Settings, ChevronDown, Wallet, LineChart, Compass, Pencil } from "lucide-react";
 import { C } from "@/config/colors";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { useCloudSync } from "@/lib/cloud/CloudSyncProvider";
@@ -119,35 +119,74 @@ export default function Header({ view, onViewChange, mode, onBack }: Props) {
 }
 
 /** Switch the active scenario without leaving the deep-dive. The selection
- * drives the countdown and both tabs (everything reads the active scenario). */
+ * drives the countdown and both tabs (everything reads the active scenario).
+ * A pencil flips it into an inline rename for the active scenario. */
 function ScenarioSelect() {
   const scenarios = useFinancialStore((s) => s.scenarios);
   const activeScenarioId = useFinancialStore((s) => s.activeScenarioId);
   const setActiveScenario = useFinancialStore((s) => s.setActiveScenario);
+  const renameScenario = useFinancialStore((s) => s.renameScenario);
+  const active = scenarios.find((s) => s.id === activeScenarioId);
+
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(active?.name ?? "");
+  useEffect(() => { setName(active?.name ?? ""); }, [active?.name]);
+
+  const commit = () => { const n = name.trim(); if (n) renameScenario(activeScenarioId, n); setEditing(false); };
+
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") commit();
+          else if (e.key === "Escape") { setName(active?.name ?? ""); setEditing(false); }
+        }}
+        aria-label="Scenario name"
+        style={{
+          maxWidth: 240, border: `1px solid ${C.teal}`, borderRadius: 7,
+          padding: "5px 8px", fontSize: 14, fontWeight: 700, color: C.ink, background: C.bg, outline: "none",
+        }}
+      />
+    );
+  }
 
   // Styled to read as a header title that drops down — borderless and
   // transparent, with just a chevron hint and a faint hover wash — rather than a
-  // boxy form control.
+  // boxy form control. A pencil to its right renames the active scenario.
   return (
-    <div
-      style={{ position: "relative", display: "inline-flex", alignItems: "center", borderRadius: 7, transition: "background 0.15s" }}
-      onMouseEnter={(e) => (e.currentTarget.style.background = C.bg)}
-      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-    >
-      <select
-        value={activeScenarioId}
-        onChange={(e) => setActiveScenario(e.target.value)}
-        aria-label="Active scenario"
-        style={{
-          appearance: "none", WebkitAppearance: "none", MozAppearance: "none",
-          maxWidth: 240, border: "none", borderRadius: 7,
-          padding: "5px 26px 5px 8px", fontSize: 14, fontWeight: 700, color: C.ink,
-          background: "transparent", outline: "none", cursor: "pointer",
-        }}
+    <div style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
+      <div
+        style={{ position: "relative", display: "inline-flex", alignItems: "center", borderRadius: 7, transition: "background 0.15s" }}
+        onMouseEnter={(e) => (e.currentTarget.style.background = C.bg)}
+        onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
       >
-        {scenarios.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-      </select>
-      <ChevronDown size={15} color={C.inkSoft} style={{ position: "absolute", right: 7, pointerEvents: "none" }} />
+        <select
+          value={activeScenarioId}
+          onChange={(e) => setActiveScenario(e.target.value)}
+          aria-label="Active scenario"
+          style={{
+            appearance: "none", WebkitAppearance: "none", MozAppearance: "none",
+            maxWidth: 240, border: "none", borderRadius: 7,
+            padding: "5px 26px 5px 8px", fontSize: 14, fontWeight: 700, color: C.ink,
+            background: "transparent", outline: "none", cursor: "pointer",
+          }}
+        >
+          {scenarios.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+        </select>
+        <ChevronDown size={15} color={C.inkSoft} style={{ position: "absolute", right: 7, pointerEvents: "none" }} />
+      </div>
+      <button
+        onClick={() => setEditing(true)} aria-label="Rename scenario" title="Rename scenario"
+        style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: 7, border: "none", background: "transparent", color: C.inkSoft, cursor: "pointer", flexShrink: 0 }}
+        onMouseEnter={(e) => (e.currentTarget.style.color = C.teal)}
+        onMouseLeave={(e) => (e.currentTarget.style.color = C.inkSoft)}
+      >
+        <Pencil size={14} />
+      </button>
     </div>
   );
 }

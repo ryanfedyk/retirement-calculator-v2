@@ -8,7 +8,7 @@ import { Flag, CheckCircle, TrendingUp, CalendarDays, Sparkles, AlertTriangle } 
 import HorizonZoomButton from "./HorizonZoomButton";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
-import { runSimulation, findIndependencePoint, toDisplayDollars } from "@/engine/calculator";
+import { runSimulation, findIndependencePoint, assessPlan, toDisplayDollars } from "@/engine/calculator";
 import type { TrajectoryPoint } from "@/engine/calculator";
 import { runMonteCarlo } from "@/engine/montecarlo";
 import { MomentumTurnstile } from "./MotivationWidgets";
@@ -213,6 +213,7 @@ export default function RightPanel({ livePrices }: Props) {
 
   // Key metrics
   const indepPoint     = findIndependencePoint(trajectoryData);
+  const plan           = assessPlan(trajectoryData);
   const todayPoint     = trajectoryData[0];
   const currentNW      = todayPoint?.totalNetWorth ?? 0;
   const swrTarget      = todayPoint?.swrTarget ?? 0;
@@ -392,21 +393,50 @@ export default function RightPanel({ livePrices }: Props) {
           panel is already open to avoid a redundant control. */}
       <ScenarioLevers onOpenEditor={planPanelOpen ? undefined : () => setPlanPanelOpen(true)} />
 
-      {/* ── Off-track warning — this plan never reaches FI by age 70 ── */}
-      {!indepPoint && (
+      {/* ── Plan health — runs out of money / cutting it close / never reaches FI ── */}
+      {plan.health === "shortfall" ? (
         <div style={{
           display: "flex", alignItems: "flex-start", gap: 12, flexShrink: 0,
           background: "#fdece8", border: "2px solid #e0775a", borderRadius: 12, padding: "14px 16px",
         }}>
           <AlertTriangle size={22} color="#c0492b" style={{ flexShrink: 0, marginTop: 1 }} />
           <div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: "#a23818" }}>This plan doesn’t reach retirement</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "#a23818" }}>
+              This plan runs out of money{plan.depletion ? ` around ${plan.depletion.date}` : ""}
+            </div>
             <div style={{ fontSize: 12, color: "#8a4a38", marginTop: 3, lineHeight: 1.5 }}>
-              Your assets never reach your FI number by age 70. Try a later exit year, lower monthly spend, higher savings, or stronger returns — the trajectory below stays under the FI target the whole way.
+              {plan.depletion ? `At age ${Number((plan.depletion.date.match(/\d{4}/) || [])[0]) - birthYear}, your invested assets are exhausted and can't cover spending. ` : ""}
+              Try a later exit year, lower monthly spend, higher savings, or stronger returns.
             </div>
           </div>
         </div>
-      )}
+      ) : plan.health === "tight" ? (
+        <div style={{
+          display: "flex", alignItems: "flex-start", gap: 12, flexShrink: 0,
+          background: C.warmWash, border: `2px solid ${C.warmLight}`, borderRadius: 12, padding: "14px 16px",
+        }}>
+          <AlertTriangle size={22} color={C.warm} style={{ flexShrink: 0, marginTop: 1 }} />
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: C.warm }}>Cutting it close</div>
+            <div style={{ fontSize: 12, color: "#8a5a3a", marginTop: 3, lineHeight: 1.5 }}>
+              This plan funds your retirement, but the cushion runs thin — a weak market stretch or unplanned expense could push it short. A little more savings or a slightly later exit adds margin.
+            </div>
+          </div>
+        </div>
+      ) : !indepPoint ? (
+        <div style={{
+          display: "flex", alignItems: "flex-start", gap: 12, flexShrink: 0,
+          background: "#fdece8", border: "2px solid #e0775a", borderRadius: 12, padding: "14px 16px",
+        }}>
+          <AlertTriangle size={22} color="#c0492b" style={{ flexShrink: 0, marginTop: 1 }} />
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "#a23818" }}>This plan doesn’t reach financial independence</div>
+            <div style={{ fontSize: 12, color: "#8a4a38", marginTop: 3, lineHeight: 1.5 }}>
+              Your assets never reach your FI number. Try a later exit year, lower monthly spend, higher savings, or stronger returns — the trajectory below stays under the FI target the whole way.
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* ── Summary cards ── Financial Independence first; a horizontal scroll
           strip when space is tight. */}

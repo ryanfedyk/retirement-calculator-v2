@@ -1259,3 +1259,38 @@ export function continuousFiMonth(points: TrajectoryPoint[]): number | undefined
   const frac = denom > 0 ? Math.min(1, Math.max(0, -gapPrev / denom)) : 0;
   return (i - 1) + frac;
 }
+
+export type PlanHealth = "on-track" | "tight" | "shortfall";
+export interface PlanAssessment {
+  health: PlanHealth;
+  /** Durable FI crossing, when the plan reaches it. */
+  fi?: TrajectoryPoint;
+  /** First retired month whose investable assets run dry (shortfall only). */
+  depletion?: TrajectoryPoint;
+}
+
+/**
+ * Solvency check — does the money actually last? This is SEPARATE from the FI
+ * flag: FI compares spendable assets to the 25× *target*, and when guaranteed
+ * income (Social Security + rental) covers the normalized need that target falls
+ * toward $0, so `isIndependent` can read "reached" even as a plan's investable
+ * assets deplete in retirement. Here we check the real cash-flow path instead:
+ *   • shortfall — a retired month where investable assets hit zero (runs out).
+ *   • tight     — survives, but the leanest retired moment leaves under ~1.5
+ *                 years of expenses (little margin for error).
+ *   • on-track  — otherwise.
+ */
+export function assessPlan(points: TrajectoryPoint[]): PlanAssessment {
+  if (!points.length) return { health: "on-track" };
+  const retired = points.filter((p) => p.currentPhase === "RETIRED");
+  const depletion = retired.find((p) => p.investableAssets <= 0);
+  if (depletion) return { health: "shortfall", depletion };
+
+  const fi = findIndependencePoint(points);
+  if (retired.length) {
+    let low = Infinity, needAtLow = 0;
+    for (const p of retired) if (p.investableAssets < low) { low = p.investableAssets; needAtLow = p.annualExpenseNeed; }
+    if (needAtLow > 0 && low < needAtLow * 1.5) return { health: "tight", fi };
+  }
+  return { health: "on-track", fi };
+}

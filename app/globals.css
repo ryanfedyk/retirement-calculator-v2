@@ -59,3 +59,13 @@ body {
 .recharts-wrapper svg:focus-visible {
   outline: none !important;
 }
+/* Mobile: tapping the chart can focus a descendant element (a <g>/<path> or the
+   responsive-container div), which some browsers ring with a black outline.
+   Suppress the outline + tap highlight on the container and ALL descendants. */
+.recharts-responsive-container,
+.recharts-responsive-container *,
+.recharts-responsive-container *:focus,
+.recharts-responsive-container *:focus-visible {
+  outline: none !important;
+  -webkit-tap-highlight-color: transparent !important;
+}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { runSimulation, findIndependencePoint, toDisplayDollars } from "@/engine/calculator";
+import { runSimulation, findIndependencePoint, assessPlan, toDisplayDollars } from "@/engine/calculator";
 import { estimateMonthlySocialSecurity } from "@/engine/social_security";
 import { calculateTax } from "@/engine/tax_engine";
 import type { FinancialSnapshot, SimulationConfiguration } from "@/engine/calculator";
@@ -54,6 +54,24 @@ function idleSnap(cash: number): FinancialSnapshot {
   snap.liquid_assets.cash_savings = cash;
   return snap;
 }
+
+describe("assessPlan — solvency is separate from the FI flag", () => {
+  it("flags a retiree who outspends modest assets as a shortfall (runs out of money)", () => {
+    const cfg = idleRetiree();
+    cfg.spending.monthly_lifestyle = 8_000; // ~$96k/yr with no income to cover it
+    const traj = runSimulation(idleSnap(300_000), cfg, 0);
+    const a = assessPlan(traj);
+    expect(a.health).toBe("shortfall");
+    expect(a.depletion).toBeDefined();
+  });
+
+  it("does not flag a comfortably-funded retiree as a shortfall", () => {
+    const cfg = idleRetiree();
+    cfg.spending.monthly_lifestyle = 2_000; // ~$24k/yr against a large balance
+    const traj = runSimulation(idleSnap(5_000_000), cfg, 0);
+    expect(assessPlan(traj).health).not.toBe("shortfall");
+  });
+});
 
 describe("rental income growth is user-configurable", () => {
   function rentalAfter10y(rate: number): number {

@@ -56,27 +56,48 @@ const RefLabel = (props: any) => {
 // ── Summary cards ─────────────────────────────────────────────────────────────
 
 const SummaryCard = ({
-  label, value, sub, icon: Icon, iconBg, iconColor, children,
+  label, value, sub, icon: Icon, iconBg, iconColor, children, onClick, actionHint,
 }: {
   label: string; value: string; sub: string;
   icon: React.ElementType; iconBg: string; iconColor: string;
   children?: React.ReactNode;
-}) => (
+  /** When set, the whole card becomes a button (used to open Finances). */
+  onClick?: () => void;
+  /** Tiny affordance label shown by the icon when the card is clickable. */
+  actionHint?: string;
+}) => {
   // flex: grow to fill the row on wide screens, but never shrink below 240px —
   // so the group becomes a horizontal scroll strip when space is tight.
-  <div style={{ flex: "1 0 240px", background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 10, padding: "16px 20px", display: "flex", flexDirection: "column", justifyContent: "space-between", minHeight: 110 }}>
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: C.inkFaint, marginBottom: 6 }}>{label}</div>
-        <div style={{ fontSize: 22, fontWeight: 300, letterSpacing: "-0.02em", color: C.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{value}</div>
+  const base: React.CSSProperties = { flex: "1 0 240px", background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 10, padding: "16px 20px", display: "flex", flexDirection: "column", justifyContent: "space-between", minHeight: 110, textAlign: "left", transition: "border-color 0.15s, box-shadow 0.15s" };
+  const inner = (
+    <>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: C.inkFaint, marginBottom: 6 }}>{label}</div>
+          <div style={{ fontSize: 22, fontWeight: 300, letterSpacing: "-0.02em", color: C.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{value}</div>
+        </div>
+        <div style={{ width: 34, height: 34, flexShrink: 0, borderRadius: 8, background: iconBg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Icon size={16} color={iconColor} />
+        </div>
       </div>
-      <div style={{ width: 34, height: 34, flexShrink: 0, borderRadius: 8, background: iconBg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <Icon size={16} color={iconColor} />
-      </div>
-    </div>
-    {children ?? <div style={{ fontSize: 10, color: C.inkFaint, marginTop: 8 }}>{sub}</div>}
-  </div>
-);
+      {children ?? <div style={{ fontSize: 10, color: C.inkFaint, marginTop: 8 }}>{sub}</div>}
+    </>
+  );
+  if (onClick) {
+    return (
+      <button
+        onClick={onClick}
+        title={actionHint}
+        style={{ ...base, cursor: "pointer", font: "inherit" }}
+        onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.teal; e.currentTarget.style.boxShadow = `0 1px 3px ${C.border}`; }}
+        onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.boxShadow = "none"; }}
+      >
+        {inner}
+      </button>
+    );
+  }
+  return <div style={base}>{inner}</div>;
+};
 
 // ── Chart view tab ────────────────────────────────────────────────────────────
 
@@ -464,6 +485,8 @@ export default function RightPanel({ livePrices }: Props) {
           icon={TrendingUp}
           iconBg={C.warmWash}
           iconColor={C.warm}
+          onClick={() => useUIStore.getState().setFinancesOpen(true)}
+          actionHint="Open your finances — edit balances, income & spending"
         >
           <div style={{ marginTop: 8 }}>
             <div style={{ height: 4, borderRadius: 99, background: C.borderSoft }}>

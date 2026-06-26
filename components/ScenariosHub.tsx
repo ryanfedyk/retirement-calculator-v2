@@ -13,7 +13,7 @@ import { Plus, Copy, Trash2, Sparkles, MoreVertical, Wallet, Eye, EyeOff, Chevro
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
 import { useIsMobile } from "@/hooks/useIsMobile";
-import { runSimulation, findIndependencePoint } from "@/engine/calculator";
+import { runSimulation, assessPlan, type PlanHealth } from "@/engine/calculator";
 import { useScenarioSuggestions, type Suggestion } from "@/hooks/useScenarioSuggestions";
 import { useConfirm } from "@/components/ui/DialogProvider";
 import ScenarioCompare from "@/components/finance/ScenarioCompare";
@@ -198,7 +198,7 @@ function SuggestionsStrip({ suggestions }: { suggestions: Suggestion[] }) {
   );
 }
 
-interface CardStat { fiYear?: number; fiAge?: number; finalNW: number }
+interface CardStat { fiYear?: number; fiAge?: number; finalNW: number; health: PlanHealth; outYear?: number; outAge?: number }
 
 /** A saved scenario card — legend + control for the comparison chart, and the
  * entry point into the deep-dive. Owns its own rename-editing state. */
@@ -262,14 +262,23 @@ function ScenarioCard({
           number so it never wraps awkwardly in a narrow card. */}
       <div style={{ display: "flex", gap: 16 }}>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.inkFaint }}>FI date</div>
-          {st?.fiYear ? (
+          {st?.health === "shortfall" ? (
             <>
-              <div style={{ fontSize: 19, fontWeight: 800, color: C.ink, lineHeight: 1.15 }}>{st.fiYear}</div>
+              <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#c0492b" }}>Runs out</div>
+              <div style={{ fontSize: 19, fontWeight: 800, color: "#c0492b", lineHeight: 1.15 }}>{st.outYear ?? "—"}</div>
+              <div style={{ fontSize: 10, color: "#c0492b", whiteSpace: "nowrap" }}>{st.outAge ? `age ${st.outAge}` : "money depleted"}</div>
+            </>
+          ) : st?.fiYear ? (
+            <>
+              <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.inkFaint }}>FI date{st.health === "tight" ? " · tight" : ""}</div>
+              <div style={{ fontSize: 19, fontWeight: 800, color: st.health === "tight" ? C.warm : C.ink, lineHeight: 1.15 }}>{st.fiYear}</div>
               <div style={{ fontSize: 10, color: C.inkSoft, whiteSpace: "nowrap" }}>age {st.fiAge}</div>
             </>
           ) : (
-            <div style={{ fontSize: 16, fontWeight: 800, color: C.inkSoft, lineHeight: 1.15 }}>Off track</div>
+            <>
+              <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.inkFaint }}>FI date</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: C.inkSoft, lineHeight: 1.15 }}>Off track</div>
+            </>
           )}
         </div>
         <div style={{ minWidth: 0 }}>
@@ -309,11 +318,13 @@ export default function ScenariosHub({ livePrices, onOpen }: { livePrices: LiveP
   }), [snapshot, livePrices]);
 
   const stats = useMemo(() => {
-    const map: Record<string, { fiYear?: number; fiAge?: number; finalNW: number }> = {};
+    const map: Record<string, CardStat> = {};
     for (const sc of scenarios) {
       const pts = runSimulation(enriched, sc.config, liveGoog);
-      const fi = findIndependencePoint(pts);
+      const { health, fi, depletion } = assessPlan(pts);
+      const birthYear = sc.config.birth_year ?? 1980;
       const fiYear = fi ? Number((fi.date.match(/\d{4}/) || [])[0]) : undefined;
+      const outYear = depletion ? Number((depletion.date.match(/\d{4}/) || [])[0]) : undefined;
       // End-of-horizon net worth is a future value, so honour the global money
       // basis (re-inflate it for "future $", using this scenario's inflation).
       const last = pts[pts.length - 1];
@@ -324,8 +335,11 @@ export default function ScenariosHub({ livePrices, onOpen }: { livePrices: LiveP
             : last.totalNetWorth)
         : 0;
       map[sc.id] = {
+        health,
         fiYear,
-        fiAge: fiYear ? fiYear - (sc.config.birth_year ?? 1980) : undefined,
+        fiAge: fiYear ? fiYear - birthYear : undefined,
+        outYear,
+        outAge: outYear ? outYear - birthYear : undefined,
         finalNW,
       };
     }

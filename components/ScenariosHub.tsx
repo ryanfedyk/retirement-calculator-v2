@@ -168,20 +168,14 @@ function SuggestionsStrip({ suggestions }: { suggestions: Suggestion[] }) {
         <span style={{ fontSize: 10, color: C.inkFaint }}>· tap to add as a scenario</span>
       </div>
 
-      <div
-        className="no-scrollbar"
-        style={{
-          display: "flex", gap: 10, overflowX: "auto", paddingBottom: 6,
-          scrollSnapType: "x proximity", WebkitOverflowScrolling: "touch",
-        }}
-      >
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
         {suggestions.map((s, j) => (
           <button
             key={j}
             onClick={s.build}
             title={`Create a new scenario: ${s.title}`}
             style={{
-              flex: "0 0 auto", width: 190, scrollSnapAlign: "start", textAlign: "left",
+              flex: "0 0 auto", width: 190, textAlign: "left",
               display: "flex", flexDirection: "column", gap: 6, padding: "11px 13px", borderRadius: 10,
               border: `1px dashed ${C.border}`, background: "transparent", cursor: "pointer",
               transition: "border-color 0.15s, background 0.15s",

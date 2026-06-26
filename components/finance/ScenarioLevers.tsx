@@ -43,9 +43,13 @@ function Slider({ label, value, display, min, max, step, accent, onChange, badge
 }) {
   return (
     <div style={{ flex: "1 1 150px", minWidth: 140 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: C.inkFaint }}>{label}</span>
-        <span style={{ fontSize: 13, fontWeight: 700, color: C.ink, fontVariantNumeric: "tabular-nums", display: "flex", alignItems: "center", gap: 6 }}>{badge}{display}</span>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 6, marginBottom: 4 }}>
+        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: C.inkFaint, whiteSpace: "nowrap" }}>{label}</span>
+        <span style={{ fontSize: 13, fontWeight: 700, color: C.ink, fontVariantNumeric: "tabular-nums", display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" }}>
+          {/* Drop the badge before the headline ever wraps when the column is tight. */}
+          {badge && <span className="hidden @min-[420px]:inline-flex" style={{ alignItems: "center" }}>{badge}</span>}
+          {display}
+        </span>
       </div>
       <input type="range" min={min} max={max} step={step} value={value}
         onChange={e => onChange(+e.target.value)}

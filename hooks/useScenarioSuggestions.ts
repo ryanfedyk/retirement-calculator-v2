@@ -30,6 +30,8 @@ const NO_TAX_STATES = new Set(["AK", "FL", "NH", "NV", "SD", "TN", "TX", "WA", "
 /** A what-if applied to a cloned config, plus the baseline paths it forks. */
 interface Idea {
   title: string;
+  /** Plain-language summary of exactly what this changes (shown on the card). */
+  detail: string;
   apply: (cfg: SimulationConfiguration) => void;
   /** Shared-baseline leaf paths this idea overrides (so the offshoot stays linked elsewhere). */
   unlink: string[];
@@ -39,6 +41,8 @@ interface Idea {
 
 export interface Suggestion {
   title: string;
+  /** Plain-language summary of what the idea changes. */
+  detail: string;
   /** Absolute projected FI date, e.g. "Mar 2032" / "30+ yrs" */
   fiDate: string;
   /** e.g. "4 mo earlier" / "no change" / "—" */
@@ -76,14 +80,17 @@ export function useScenarioSuggestions(livePrices: LivePrices): Suggestion[] {
     const spend = config.spending.monthly_lifestyle;
     const ret = config.market_assumptions.market_return_rate;
     const salary = config.income_profile.gross_annual_salary;
+    const exit = cp.exit_year;
     const trimmed = Math.round(spend * 0.85);
+    const passionSalary = Math.round(salary * 0.7);
+    const bridgeSalary = Math.round(salary * 0.4);
     const thisYear = new Date().getFullYear();
 
     const list: Idea[] = [
-      { title: "Reclaim a year", unlink: [], apply: (c) => { c.career_path.exit_year -= 1; } },
-      { title: "Trade a year for security", unlink: [], apply: (c) => { c.career_path.exit_year += 1; } },
+      { title: "Reclaim a year", detail: `Leave a year earlier — exit ${exit - 1}`, unlink: [], apply: (c) => { c.career_path.exit_year -= 1; } },
+      { title: "Trade a year for security", detail: `Work one more year — exit ${exit + 1}`, unlink: [], apply: (c) => { c.career_path.exit_year += 1; } },
       {
-        title: "Take a gap year to travel", unlink: ["life_events"], when: () => !cp.use_sabbatical,
+        title: "Take a gap year to travel", detail: "A 1-year sabbatical plus a $40k travel year", unlink: ["life_events"], when: () => !cp.use_sabbatical,
         apply: (c) => {
           c.career_path.use_sabbatical = true;
           c.career_path.sabbatical_duration = 1;
@@ -91,44 +98,50 @@ export function useScenarioSuggestions(livePrices: LivePrices): Suggestion[] {
         },
       },
       {
-        title: "Follow your passion", unlink: ["income_profile.jump_gross_annual", "income_profile.jump_bonus_rate"],
+        title: "Follow your passion", detail: `Switch to an encore career at ~${fmtK(passionSalary)}/yr for 5 years`,
+        unlink: ["income_profile.jump_gross_annual", "income_profile.jump_bonus_rate"],
         when: () => !cp.use_jump,
         apply: (c) => {
           c.career_path.use_jump = true;
           c.career_path.jump_duration = 5;
-          c.income_profile.jump_gross_annual = Math.round(salary * 0.7);
+          c.income_profile.jump_gross_annual = passionSalary;
           c.income_profile.jump_bonus_rate = 5;
         },
       },
       {
-        title: "Downshift to part-time", unlink: ["income_profile.monthly_parttime_income"],
-        when: () => (config.income_profile.monthly_parttime_income ?? 0) === 0,
-        apply: (c) => { c.income_profile.monthly_parttime_income = 3_000; },
+        title: "Take a bridge job", detail: `A 3-year part-time bridge role at ~${fmtK(bridgeSalary)}/yr before fully retiring`,
+        unlink: ["income_profile.bridge_gross_annual"],
+        when: () => !cp.use_bridge,
+        apply: (c) => {
+          c.career_path.use_bridge = true;
+          c.career_path.bridge_duration = 3;
+          c.income_profile.bridge_gross_annual = bridgeSalary;
+        },
       },
       {
-        title: "Simplify your lifestyle", unlink: ["spending.monthly_lifestyle"],
+        title: "Simplify your lifestyle", detail: `Trim spending 15% — to ${fmtK(trimmed)}/mo`, unlink: ["spending.monthly_lifestyle"],
         when: () => trimmed < spend,
         apply: (c) => { c.spending.monthly_lifestyle = trimmed; },
       },
       {
-        title: "Buy a vacation cabin", unlink: ["life_events", "spending.monthly_lifestyle"],
+        title: "Buy a vacation cabin", detail: "A $250k purchase in 3 years plus ~$1.2k/mo upkeep", unlink: ["life_events", "spending.monthly_lifestyle"],
         apply: (c) => {
           c.life_events = [...(c.life_events ?? []), { name: "Vacation cabin", year: thisYear + 3, cost: 250_000, auto: false }];
           c.spending.monthly_lifestyle += 1_200; // carrying costs (taxes, upkeep, insurance)
         },
       },
       {
-        title: "Relocate somewhere tax-friendly", unlink: ["tax_assumptions.state_of_residence"],
+        title: "Relocate somewhere tax-friendly", detail: "Move to a state with no income tax", unlink: ["tax_assumptions.state_of_residence"],
         when: () => !NO_TAX_STATES.has(config.tax_assumptions.state_of_residence),
         apply: (c) => { c.tax_assumptions.state_of_residence = "FL"; },
       },
       {
-        title: "Weather a cooler market", unlink: ["market_assumptions.market_return_rate"],
+        title: "Weather a cooler market", detail: "Stress-test with 6% market returns", unlink: ["market_assumptions.market_return_rate"],
         when: () => ret > 6,
         apply: (c) => { c.market_assumptions.market_return_rate = 6; },
       },
       {
-        title: "Ride a booming market", unlink: ["market_assumptions.market_return_rate"],
+        title: "Ride a booming market", detail: "Model a strong run — 10% market returns", unlink: ["market_assumptions.market_return_rate"],
         when: () => ret < 10,
         apply: (c) => { c.market_assumptions.market_return_rate = 10; },
       },
@@ -155,6 +168,7 @@ export function useScenarioSuggestions(livePrices: LivePrices): Suggestion[] {
 
       return {
         title: idea.title,
+        detail: idea.detail,
         fiDate: fi != null ? fmtDate(fiMonthToDate(fi)) : "30+ yrs",
         fiDelta: dMonths == null ? "—" : dMonths === 0 ? "no change" : `${Math.abs(dMonths)} mo ${earlier ? "earlier" : "later"}`,
         fiColor: dMonths == null || dMonths === 0 ? C.inkFaint : earlier ? C.tealDark : C.warm,

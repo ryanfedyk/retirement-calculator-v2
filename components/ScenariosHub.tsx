@@ -194,6 +194,7 @@ function SuggestionsStrip({ suggestions, isMobile }: { suggestions: Suggestion[]
               <Plus size={13} color={C.inkFaint} style={{ flexShrink: 0 }} />
               <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</span>
             </span>
+            <span style={{ fontSize: 10.5, color: C.inkSoft, lineHeight: 1.35 }}>{s.detail}</span>
             <div style={{ display: "flex", alignItems: "baseline", gap: 5, flexWrap: "wrap" }}>
               <span style={{ fontSize: 13, fontWeight: 700, color: s.nwColor, fontVariantNumeric: "tabular-nums" }}>{s.nwDelta}</span>
               <span style={{ fontSize: 10, color: C.inkFaint }}>· FI {s.fiDate}</span>

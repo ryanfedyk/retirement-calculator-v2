@@ -42,8 +42,6 @@ export default function PriceTicker({
     if (!symbols.includes(s)) symbols.push(s);
   }
 
-  const anyLive = symbols.some((s) => livePrices[s]?.source === "yahoo");
-
   const wrap: React.CSSProperties = {
     display: "flex",
     justifyContent: align === "end" ? "flex-end" : "flex-start",
@@ -69,10 +67,6 @@ export default function PriceTicker({
           padding: "6px 14px", maxWidth: "100%", overflowX: "auto",
         }}
       >
-        <span
-          title={anyLive ? "Live prices" : "Estimated / fallback prices"}
-          style={{ flexShrink: 0, width: 7, height: 7, borderRadius: "50%", background: anyLive ? C.teal : C.warm, boxShadow: anyLive ? `0 0 6px ${C.teal}` : "none" }}
-        />
         {symbols.map((sym) => {
           const info = livePrices[sym];
           return (
@@ -86,7 +80,7 @@ export default function PriceTicker({
         })}
         {pricesUpdatedAt && (
           <span style={{ flexShrink: 0, fontSize: 9, color: C.inkFaint, letterSpacing: "0.03em" }}>
-            as of {pricesUpdatedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            {pricesUpdatedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
           </span>
         )}
         {onRefreshPrices && (

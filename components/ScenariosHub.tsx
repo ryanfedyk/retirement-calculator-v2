@@ -268,30 +268,33 @@ function ScenarioCard({
 
       {/* Stat pair — the secondary line (age / final NW) sits under the headline
           number so it never wraps awkwardly in a narrow card. */}
-      <div style={{ display: "flex", gap: 16 }}>
+      {/* FI is the headline outcome (big, coloured); exit year is a secondary
+          input — smaller, muted, and pushed to the right — so the two no longer
+          read as two identical years in a row. */}
+      <div style={{ display: "flex", gap: 16, alignItems: "baseline" }}>
         <div style={{ minWidth: 0 }}>
           {st?.health === "shortfall" ? (
             <>
               <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#c0492b" }}>Runs out</div>
-              <div style={{ fontSize: 19, fontWeight: 800, color: "#c0492b", lineHeight: 1.15 }}>{st.outYear ?? "—"}</div>
+              <div style={{ fontSize: 23, fontWeight: 800, color: "#c0492b", lineHeight: 1.1 }}>{st.outYear ?? "—"}</div>
               <div style={{ fontSize: 10, color: "#c0492b", whiteSpace: "nowrap" }}>{st.outAge ? `age ${st.outAge}` : "money depleted"}</div>
             </>
           ) : st?.fiYear ? (
             <>
               <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.inkFaint }}>FI date{st.health === "tight" ? " · tight" : ""}</div>
-              <div style={{ fontSize: 19, fontWeight: 800, color: st.health === "tight" ? C.warm : C.ink, lineHeight: 1.15 }}>{st.fiYear}</div>
+              <div style={{ fontSize: 23, fontWeight: 800, color: st.health === "tight" ? C.warm : C.tealDark, lineHeight: 1.1 }}>{st.fiYear}</div>
               <div style={{ fontSize: 10, color: C.inkSoft, whiteSpace: "nowrap" }}>age {st.fiAge}</div>
             </>
           ) : (
             <>
               <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.inkFaint }}>FI date</div>
-              <div style={{ fontSize: 16, fontWeight: 800, color: C.inkSoft, lineHeight: 1.15 }}>Off track</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: C.inkSoft, lineHeight: 1.1 }}>Off track</div>
             </>
           )}
         </div>
-        <div style={{ minWidth: 0 }}>
+        <div style={{ minWidth: 0, marginLeft: "auto", textAlign: "right" }}>
           <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.inkFaint }}>Exit year</div>
-          <div style={{ fontSize: 19, fontWeight: 800, color: C.ink, lineHeight: 1.15 }}>{sc.config.career_path.exit_year}</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: C.inkMid, lineHeight: 1.2, fontVariantNumeric: "tabular-nums" }}>{sc.config.career_path.exit_year}</div>
           <div style={{ fontSize: 10, color: C.inkSoft, whiteSpace: "nowrap" }}>{fmtM(st?.finalNW ?? 0)}</div>
         </div>
       </div>

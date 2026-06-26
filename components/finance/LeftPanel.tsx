@@ -422,7 +422,14 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
 
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <Checkbox label="Take a Sabbatical?" checked={cp.use_sabbatical}
-              onChange={v => updateNestedConfig("career_path", { use_sabbatical: v })} />
+              onChange={v => {
+                updateNestedConfig("career_path", { use_sabbatical: v });
+                // A sabbatical returns to work, not straight to retirement — ease back in with a bridge role.
+                if (v && !cp.use_jump && !cp.use_bridge) {
+                  updateNestedConfig("career_path", { use_bridge: true });
+                  if (!ip.bridge_gross_annual) updateNestedConfig("income_profile", { bridge_gross_annual: Math.round((ip.gross_annual_salary || 0) * 0.4) });
+                }
+              }} />
             {cp.use_sabbatical && (
               <Indent>
                 <FieldLabel>Duration (years)</FieldLabel>

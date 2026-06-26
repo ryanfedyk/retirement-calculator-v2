@@ -103,7 +103,14 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
                   }
                 }} />
             </Field>
-            <Toggle label="Take a Sabbatical" color="#d98a3d" on={cp.use_sabbatical} onChange={v => updateNestedConfig("career_path", { use_sabbatical: v })} />
+            <Toggle label="Take a Sabbatical" color="#d98a3d" on={cp.use_sabbatical} onChange={v => {
+              updateNestedConfig("career_path", { use_sabbatical: v });
+              // A sabbatical returns to work, not straight to retirement — ease back in with a bridge role.
+              if (v && !cp.use_jump && !cp.use_bridge) {
+                updateNestedConfig("career_path", { use_bridge: true });
+                if (!ip.bridge_gross_annual) updateNestedConfig("income_profile", { bridge_gross_annual: Math.round((ip.gross_annual_salary || 0) * 0.4) });
+              }
+            }} />
             {cp.use_sabbatical && <Field label="Sabbatical Duration (years)"><Num value={cp.sabbatical_duration} onChange={v => updateNestedConfig("career_path", { sabbatical_duration: v })} /></Field>}
 
             <Toggle label="Model a Career Jump" color="#2a9d7f" on={cp.use_jump} onChange={v => updateNestedConfig("career_path", { use_jump: v })} />

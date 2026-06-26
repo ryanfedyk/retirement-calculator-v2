@@ -95,24 +95,23 @@ export default function Header({ view, onViewChange, mode, onBack }: Props) {
             </div>
           )}
 
-          {/* Shared finances — the balance sheet, reachable from anywhere. Slimmed
-              to a wallet glyph (the label only appears on wider screens) so the
-              header stays calm; the balance sheet is also reachable contextually
-              by tapping the Portfolio Strength card on the scenario page. */}
+          {/* Shared finances — the balance sheet, reachable from anywhere. A clean
+              wallet glyph (no label) keeps the header calm; the balance sheet is
+              also reachable contextually by tapping the Portfolio Strength card on
+              the scenario page. */}
           <button
             onClick={() => useUIStore.getState().setFinancesOpen(true)}
             aria-label="Your finances"
             title="Your finances — the balance sheet shared across every scenario"
             style={{
-              display: "flex", alignItems: "center", gap: 6, padding: "5px 10px",
-              borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, cursor: "pointer",
-              color: C.inkSoft, fontSize: 12, fontWeight: 600,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              width: 34, height: 34, borderRadius: 8,
+              border: `1px solid ${C.border}`, background: C.bg, cursor: "pointer",
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = C.ink)}
-            onMouseLeave={(e) => (e.currentTarget.style.color = C.inkSoft)}
+            onMouseEnter={(e) => (e.currentTarget.style.borderColor = C.teal)}
+            onMouseLeave={(e) => (e.currentTarget.style.borderColor = C.border)}
           >
-            <Wallet size={15} color={C.teal} />
-            <span className="hidden sm:inline">Finances</span>
+            <Wallet size={16} color={C.teal} />
           </button>
 
           <AccountMenu />

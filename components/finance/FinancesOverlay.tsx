@@ -79,16 +79,26 @@ export default function FinancesOverlay({ livePrices = {} }: { livePrices?: Live
     );
   }
 
-  // ── Desktop: centered modal ──
-  if (!open) return null;
+  // ── Desktop: centered modal (kept mounted so it can fade/scale in & out) ──
   return (
     <div
       onMouseDown={() => setOpen(false)}
-      style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(20,30,26,0.45)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "5vh 16px" }}
+      style={{
+        position: "fixed", inset: 0, zIndex: 1000, background: "rgba(20,30,26,0.45)",
+        display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "5vh 16px",
+        opacity: open ? 1 : 0, pointerEvents: open ? "auto" : "none",
+        transition: "opacity 0.22s ease",
+      }}
     >
       <div
         onMouseDown={(e) => e.stopPropagation()}
-        style={{ position: "relative", width: "100%", maxWidth: 560, maxHeight: "90vh", background: C.bgCard, borderRadius: 16, overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 16px 48px rgba(0,0,0,0.25)" }}
+        style={{
+          position: "relative", width: "100%", maxWidth: 560, maxHeight: "90vh", background: C.bgCard,
+          borderRadius: 16, overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 16px 48px rgba(0,0,0,0.25)",
+          transform: open ? "translateY(0) scale(1)" : "translateY(10px) scale(0.98)",
+          opacity: open ? 1 : 0,
+          transition: "transform 0.28s cubic-bezier(0.32,0.72,0,1), opacity 0.2s ease",
+        }}
       >
         <button
           onClick={() => setOpen(false)} aria-label="Close"

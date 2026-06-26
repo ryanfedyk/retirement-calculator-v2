@@ -44,11 +44,30 @@ export default function FinancialDashboard({ livePrices }: Props) {
   const planPanelOpen = useUIStore((s) => s.planPanelOpen);
   const setPlanPanelOpen = useUIStore((s) => s.setPlanPanelOpen);
 
+  const EASE = "cubic-bezier(0.32,0.72,0,1)";
   return (
     <div style={{ display: "flex", height: "calc(100vh - 100px)", overflow: "hidden", background: C.bg }}>
-      {planPanelOpen
-        ? <LeftPanel livePrices={livePrices} onClose={() => setPlanPanelOpen(false)} />
-        : <PlanRail onOpen={() => setPlanPanelOpen(true)} />}
+      {/* The plan column animates its width between the slim rail (44) and the
+          full panel (300); the panel slides in from the left as it widens, so
+          opening/closing reads as one smooth motion and RightPanel reflows. */}
+      <div style={{
+        position: "relative", flexShrink: 0, overflow: "hidden", height: "100%",
+        width: planPanelOpen ? 300 : 44, transition: `width 0.32s ${EASE}`,
+      }}>
+        {/* Rail underneath — visible when collapsed */}
+        <div style={{ position: "absolute", inset: 0, width: 44, display: "flex" }}>
+          <PlanRail onOpen={() => setPlanPanelOpen(true)} />
+        </div>
+        {/* Panel on top — slides off to the left when collapsed */}
+        <div style={{
+          position: "absolute", inset: 0, width: 300, display: "flex",
+          transform: planPanelOpen ? "translateX(0)" : "translateX(-100%)",
+          transition: `transform 0.32s ${EASE}`,
+          pointerEvents: planPanelOpen ? "auto" : "none",
+        }}>
+          <LeftPanel livePrices={livePrices} onClose={() => setPlanPanelOpen(false)} />
+        </div>
+      </div>
       <RightPanel livePrices={livePrices} />
     </div>
   );

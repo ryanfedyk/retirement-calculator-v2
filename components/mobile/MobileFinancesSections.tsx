@@ -5,7 +5,7 @@ import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import TickerAutocomplete from "@/components/finance/TickerAutocomplete";
 import LinkedNumberField from "@/components/finance/LinkedNumberField";
-import { Field, Num, Two, Section, inputStyle, labelStyle } from "./sheetUI";
+import { Field, Num, Two, Section, TextInput, money, inputStyle, labelStyle } from "./sheetUI";
 
 // The shared "Your finances" picture — cash flow (income & spending) plus the
 // balance sheet (assets/liabilities, holdings, 529s). Income & spending edit the
@@ -17,8 +17,12 @@ export default function MobileFinancesSections() {
   const kids = profile.children;
   const ip = baseline.income_profile;
   const sp = baseline.spending;
+  const events = baseline.life_events ?? [];
+  const setEvents = (next: typeof events) => updateBaseline("life_events", next);
+  const thisYear = new Date().getFullYear();
   const [openId, setOpenId] = useState<string | null>("income");
   const [newInv, setNewInv] = useState({ symbol: "", name: "", shares: "", ret: "7", retLinked: true });
+  const [newEvent, setNewEvent] = useState({ name: "", year: thisYear + 3, cost: 50_000 });
   const sec = (id: string) => ({ openId, setOpenId, id });
 
   return (
@@ -47,6 +51,40 @@ export default function MobileFinancesSections() {
           <Field label="Healthcare ($/mo, pre-65)"><Num prefix="$" step={100} value={sp.healthcare_premium} onChange={v => updateBaseline("spending", { healthcare_premium: v })} /></Field>
         </Two>
         <Field label="Long-Term Care ($/yr, today's $; 0 = off)"><Num prefix="$" step={5000} value={sp.ltc_annual_cost ?? 0} onChange={v => updateBaseline("spending", { ltc_annual_cost: v })} /></Field>
+      </Section>
+
+      {/* ── Life events (baseline) ── */}
+      <Section title="Life events" accent="#c4784e" {...sec("events")}>
+        <div style={{ fontSize: 11, color: C.inkFaint, marginBottom: 10, lineHeight: 1.5 }}>
+          One-off future costs (a home purchase, a big trip) — shared across every scenario. College costs auto-update from Profile → Family.
+        </div>
+        {events.map((evt, idx) => (
+          <div key={idx} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", borderRadius: 10, background: C.bgCard, border: `1px solid ${C.borderSoft}`, marginBottom: 8 }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: C.ink, display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{evt.name}</span>
+                {evt.auto && <span style={{ flexShrink: 0, fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: C.inkFaint, background: C.bgHeader, borderRadius: 4, padding: "1px 5px" }}>auto</span>}
+              </div>
+              <div style={{ fontSize: 11, color: C.inkSoft }}>{evt.year} · {money(evt.cost)}</div>
+            </div>
+            {!evt.auto && (
+              <button onClick={() => setEvents(events.filter((_, i) => i !== idx))} aria-label="Remove event"
+                style={{ background: "none", border: "none", cursor: "pointer", color: C.inkFaint, flexShrink: 0 }}><Trash2 size={16} /></button>
+            )}
+          </div>
+        ))}
+        <div style={{ marginTop: 4 }}>
+          <TextInput placeholder="Event name" value={newEvent.name} onChange={v => setNewEvent({ ...newEvent, name: v })} />
+          <div style={{ height: 8 }} />
+          <Two>
+            <Num value={newEvent.year} onChange={v => setNewEvent({ ...newEvent, year: v })} />
+            <Num prefix="$" step={1000} value={newEvent.cost} onChange={v => setNewEvent({ ...newEvent, cost: v })} />
+          </Two>
+          <button onClick={() => { if (newEvent.name.trim()) { setEvents([...events, { name: newEvent.name.trim(), year: newEvent.year, cost: newEvent.cost, auto: false }]); setNewEvent({ name: "", year: thisYear + 3, cost: 50_000 }); } }}
+            style={{ marginTop: 10, width: "100%", padding: "12px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.bgCard, color: C.teal, fontSize: 14, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+            <Plus size={15} /> Add event
+          </button>
+        </div>
       </Section>
 
       {/* ── Assets & Liabilities ── */}

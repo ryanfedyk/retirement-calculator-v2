@@ -327,6 +327,48 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
           </div>
         </AccCard>
 
+        {/* ── Life Events (baseline) ── */}
+        <AccCard {...acc("fin_events")} hidden={!showFacts} title="Life Events" color="#c4784e">
+          <div style={{ fontSize: 10, color: C.inkFaint, marginBottom: 10, lineHeight: 1.5 }}>
+            One-off future costs (a home purchase, a big trip) — shared across every scenario. College costs auto-update from Profile → Family.
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
+            {(baseline.life_events ?? []).map((evt, idx) => (
+              <div key={idx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: C.bg, borderRadius: 7, padding: "8px 10px", border: `1px solid ${C.borderSoft}` }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: C.ink, display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{evt.name}</span>
+                    {evt.auto && <span style={{ flexShrink: 0, fontSize: 8, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: C.inkFaint, background: C.bgHeader, borderRadius: 4, padding: "1px 5px" }}>auto</span>}
+                  </div>
+                  <div style={{ fontSize: 10, color: C.inkSoft }}>{evt.year} · ${evt.cost.toLocaleString()}</div>
+                </div>
+                {!evt.auto && (
+                  <button onClick={() => updateBaseline("life_events", (baseline.life_events ?? []).filter((_, i) => i !== idx))}
+                    aria-label="Remove event" style={{ background: "none", border: "none", cursor: "pointer", color: C.inkFaint, fontSize: 12, flexShrink: 0 }}>✕</button>
+                )}
+              </div>
+            ))}
+          </div>
+          <div style={{ background: C.bg, borderRadius: 7, padding: "10px 12px", border: `1px solid ${C.borderSoft}` }}>
+            <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: C.inkFaint, marginBottom: 8 }}>Add New Event</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <Input placeholder="Event Name" value={newEvent.name} onChange={e => setNewEvent({ ...newEvent, name: e.target.value })} />
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                <Input type="number" placeholder="Year" value={newEvent.year} onChange={e => setNewEvent({ ...newEvent, year: +e.target.value })} />
+                <Input type="number" placeholder="Cost $" value={newEvent.cost} onChange={e => setNewEvent({ ...newEvent, cost: +e.target.value })} />
+              </div>
+              <button onClick={() => {
+                if (newEvent.name && newEvent.year && newEvent.cost) {
+                  updateBaseline("life_events", [...(baseline.life_events ?? []), { name: newEvent.name, year: newEvent.year, cost: newEvent.cost, auto: false }]);
+                  setNewEvent({ name: "", year: 2030, cost: 50_000 });
+                }
+              }} style={{ padding: "6px 0", background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 11, color: C.inkMid, cursor: "pointer", fontWeight: 600 }}>
+                + Add Event
+              </button>
+            </div>
+          </div>
+        </AccCard>
+
         {/* ── Assets & Liabilities ── */}
         <AccCard {...acc("assets")} hidden={!showFacts} title="Assets & Liabilities" color={C.teal}>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>

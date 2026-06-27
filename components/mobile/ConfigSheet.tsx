@@ -122,6 +122,7 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
                 </Two>
                 <Field label="Annual Base Salary"><Num prefix="$" step={1000} value={ip.jump_gross_annual} onChange={v => updateNestedConfig("income_profile", { jump_gross_annual: v })} /></Field>
                 <Field label="Annual Equity"><Num prefix="$" step={1000} value={(ip.jump_grant_monthly || 0) * 12} onChange={v => updateNestedConfig("income_profile", { jump_grant_monthly: v / 12 })} /></Field>
+                <Toggle label="Supplies Health Insurance" on={ip.jump_has_health_insurance ?? true} onChange={v => updateNestedConfig("income_profile", { jump_has_health_insurance: v })} />
               </div>
             )}
 

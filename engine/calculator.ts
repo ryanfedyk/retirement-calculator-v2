@@ -58,6 +58,7 @@ export interface SimulationConfiguration {
     jump_gross_annual: number;
     jump_bonus_rate: number;
     jump_grant_monthly: number;
+    jump_has_health_insurance?: boolean; // Does the encore/jump career supply coverage? Default true.
     bridge_gross_annual: number;
     bridge_has_health_insurance?: boolean;
     income_growth_rate: number;    // Nominal annual raise % (not stacked on inflation)
@@ -787,7 +788,10 @@ export const runSimulation = (
     const partnerIsWorking = ip.use_partner_income && ip.partner_has_health_insurance &&
       currentYear >= partnerStarts && currentYear < partnerRetires;
     const bridgeCovered = (phase === 'BRIDGE') && !!ip.bridge_has_health_insurance;
-    const hasEmployerCoverage = phase === 'GOOGLE' || phase === 'JUMP' || partnerIsWorking || bridgeCovered;
+    // A jump (encore career) supplies coverage by default; users can flag a gig
+    // or self-employment that doesn't, so self-paid/ACA healthcare kicks in.
+    const jumpCovered = (phase === 'JUMP') && (ip.jump_has_health_insurance ?? true);
+    const hasEmployerCoverage = phase === 'GOOGLE' || jumpCovered || partnerIsWorking || bridgeCovered;
 
     const adults = effectiveFiling === 'married_joint' ? 2 : 1;
 

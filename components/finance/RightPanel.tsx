@@ -4,7 +4,7 @@ import {
   ResponsiveContainer, AreaChart, Area, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine,
 } from "recharts";
-import { Flag, CheckCircle, CalendarDays, Sparkles, AlertTriangle, X, Wallet, Plus } from "lucide-react";
+import { CalendarDays, Sparkles, Plus } from "lucide-react";
 import HorizonZoomButton from "./HorizonZoomButton";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
@@ -19,10 +19,11 @@ import type { LivePrices } from "./FinancialDashboard";
 import { getLifeEvents } from "@/lib/horizonUtils";
 import { useHorizonProfile } from "@/config/horizonConfig";
 import ScenarioLevers from "./ScenarioLevers";
+import SummaryCards from "./SummaryCards";
 import { useScenarioSuggestions } from "@/hooks/useScenarioSuggestions";
 import FireMoments from "@/components/fx/FireMoments";
 import { isCoastFI } from "@/lib/fire/moments";
-import { buildNotices, sevColor, sevBg } from "@/lib/planNotices";
+import { buildNotices } from "@/lib/planNotices";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -57,115 +58,91 @@ const RefLabel = (props: any) => {
 
 // ── Summary cards ─────────────────────────────────────────────────────────────
 
-/** A plan notification — funding health or a FIRE milestone — shown in the
- * Alerts card and explained in the info modal. */
 /** "Branch this scenario" — diverse offshoots of the current plan (retire a year
- * sooner, take a sabbatical, trim spending…), each previewing the time/money
- * trade-off. Building one creates a real scenario branched from this one. */
+ * sooner, take a sabbatical, trim spending…). Collapsed, it's a slim list of
+ * one-line quick hits; expanded, it's the full carousel of cards with the
+ * time/money trade-off for each. Building one creates a real branched scenario. */
 export function BranchStrip({ livePrices, title = "Branch this scenario", subtitle = "· spin off a variation" }: { livePrices: LivePrices; title?: string; subtitle?: string }) {
   const suggestions = useScenarioSuggestions(livePrices);
-  // Collapsed by default — still shows the first few ideas; expand to see them all.
   const [expanded, setExpanded] = useState(false);
   if (!suggestions.length) return null;
-  const COLLAPSED = 3;
-  const shown = expanded ? suggestions : suggestions.slice(0, COLLAPSED);
-  const hiddenCount = suggestions.length - COLLAPSED;
+  const PREVIEW = 4;
+  const preview = suggestions.slice(0, PREVIEW);
+
   return (
     <div style={{ flexShrink: 0 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
         <Sparkles size={13} color={C.inkFaint} />
         <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.inkFaint }}>{title}</span>
         <span style={{ fontSize: 10, color: C.inkFaint }}>{subtitle}</span>
-        {hiddenCount > 0 && (
-          <button
-            onClick={() => setExpanded((e) => !e)}
-            style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", fontSize: 10, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: C.teal }}
-          >
-            {expanded ? "Show less ▴" : `Show all ${suggestions.length} ▾`}
-          </button>
-        )}
+        <button
+          onClick={() => setExpanded((e) => !e)}
+          style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", fontSize: 10, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: C.teal }}
+        >
+          {expanded ? "Show less ▴" : `Show all ${suggestions.length} ▾`}
+        </button>
       </div>
-      <div className="no-scrollbar" style={{ display: "flex", flexWrap: expanded ? "wrap" : "nowrap", gap: 10, overflowX: expanded ? "visible" : "auto", paddingBottom: 4 }}>
-        {shown.map((s, j) => (
-          <button
-            key={j}
-            onClick={s.build}
-            title={`Branch a new scenario: ${s.title}`}
-            style={{
-              flex: "0 0 auto", width: 200, textAlign: "left", display: "flex", flexDirection: "column", gap: 6,
-              padding: "11px 13px", borderRadius: 10, border: `1px dashed ${C.border}`, background: "transparent", cursor: "pointer",
-              transition: "border-color 0.15s, background 0.15s",
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.tealLight; e.currentTarget.style.background = C.bgCard; }}
-            onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = "transparent"; }}
-          >
-            <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700, color: C.inkMid, minWidth: 0 }}>
+
+      {expanded ? (
+        // Full carousel — every idea as a card with the trade-off detail.
+        <div className="no-scrollbar" style={{ display: "flex", flexWrap: "wrap", gap: 10, paddingBottom: 4 }}>
+          {suggestions.map((s, j) => (
+            <button
+              key={j}
+              onClick={s.build}
+              title={`Branch a new scenario: ${s.title}`}
+              style={{
+                flex: "0 0 auto", width: 200, textAlign: "left", display: "flex", flexDirection: "column", gap: 6,
+                padding: "11px 13px", borderRadius: 10, border: `1px dashed ${C.border}`, background: "transparent", cursor: "pointer",
+                transition: "border-color 0.15s, background 0.15s",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.tealLight; e.currentTarget.style.background = C.bgCard; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = "transparent"; }}
+            >
+              <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700, color: C.inkMid, minWidth: 0 }}>
+                <Plus size={13} color={C.inkFaint} style={{ flexShrink: 0 }} />
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</span>
+              </span>
+              <span style={{ fontSize: 10.5, color: C.inkSoft, lineHeight: 1.35 }}>{s.detail}</span>
+              <div style={{ display: "flex", gap: 14, marginTop: 2 }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: C.inkFaint }}>Freedom</div>
+                  <div style={{ fontSize: 12.5, fontWeight: 800, color: s.timeColor, fontVariantNumeric: "tabular-nums" }}>{s.timeDelta}</div>
+                  {s.timeHours && <div style={{ fontSize: 8.5, color: C.inkFaint, whiteSpace: "nowrap" }}>{s.timeHours}</div>}
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: C.inkFaint }}>Net worth</div>
+                  <div style={{ fontSize: 12.5, fontWeight: 800, color: s.nwColor, fontVariantNumeric: "tabular-nums" }}>{s.nwDelta}</div>
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      ) : (
+        // Collapsed — slim one-line quick hits.
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          {preview.map((s, j) => (
+            <button
+              key={j}
+              onClick={s.build}
+              title={`Branch a new scenario: ${s.title}`}
+              style={{ display: "flex", alignItems: "center", gap: 9, width: "100%", padding: "8px 8px", borderRadius: 8, border: "none", background: "transparent", cursor: "pointer", textAlign: "left", borderBottom: `1px solid ${C.borderSoft}` }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = C.bg)}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+            >
               <Plus size={13} color={C.inkFaint} style={{ flexShrink: 0 }} />
-              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</span>
-            </span>
-            <span style={{ fontSize: 10.5, color: C.inkSoft, lineHeight: 1.35 }}>{s.detail}</span>
-            <div style={{ display: "flex", gap: 14, marginTop: 2 }}>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: C.inkFaint }}>Freedom</div>
-                <div style={{ fontSize: 12.5, fontWeight: 800, color: s.timeColor, fontVariantNumeric: "tabular-nums" }}>{s.timeDelta}</div>
-                {s.timeHours && <div style={{ fontSize: 8.5, color: C.inkFaint, whiteSpace: "nowrap" }}>{s.timeHours}</div>}
-              </div>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: C.inkFaint }}>Net worth</div>
-                <div style={{ fontSize: 12.5, fontWeight: 800, color: s.nwColor, fontVariantNumeric: "tabular-nums" }}>{s.nwDelta}</div>
-              </div>
-            </div>
-          </button>
-        ))}
-      </div>
+              <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, color: C.inkMid, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</span>
+              <span style={{ flexShrink: 0, fontSize: 11.5, fontWeight: 700, color: s.timeColor, fontVariantNumeric: "tabular-nums" }}>{s.timeDelta}</span>
+              <span style={{ flexShrink: 0, fontSize: 11, color: C.inkFaint }}>·</span>
+              <span style={{ flexShrink: 0, fontSize: 11.5, fontWeight: 700, color: s.nwColor, fontVariantNumeric: "tabular-nums" }}>{s.nwDelta}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-
-const SummaryCard = ({
-  label, value, sub, icon: Icon, iconBg, iconColor, children, onClick, actionHint,
-}: {
-  label: string; value: string; sub: string;
-  icon: React.ElementType; iconBg: string; iconColor: string;
-  children?: React.ReactNode;
-  /** When set, the whole card becomes a button (used to open Finances). */
-  onClick?: () => void;
-  /** Tiny affordance label shown by the icon when the card is clickable. */
-  actionHint?: string;
-}) => {
-  // flex: grow to fill the row on wide screens, but never shrink below 240px —
-  // so the group becomes a horizontal scroll strip when space is tight.
-  const base: React.CSSProperties = { flex: "1 0 240px", background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 10, padding: "16px 20px", display: "flex", flexDirection: "column", justifyContent: "space-between", minHeight: 110, textAlign: "left", transition: "border-color 0.15s, box-shadow 0.15s" };
-  const inner = (
-    <>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: C.inkFaint, marginBottom: 6 }}>{label}</div>
-          <div style={{ fontSize: 22, fontWeight: 300, letterSpacing: "-0.02em", color: C.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{value}</div>
-        </div>
-        <div style={{ width: 34, height: 34, flexShrink: 0, borderRadius: 8, background: iconBg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Icon size={16} color={iconColor} />
-        </div>
-      </div>
-      {children ?? <div style={{ fontSize: 10, color: C.inkFaint, marginTop: 8 }}>{sub}</div>}
-    </>
-  );
-  if (onClick) {
-    return (
-      <button
-        onClick={onClick}
-        title={actionHint}
-        style={{ ...base, cursor: "pointer", font: "inherit" }}
-        onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.teal; e.currentTarget.style.boxShadow = `0 1px 3px ${C.border}`; }}
-        onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.boxShadow = "none"; }}
-      >
-        {inner}
-      </button>
-    );
-  }
-  return <div style={base}>{inner}</div>;
-};
 
 // ── Chart view tab ────────────────────────────────────────────────────────────
 
@@ -333,9 +310,6 @@ export default function RightPanel({ livePrices }: Props) {
       metrics: { netWorth: currentNW, swrTarget, isIndependent, savingsRate, coastFI } }),
     [plan.health, plan.depletion, indepPoint, currentNW, swrTarget, isIndependent, coastFI, savingsRate, birthYear],
   );
-  // Tap-to-understand explanation modal for the summary cards.
-  const [infoModal, setInfoModal] = useState<{ title: string; node: React.ReactNode } | null>(null);
-  const openInfo = (title: string, node: React.ReactNode) => setInfoModal({ title, node });
 
   // The trajectory re-expressed in the global money basis (today's vs future $).
   // Metrics above read month-0 values (unchanged by inflation), so only the
@@ -534,97 +508,15 @@ export default function RightPanel({ livePrices }: Props) {
       {/* ── Branch this scenario — ideas that offshoot the current plan ── */}
       <BranchStrip livePrices={livePrices} />
 
-      {/* ── Summary cards: FI date · FI Number · Alerts ── A horizontal scroll
-          strip when tight. Top-aligned so the Alerts list can run as long as it
-          needs without stretching the others. */}
-      <div className="no-scrollbar" style={{ display: "flex", flexShrink: 0, alignItems: "flex-start", gap: 12, overflowX: "auto", paddingBottom: 4 }}>
-        <SummaryCard
-          label="Financial Independence"
-          value={indepPoint ? indepPoint.date : "30+ Yrs"}
-          sub={indepPoint ? "Projected date you reach FI" : "Adjust strategy to reach FI"}
-          icon={Flag}
-          iconBg={indepPoint ? C.tealWash : C.borderSoft}
-          iconColor={indepPoint ? C.teal : C.inkFaint}
-          actionHint="What does this mean?"
-          onClick={() => openInfo("Financial Independence", (
-            <>
-              <p style={{ margin: 0 }}>The date your investments are projected to durably cover your spending — when your investable assets reach your FI number (25× annual expenses) and stay there. From that point on, paid work becomes optional.</p>
-              {indepPoint && <p style={{ margin: "10px 0 0" }}>For this scenario that’s <strong>{indepPoint.date}</strong>.</p>}
-            </>
-          ))}
-        />
-        <SummaryCard
-          label="FI Number"
-          value={`$${(swrTarget / 1_000_000).toFixed(2)}M`}
-          sub=""
-          icon={CheckCircle}
-          iconBg={C.tealWash}
-          iconColor={C.teal}
-          actionHint="What does this mean?"
-          onClick={() => openInfo("FI Number", (
-            <>
-              <p style={{ margin: 0 }}>Your <strong>FI number</strong> is 25× your annual expenses (net of rental income &amp; Social Security) — the nest egg that sustains a 4% withdrawal rate. For this scenario that’s <strong>${(swrTarget / 1_000_000).toFixed(2)}M</strong>.</p>
-              <p style={{ margin: "10px 0 0" }}>You’re <strong>{progress.toFixed(0)}%</strong> of the way there — <strong>${(currentNW / 1_000_000).toFixed(2)}M</strong> today.</p>
-              <button onClick={() => { setInfoModal(null); useUIStore.getState().setFinancesOpen(true); }}
-                style={{ marginTop: 14, display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, border: "none", background: C.teal, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-                <Wallet size={15} /> Open your finances
-              </button>
-            </>
-          ))}
-        >
-          {/* Progress lives under the FI number — the bar plus where you are now. */}
-          <div style={{ marginTop: 8 }}>
-            <div style={{ height: 4, borderRadius: 99, background: C.borderSoft }}>
-              <div style={{ height: "100%", borderRadius: 99, background: C.teal, width: `${progress}%`, transition: "width 0.8s ease" }} />
-            </div>
-            <div style={{ fontSize: 10, color: C.inkFaint, marginTop: 4 }}>
-              {progress.toFixed(0)}% there · ${(currentNW / 1_000_000).toFixed(2)}M today
-            </div>
-          </div>
-        </SummaryCard>
-
-        {/* Alerts — every active notification, in full: plan health + each FIRE
-            milestone, word-for-word with the banners/callouts they come from. */}
-        {notices.length > 0 && (
-          <div style={{
-            flex: "1 0 260px", background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 10,
-            padding: "14px 18px", maxHeight: 320, overflowY: "auto",
-          }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
-              <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: C.inkFaint }}>Alerts</span>
-              <span style={{ fontSize: 9, fontWeight: 700, color: C.inkFaint, background: C.bg, borderRadius: 99, padding: "1px 6px" }}>{notices.length}</span>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {notices.map((n) => (
-                <div key={n.id} style={{ display: "flex", gap: 9 }}>
-                  <span style={{ flexShrink: 0, marginTop: 1, width: 20, height: 20, borderRadius: 6, background: sevBg(n.severity), display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    {n.severity === "good" ? <CheckCircle size={12} color={sevColor(n.severity)} /> : <AlertTriangle size={12} color={sevColor(n.severity)} />}
-                  </span>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 12.5, fontWeight: 700, color: sevColor(n.severity), lineHeight: 1.3 }}>{n.title}</div>
-                    <div style={{ fontSize: 11.5, color: C.inkMid, lineHeight: 1.5, marginTop: 2 }}>{n.body}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Tap-to-understand explanation modal for the summary cards. */}
-      {infoModal && (
-        <div onClick={() => setInfoModal(null)} style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(20,30,28,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: C.bgCard, borderRadius: 14, maxWidth: 440, width: "100%", padding: "22px 24px", boxShadow: "0 20px 60px rgba(0,0,0,0.25)", maxHeight: "80vh", overflowY: "auto" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 12 }}>
-              <h3 style={{ fontSize: 16, fontWeight: 800, color: C.ink, margin: 0 }}>{infoModal.title}</h3>
-              <button onClick={() => setInfoModal(null)} aria-label="Close" style={{ flexShrink: 0, display: "flex", background: "none", border: "none", cursor: "pointer", color: C.inkSoft, padding: 2 }}>
-                <X size={18} />
-              </button>
-            </div>
-            <div style={{ fontSize: 13, color: C.inkMid, lineHeight: 1.6 }}>{infoModal.node}</div>
-          </div>
-        </div>
-      )}
+      {/* ── Summary cards: Financial Independence · Progress to FI · Alerts ── */}
+      <SummaryCards
+        indepDate={indepPoint ? indepPoint.date : null}
+        currentNW={currentNW}
+        swrTarget={swrTarget}
+        progress={progress}
+        notices={notices}
+        onOpenFinances={() => useUIStore.getState().setFinancesOpen(true)}
+      />
 
       {/* ── Main chart (the hero) ── */}
       {/* flexShrink:0 — the panel is a fixed-height flex column that scrolls; without

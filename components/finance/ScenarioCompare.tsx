@@ -23,9 +23,9 @@ export default function ScenarioCompare({ livePrices, hiddenIds }: { livePrices:
   const { scenarios, snapshot } = useFinancialStore();
   const dollarMode = useUIStore((s) => s.dollarMode);
   const liveGoog = livePrices["GOOG"]?.price ?? livePrices["GOOGL"]?.price ?? 0;
-  // Horizon zoom, matching the per-scenario charts: focus to age 75 by default,
+  // Horizon zoom, matching the per-scenario charts: focus to age 70 by default,
   // toggle out to 100. All scenarios share a birth year, so one cap fits them all.
-  const [ageCap, setAgeCap] = useState<75 | 100>(75);
+  const [ageCap, setAgeCap] = useState<70 | 100>(70);
   const birthYear = scenarios[0]?.config.birth_year || 1985;
 
   const enriched = useMemo(() => ({
@@ -84,7 +84,7 @@ export default function ScenarioCompare({ livePrices, hiddenIds }: { livePrices:
 
       {/* Overlaid net-worth trajectories — zoom magnifier floats bottom-right */}
       <div style={{ position: "relative" }}>
-      <HorizonZoomButton ageCap={ageCap} onToggle={() => setAgeCap((a) => (a === 100 ? 75 : 100))} size={30} />
+      <HorizonZoomButton ageCap={ageCap} onToggle={() => setAgeCap((a) => (a === 100 ? 70 : 100))} size={30} />
       <ResponsiveContainer width="100%" height={260}>
         <LineChart data={chartData} margin={{ top: 6, right: 10, bottom: 0, left: 6 }}>
           <CartesianGrid strokeDasharray="3 3" stroke={C.borderSoft} vertical={false} />

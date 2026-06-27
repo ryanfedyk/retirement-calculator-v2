@@ -22,8 +22,11 @@ import PriceTicker           from "@/components/finance/PriceTicker";
 import LifeEventsFab         from "@/components/forecasting/LifeEventsFab";
 import SettingsPanel         from "@/components/SettingsPanel";
 import ScenarioReportModal   from "@/components/ScenarioReportModal";
+import PartnerAlignment      from "@/components/partner/PartnerAlignment";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
+import { usePartnerStore } from "@/store/usePartnerStore";
+import { decodeAnswers } from "@/lib/partnerAlignment";
 import { useBrowserBackNav } from "@/hooks/useBrowserBackNav";
 import type { AdventureBlueprint } from "@/types/horizon";
 
@@ -67,6 +70,23 @@ export default function DashboardShell() {
 
   const goHome = () => { setCompareOpen(false); if (primaryScenarioId) setActiveScenario(primaryScenarioId); };
 
+  // A partner who opens a shared "?align=" link: load their partner's answers
+  // into the local "partner" slot and open the alignment overlay so they can add
+  // theirs and see the comparison. Runs once; then strips the param from the URL.
+  const alignHandled = useRef(false);
+  useEffect(() => {
+    if (alignHandled.current) return;
+    alignHandled.current = true;
+    const params = new URLSearchParams(window.location.search);
+    const a = params.get("align");
+    if (!a) return;
+    const decoded = decodeAnswers(a);
+    if (decoded) { usePartnerStore.getState().loadPartner(decoded); useUIStore.getState().setPartnerOpen(true); }
+    params.delete("align");
+    const qs = params.toString();
+    window.history.replaceState({}, "", window.location.pathname + (qs ? `?${qs}` : ""));
+  }, []);
+
   // Let the browser Back button step back through the in-memory navigation (close
   // an overlay, then leave the compare view). Ordered top-most first. Disabled on
   // mobile, which has its own nav.
@@ -92,6 +112,7 @@ export default function DashboardShell() {
       />
       <SettingsPanel />
       <FinancesOverlay livePrices={prices.livePrices} />
+      <PartnerAlignment />
       <ScenarioReportModal livePrices={prices.livePrices} />
 
       {compareOpen ? (

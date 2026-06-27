@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { HelpCircle, AlertTriangle, CheckCircle, X } from "lucide-react";
+import { HelpCircle, AlertTriangle, CheckCircle, X, Flag, TrendingUp } from "lucide-react";
 import { C } from "@/config/colors";
 import { sevColor, sevBg, type Notice } from "@/lib/planNotices";
 
@@ -9,8 +9,9 @@ const fmtMM = (n: number) => `$${(n / 1_000_000).toFixed(2)}M`;
 /**
  * The scenario summary strip — Financial Independence · Progress to FI · Alerts.
  * Shared by desktop (RightPanel) and mobile (MobileFinancial) so the cards stay
- * identical. A small "?" opens a plain-language explanation; tapping the FI
- * Number card opens finances; the Alerts card opens the full list in a popover.
+ * identical. Each card carries a coloured icon badge for visual interest and
+ * differentiation; a small "?" opens an explanation; tapping the FI Number card
+ * opens finances; the Alerts card opens the full list in a popover.
  */
 export default function SummaryCards({ indepDate, currentNW, swrTarget, progress, notices, onOpenFinances }: {
   indepDate: string | null;
@@ -24,17 +25,23 @@ export default function SummaryCards({ indepDate, currentNW, swrTarget, progress
   const open = (title: string, node: React.ReactNode) => setModal({ title, node });
 
   const cardBase: React.CSSProperties = {
-    position: "relative", flex: "1 0 240px", background: C.bgCard, border: `1px solid ${C.border}`,
-    borderRadius: 10, padding: "16px 18px", minHeight: 122, display: "flex", flexDirection: "column", textAlign: "left",
+    position: "relative", flex: "1 0 230px", borderRadius: 14, padding: "15px 16px",
+    minHeight: 128, display: "flex", flexDirection: "column", textAlign: "left",
+    border: `1px solid ${C.border}`, background: C.bgCard,
   };
   const Label = ({ children }: { children: React.ReactNode }) => (
-    <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: C.inkFaint, marginBottom: 6 }}>{children}</div>
+    <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: C.inkFaint }}>{children}</div>
   );
   const Help = ({ onClick }: { onClick: () => void }) => (
     <button onClick={(e) => { e.stopPropagation(); onClick(); }} aria-label="What does this mean?" title="What does this mean?"
-      style={{ position: "absolute", top: 9, right: 9, display: "flex", background: "none", border: "none", cursor: "pointer", color: C.inkFaint, padding: 2 }}>
-      <HelpCircle size={15} />
+      style={{ display: "flex", background: "none", border: "none", cursor: "pointer", color: C.inkFaint, padding: 0 }}>
+      <HelpCircle size={13} />
     </button>
+  );
+  const Chip = ({ bg, color, icon: Icon }: { bg: string; color: string; icon: typeof Flag }) => (
+    <span style={{ width: 34, height: 34, flexShrink: 0, borderRadius: 10, background: bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <Icon size={17} color={color} />
+    </span>
   );
 
   const fiExplain = (
@@ -67,38 +74,52 @@ export default function SummaryCards({ indepDate, currentNW, swrTarget, progress
 
   const shown = notices.slice(0, 3);
   const extra = notices.length - shown.length;
+  // The Alerts badge reflects the most severe notice present.
+  const worst: Notice["severity"] = notices.some((n) => n.severity === "critical") ? "critical"
+    : notices.some((n) => n.severity === "warning") ? "warning" : "good";
 
   return (
     <>
       <div className="no-scrollbar" style={{ display: "flex", flexShrink: 0, gap: 12, overflowX: "auto", paddingBottom: 4 }}>
-        {/* Financial Independence (date) */}
-        <div style={cardBase}>
-          <Help onClick={() => open("Financial Independence", fiExplain)} />
-          <Label>Financial Independence</Label>
-          <div style={{ fontSize: 22, fontWeight: 300, color: C.ink, whiteSpace: "nowrap" }}>{indepDate ?? "30+ Yrs"}</div>
-          <div style={{ fontSize: 10, color: C.inkFaint, marginTop: "auto", paddingTop: 8 }}>{indepDate ? "Projected date you reach FI" : "Adjust strategy to reach FI"}</div>
+        {/* Financial Independence — tinted teal so the headline date stands out */}
+        <div style={{ ...cardBase, background: indepDate ? C.tealWash : C.bgCard, border: `1px solid ${indepDate ? C.tealLight : C.border}` }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 6 }}><Label>Financial Independence</Label><Help onClick={() => open("Financial Independence", fiExplain)} /></div>
+              <div style={{ fontSize: 23, fontWeight: 300, color: indepDate ? C.tealDark : C.inkSoft, whiteSpace: "nowrap" }}>{indepDate ?? "30+ Yrs"}</div>
+            </div>
+            <Chip bg={indepDate ? "#ffffffcc" : C.borderSoft} color={indepDate ? C.teal : C.inkFaint} icon={Flag} />
+          </div>
+          <div style={{ fontSize: 10, color: indepDate ? C.tealDark : C.inkFaint, opacity: 0.8, marginTop: "auto", paddingTop: 8 }}>{indepDate ? "Projected date you reach FI" : "Adjust strategy to reach FI"}</div>
         </div>
 
-        {/* Progress to FI — leads with have-vs-need */}
+        {/* Progress to FI — leads with have-vs-need; whole card opens finances */}
         <button onClick={onOpenFinances} title="Open your finances" style={{ ...cardBase, cursor: "pointer", font: "inherit" }}>
-          <Help onClick={() => open("FI Number", numExplain)} />
-          <Label>Progress to FI</Label>
-          <div style={{ fontSize: 22, fontWeight: 300, color: C.ink, whiteSpace: "nowrap" }}>
-            {fmtMM(currentNW)} <span style={{ fontSize: 12.5, fontWeight: 400, color: C.inkSoft }}>of {fmtMM(swrTarget)}</span>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 6 }}><Label>Progress to FI</Label><Help onClick={() => open("FI Number", numExplain)} /></div>
+              <div style={{ fontSize: 23, fontWeight: 300, color: C.ink, whiteSpace: "nowrap" }}>
+                {fmtMM(currentNW)} <span style={{ fontSize: 12.5, fontWeight: 400, color: C.inkSoft }}>of {fmtMM(swrTarget)}</span>
+              </div>
+            </div>
+            <Chip bg={C.warmWash} color={C.warm} icon={TrendingUp} />
           </div>
           <div style={{ marginTop: "auto", paddingTop: 10 }}>
-            <div style={{ height: 4, borderRadius: 99, background: C.borderSoft }}>
+            <div style={{ height: 5, borderRadius: 99, background: C.borderSoft }}>
               <div style={{ height: "100%", borderRadius: 99, background: C.teal, width: `${progress}%`, transition: "width 0.8s ease" }} />
             </div>
-            <div style={{ fontSize: 10, color: C.inkFaint, marginTop: 4 }}>{progress.toFixed(0)}% of your FI number</div>
+            <div style={{ fontSize: 10, color: C.inkFaint, marginTop: 5 }}>{progress.toFixed(0)}% of your FI number</div>
           </div>
         </button>
 
         {/* Alerts — first few + "more", full detail in a popover */}
         {notices.length > 0 && (
           <button onClick={() => open("Alerts & status", alertsNode)} title="See all alerts" style={{ ...cardBase, cursor: "pointer", font: "inherit" }}>
-            <Label>Alerts · {notices.length}</Label>
-            <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>
+              <Label>Alerts · {notices.length}</Label>
+              <Chip bg={sevBg(worst)} color={sevColor(worst)} icon={worst === "good" ? CheckCircle : AlertTriangle} />
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {shown.map((n) => (
                 <div key={n.id} style={{ display: "flex", alignItems: "center", gap: 7 }}>
                   <span style={{ flexShrink: 0, width: 7, height: 7, borderRadius: "50%", background: sevColor(n.severity) }} />

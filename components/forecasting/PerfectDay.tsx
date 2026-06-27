@@ -1,8 +1,9 @@
 "use client";
 import { useMemo, useState } from "react";
-import { Plus, X, Wallet, Sparkles, RotateCcw, Check } from "lucide-react";
+import { Plus, X, Wallet, Sparkles, RotateCcw, Check, Loader2 } from "lucide-react";
 import { C } from "@/config/colors";
 import { useUIStore } from "@/store/useUIStore";
+import { useFinancialStore } from "@/store/useFinancialStore";
 import { usePerfectDayStore } from "@/store/usePerfectDayStore";
 import {
   ACTIVITIES, ACTIVITY_BY_ID, BLOCKS, CATEGORY_COLOR, THOUGHT_STARTERS, analyzeDay,
@@ -18,11 +19,39 @@ const CATEGORIES = Object.keys(CATEGORY_COLOR) as ActivityCategory[];
 export default function PerfectDay() {
   const { blocks, add, remove, clear } = usePerfectDayStore();
   const setFinancesOpen = useUIStore((s) => s.setFinancesOpen);
+  const exitYear = useFinancialStore((s) => s.config.career_path.exit_year);
   const [picker, setPicker] = useState<DayBlock | null>(null);
 
   const allIds = useMemo(() => [...blocks.morning, ...blocks.afternoon, ...blocks.evening], [blocks]);
   const insights = useMemo(() => analyzeDay(allIds), [allIds]);
   const hasAny = allIds.length > 0;
+
+  // ── AI personalization (Gemini) — layered on top of the rule-based insights ──
+  type AiInsight = { headline: string; reflection: string; prepare: string[]; tryAdding: string[] };
+  const [ai, setAi] = useState<AiInsight | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+
+  const generateAI = async () => {
+    setAiLoading(true); setAiError(null);
+    try {
+      const payload = {
+        blocks: BLOCKS.map((b) => ({ label: b.label, activities: blocks[b.id].map((id) => ACTIVITY_BY_ID[id]?.label).filter(Boolean) })),
+        categories: insights.categories.map((c) => c.category),
+        monthlyCost: insights.monthlyCost,
+        exitYear,
+        yearsToRetirement: exitYear ? Math.max(0, exitYear - new Date().getFullYear()) : null,
+      };
+      const res = await fetch("/api/perfect-day", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || data.error || "Something went wrong.");
+      setAi(data.insight as AiInsight);
+    } catch (e: any) {
+      setAiError(e.message || "Couldn't generate insights.");
+    } finally {
+      setAiLoading(false);
+    }
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
@@ -144,6 +173,70 @@ export default function PerfectDay() {
               </div>
             </div>
           )}
+
+          {/* AI personalization */}
+          <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 12, padding: "14px 16px" }}>
+            {!ai && !aiLoading && (
+              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10 }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>Want a personal read on your day?</div>
+                  <div style={{ fontSize: 11.5, color: C.inkSoft, marginTop: 2 }}>A warm, tailored reflection on what your day reveals — and what to grow into.</div>
+                </div>
+                <button onClick={generateAI} style={{
+                  display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 8,
+                  border: "none", background: C.teal, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", flexShrink: 0,
+                }}>
+                  <Sparkles size={15} /> Personalize with AI
+                </button>
+              </div>
+            )}
+            {aiLoading && (
+              <div style={{ display: "flex", alignItems: "center", gap: 9, color: C.inkSoft, fontSize: 13 }}>
+                <Loader2 size={16} color={C.teal} style={{ animation: "spin 1s linear infinite" }} /> Reflecting on your perfect day…
+              </div>
+            )}
+            {aiError && !aiLoading && (
+              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 12.5, color: C.warm, flex: 1, minWidth: 0 }}>Couldn’t generate insights — {aiError}</span>
+                <button onClick={generateAI} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "none", border: `1px solid ${C.border}`, borderRadius: 8, padding: "7px 12px", fontSize: 12, fontWeight: 700, color: C.inkMid, cursor: "pointer" }}>
+                  <RotateCcw size={13} /> Try again
+                </button>
+              </div>
+            )}
+            {ai && !aiLoading && (
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8 }}>
+                  <Sparkles size={15} color={C.teal} />
+                  <span style={{ fontSize: 14, fontWeight: 800, color: C.ink }}>{ai.headline}</span>
+                </div>
+                <p style={{ fontSize: 13, color: C.inkMid, lineHeight: 1.6, margin: 0 }}>{ai.reflection}</p>
+                {ai.prepare?.length > 0 && (
+                  <div style={{ marginTop: 12 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: C.inkFaint, marginBottom: 7 }}>To grow into it</div>
+                    {ai.prepare.map((p, i) => (
+                      <div key={i} style={{ display: "flex", gap: 9, marginBottom: 7 }}>
+                        <span style={{ flexShrink: 0, marginTop: 1, width: 18, height: 18, borderRadius: 5, background: C.tealWash, display: "flex", alignItems: "center", justifyContent: "center" }}><Check size={11} color={C.teal} /></span>
+                        <span style={{ fontSize: 12.5, color: C.inkMid, lineHeight: 1.5 }}>{p}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {ai.tryAdding?.length > 0 && (
+                  <div style={{ marginTop: 10 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: C.inkFaint, marginBottom: 7 }}>You might also love</div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {ai.tryAdding.map((t, i) => (
+                        <span key={i} style={{ fontSize: 12, color: C.tealDark, background: C.tealWash, borderRadius: 8, padding: "5px 10px" }}>{t}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <button onClick={generateAI} style={{ marginTop: 12, display: "inline-flex", alignItems: "center", gap: 5, background: "none", border: "none", cursor: "pointer", color: C.inkFaint, fontSize: 11, fontWeight: 600 }}>
+                  <RotateCcw size={12} /> Regenerate
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

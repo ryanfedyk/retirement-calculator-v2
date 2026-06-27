@@ -128,6 +128,7 @@ export const DEFAULT_SIM_CONFIG: SimulationConfiguration = {
     jump_gross_annual:       0,
     jump_bonus_rate:         15,
     jump_grant_monthly:      0,
+    jump_has_health_insurance: true,
     bridge_gross_annual:     0,
     bridge_has_health_insurance: false,
     income_growth_rate:      3,

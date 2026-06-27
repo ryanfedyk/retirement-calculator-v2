@@ -455,6 +455,9 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
                   <div><FieldLabel>Annual Equity ($)</FieldLabel>
                     <Input type="number" value={(ip.jump_grant_monthly || 0) * 12}
                       onChange={e => updateNestedConfig("income_profile", { jump_grant_monthly: +e.target.value / 12 })} /></div>
+                  <Checkbox label="Supplies Health Insurance" id="jump_health"
+                    checked={ip.jump_has_health_insurance ?? true}
+                    onChange={v => updateNestedConfig("income_profile", { jump_has_health_insurance: v })} />
                 </div>
               </Indent>
             )}

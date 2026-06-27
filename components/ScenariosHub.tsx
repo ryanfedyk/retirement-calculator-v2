@@ -195,9 +195,17 @@ function SuggestionsStrip({ suggestions, isMobile }: { suggestions: Suggestion[]
               <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</span>
             </span>
             <span style={{ fontSize: 10.5, color: C.inkSoft, lineHeight: 1.35 }}>{s.detail}</span>
-            <div style={{ display: "flex", alignItems: "baseline", gap: 5, flexWrap: "wrap" }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: s.nwColor, fontVariantNumeric: "tabular-nums" }}>{s.nwDelta}</span>
-              <span style={{ fontSize: 10, color: C.inkFaint }}>· FI {s.fiDate}</span>
+            {/* The trade-off: time you gain (or give up) vs. the net-worth cost. */}
+            <div style={{ display: "flex", gap: 14, marginTop: 2 }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: C.inkFaint }}>Freedom</div>
+                <div style={{ fontSize: 12.5, fontWeight: 800, color: s.timeColor, fontVariantNumeric: "tabular-nums" }}>{s.timeDelta}</div>
+                {s.timeHours && <div style={{ fontSize: 8.5, color: C.inkFaint, whiteSpace: "nowrap" }}>{s.timeHours}</div>}
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: C.inkFaint }}>Net worth</div>
+                <div style={{ fontSize: 12.5, fontWeight: 800, color: s.nwColor, fontVariantNumeric: "tabular-nums" }}>{s.nwDelta}</div>
+              </div>
             </div>
           </button>
         ))}
@@ -206,7 +214,7 @@ function SuggestionsStrip({ suggestions, isMobile }: { suggestions: Suggestion[]
   );
 }
 
-interface CardStat { fiYear?: number; fiAge?: number; finalNW: number; health: PlanHealth; outYear?: number; outAge?: number }
+interface CardStat { fiYear?: number; fiAge?: number; finalNW: number; health: PlanHealth; outYear?: number; outAge?: number; exitAge?: number }
 
 /** A saved scenario card — legend + control for the comparison chart, and the
  * entry point into the deep-dive. Owns its own rename-editing state. */
@@ -266,36 +274,35 @@ function ScenarioCard({
         />
       </div>
 
-      {/* Stat pair — the secondary line (age / final NW) sits under the headline
-          number so it never wraps awkwardly in a narrow card. */}
-      {/* FI is the headline outcome (big, coloured); exit year is a secondary
-          input — smaller, muted, and pushed to the right — so the two no longer
-          read as two identical years in a row. */}
+      {/* Exit year is the headline reference point — the date you plan to leave
+          (big, neutral ink). The FI/funding outcome rides alongside as the
+          secondary, coloured by plan health (on-track / tight / runs out). */}
       <div style={{ display: "flex", gap: 16, alignItems: "baseline" }}>
         <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.inkFaint }}>Career exit</div>
+          <div style={{ fontSize: 23, fontWeight: 800, color: C.ink, lineHeight: 1.1, fontVariantNumeric: "tabular-nums" }}>{sc.config.career_path.exit_year}</div>
+          <div style={{ fontSize: 10, color: C.inkSoft, whiteSpace: "nowrap" }}>{st?.exitAge ? `age ${st.exitAge}` : ""}</div>
+        </div>
+        <div style={{ minWidth: 0, marginLeft: "auto", textAlign: "right" }}>
           {st?.health === "shortfall" ? (
             <>
               <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#c0492b" }}>Runs out</div>
-              <div style={{ fontSize: 23, fontWeight: 800, color: "#c0492b", lineHeight: 1.1 }}>{st.outYear ?? "—"}</div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: "#c0492b", lineHeight: 1.2, fontVariantNumeric: "tabular-nums" }}>{st.outYear ?? "—"}</div>
               <div style={{ fontSize: 10, color: "#c0492b", whiteSpace: "nowrap" }}>{st.outAge ? `age ${st.outAge}` : "money depleted"}</div>
             </>
           ) : st?.fiYear ? (
             <>
-              <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.inkFaint }}>FI date{st.health === "tight" ? " · tight" : ""}</div>
-              <div style={{ fontSize: 23, fontWeight: 800, color: st.health === "tight" ? C.warm : C.tealDark, lineHeight: 1.1 }}>{st.fiYear}</div>
-              <div style={{ fontSize: 10, color: C.inkSoft, whiteSpace: "nowrap" }}>age {st.fiAge}</div>
+              <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.inkFaint }}>Reaches FI{st.health === "tight" ? " · tight" : ""}</div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: st.health === "tight" ? C.warm : C.tealDark, lineHeight: 1.2, fontVariantNumeric: "tabular-nums" }}>{st.fiYear}</div>
+              <div style={{ fontSize: 10, color: C.inkSoft, whiteSpace: "nowrap" }}>age {st.fiAge} · {fmtM(st?.finalNW ?? 0)}</div>
             </>
           ) : (
             <>
-              <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.inkFaint }}>FI date</div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: C.inkSoft, lineHeight: 1.1 }}>Off track</div>
+              <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.inkFaint }}>Reaches FI</div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: C.inkSoft, lineHeight: 1.2 }}>Off track</div>
+              <div style={{ fontSize: 10, color: C.inkSoft, whiteSpace: "nowrap" }}>{fmtM(st?.finalNW ?? 0)}</div>
             </>
           )}
-        </div>
-        <div style={{ minWidth: 0, marginLeft: "auto", textAlign: "right" }}>
-          <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.inkFaint }}>Exit year</div>
-          <div style={{ fontSize: 14, fontWeight: 600, color: C.inkMid, lineHeight: 1.2, fontVariantNumeric: "tabular-nums" }}>{sc.config.career_path.exit_year}</div>
-          <div style={{ fontSize: 10, color: C.inkSoft, whiteSpace: "nowrap" }}>{fmtM(st?.finalNW ?? 0)}</div>
         </div>
       </div>
     </div>
@@ -345,12 +352,14 @@ export default function ScenariosHub({ livePrices, onOpen }: { livePrices: LiveP
             ? last.totalNetWorth * Math.pow(1 + infl / 100, last.monthIndex / 12)
             : last.totalNetWorth)
         : 0;
+      const exitYear = sc.config.career_path.exit_year;
       map[sc.id] = {
         health,
         fiYear,
         fiAge: fiYear ? fiYear - birthYear : undefined,
         outYear,
         outAge: outYear ? outYear - birthYear : undefined,
+        exitAge: exitYear ? exitYear - birthYear : undefined,
         finalNW,
       };
     }

@@ -15,10 +15,19 @@ export const useUIStore = create<{
   /** The shared "Your finances" overlay — openable from anywhere in the app. */
   financesOpen: boolean;
   setFinancesOpen: (v: boolean) => void;
-  /** Whether a scenario deep-dive is open (vs. the scenarios hub). Persisted so a
-   *  page refresh keeps you in the scenario you were viewing instead of going home. */
+  /** Mobile only: whether a scenario deep-dive is open (vs. the scenarios hub).
+   *  Persisted so a refresh keeps you where you were. Desktop now always lands in
+   *  the primary scenario and uses `compareOpen` for the comparison destination. */
   scenarioOpen: boolean;
   setScenarioOpen: (v: boolean) => void;
+  /** Desktop: whether the full-screen "Compare scenarios" destination is open.
+   *  Transient — the app always lands in the primary scenario, not in compare. */
+  compareOpen: boolean;
+  setCompareOpen: (v: boolean) => void;
+  /** Remembered last view (Trajectory/Reclaim) per scenario, so returning to a
+   *  scenario lands you where you left it. */
+  viewByScenario: Record<string, "financial" | "forecasting">;
+  setScenarioView: (id: string, v: "financial" | "forecasting") => void;
   /** Desktop only: whether the "Scenario plan" side panel is expanded. Collapsed
    *  by default (transient) — opened from the side rail or the levers card. */
   planPanelOpen: boolean;
@@ -39,6 +48,10 @@ export const useUIStore = create<{
       setFinancesOpen: (v) => set({ financesOpen: v }),
       scenarioOpen: false,
       setScenarioOpen: (v) => set({ scenarioOpen: v }),
+      compareOpen: false,
+      setCompareOpen: (v) => set({ compareOpen: v }),
+      viewByScenario: {},
+      setScenarioView: (id, v) => set((s) => ({ viewByScenario: { ...s.viewByScenario, [id]: v } })),
       planPanelOpen: false,
       setPlanPanelOpen: (v) => set({ planPanelOpen: v }),
       dollarMode: "today",
@@ -50,9 +63,9 @@ export const useUIStore = create<{
     {
       name: "horizon-ui",
       storage: createJSONStorage(() => localStorage),
-      // The durable preferences persist (money basis + which view you were on);
-      // transient overlay/report flags do not.
-      partialize: (s) => ({ dollarMode: s.dollarMode, scenarioOpen: s.scenarioOpen }),
+      // The durable preferences persist (money basis, mobile's open scenario, and
+      // the per-scenario last view); transient overlay/report/compare flags do not.
+      partialize: (s) => ({ dollarMode: s.dollarMode, scenarioOpen: s.scenarioOpen, viewByScenario: s.viewByScenario }),
     },
   ),
 );

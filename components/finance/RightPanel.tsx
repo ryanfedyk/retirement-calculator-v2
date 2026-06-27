@@ -4,7 +4,7 @@ import {
   ResponsiveContainer, AreaChart, Area, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine,
 } from "recharts";
-import { Flag, CheckCircle, TrendingUp, CalendarDays, Sparkles, AlertTriangle, X, Wallet } from "lucide-react";
+import { Flag, CheckCircle, TrendingUp, CalendarDays, Sparkles, AlertTriangle, X, Wallet, Plus } from "lucide-react";
 import HorizonZoomButton from "./HorizonZoomButton";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
@@ -19,6 +19,7 @@ import type { LivePrices } from "./FinancialDashboard";
 import { getLifeEvents } from "@/lib/horizonUtils";
 import { useHorizonProfile } from "@/config/horizonConfig";
 import ScenarioLevers from "./ScenarioLevers";
+import { useScenarioSuggestions } from "@/hooks/useScenarioSuggestions";
 import FireMoments from "@/components/fx/FireMoments";
 import { isCoastFI } from "@/lib/fire/moments";
 
@@ -57,6 +58,56 @@ const RefLabel = (props: any) => {
 
 /** A plan notification — funding health or a FIRE milestone — shown in the
  * Alerts card and explained in the info modal. */
+/** "Branch this scenario" — diverse offshoots of the current plan (retire a year
+ * sooner, take a sabbatical, trim spending…), each previewing the time/money
+ * trade-off. Building one creates a real scenario branched from this one. */
+function BranchStrip({ livePrices }: { livePrices: LivePrices }) {
+  const suggestions = useScenarioSuggestions(livePrices);
+  if (!suggestions.length) return null;
+  return (
+    <div style={{ flexShrink: 0 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+        <Sparkles size={13} color={C.inkFaint} />
+        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.inkFaint }}>Branch this scenario</span>
+        <span style={{ fontSize: 10, color: C.inkFaint }}>· spin off a variation</span>
+      </div>
+      <div className="no-scrollbar" style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 4 }}>
+        {suggestions.map((s, j) => (
+          <button
+            key={j}
+            onClick={s.build}
+            title={`Branch a new scenario: ${s.title}`}
+            style={{
+              flex: "0 0 auto", width: 200, textAlign: "left", display: "flex", flexDirection: "column", gap: 6,
+              padding: "11px 13px", borderRadius: 10, border: `1px dashed ${C.border}`, background: "transparent", cursor: "pointer",
+              transition: "border-color 0.15s, background 0.15s",
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.tealLight; e.currentTarget.style.background = C.bgCard; }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = "transparent"; }}
+          >
+            <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700, color: C.inkMid, minWidth: 0 }}>
+              <Plus size={13} color={C.inkFaint} style={{ flexShrink: 0 }} />
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</span>
+            </span>
+            <span style={{ fontSize: 10.5, color: C.inkSoft, lineHeight: 1.35 }}>{s.detail}</span>
+            <div style={{ display: "flex", gap: 14, marginTop: 2 }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: C.inkFaint }}>Freedom</div>
+                <div style={{ fontSize: 12.5, fontWeight: 800, color: s.timeColor, fontVariantNumeric: "tabular-nums" }}>{s.timeDelta}</div>
+                {s.timeHours && <div style={{ fontSize: 8.5, color: C.inkFaint, whiteSpace: "nowrap" }}>{s.timeHours}</div>}
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: C.inkFaint }}>Net worth</div>
+                <div style={{ fontSize: 12.5, fontWeight: 800, color: s.nwColor, fontVariantNumeric: "tabular-nums" }}>{s.nwDelta}</div>
+              </div>
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 interface Notice { id: string; severity: "critical" | "warning" | "good"; title: string; body: string }
 const sevColor = (s: Notice["severity"]) => (s === "critical" ? "#c0492b" : s === "warning" ? C.warm : C.tealDark);
 const sevBg = (s: Notice["severity"]) => (s === "critical" ? "#fdece8" : s === "warning" ? C.warmWash : C.tealWash);
@@ -453,6 +504,9 @@ export default function RightPanel({ livePrices }: Props) {
       {/* The "Edit full plan" affordance opens the side panel; hide it while the
           panel is already open to avoid a redundant control. */}
       <ScenarioLevers onOpenEditor={planPanelOpen ? undefined : () => setPlanPanelOpen(true)} />
+
+      {/* ── Branch this scenario — ideas that offshoot the current plan ── */}
+      <BranchStrip livePrices={livePrices} />
 
       {/* ── Summary cards: FI date · Progress to FI · Alerts ── A horizontal
           scroll strip when tight. Each opens a plain-language explanation on tap. */}

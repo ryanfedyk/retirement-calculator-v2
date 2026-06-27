@@ -56,6 +56,8 @@ export interface HorizonState {
   config:   SimulationConfiguration;   // mirror of the active scenario's (effective) config
   scenarios: Scenario[];
   activeScenarioId: string;
+  /** The user's "home" scenario — what the app lands in, marked across the UI. */
+  primaryScenarioId: string;
 }
 
 interface FinancialStore extends HorizonState {
@@ -101,6 +103,8 @@ interface FinancialStore extends HorizonState {
   renameScenario:   (id: string, name: string) => void;
   deleteScenario:   (id: string) => void;
   setActiveScenario:(id: string) => void;
+  /** Mark a scenario as the primary "home" plan. */
+  setPrimaryScenario:(id: string) => void;
   /** Create a scenario from the baseline, apply a tweak, and switch to it. */
   buildScenarioFromBaseline: (name: string, section: keyof SimulationConfiguration, patch: Record<string, unknown>) => void;
   /** Add a scenario from a fully-formed config (e.g. an offshoot of an existing scenario) and switch to it. */
@@ -218,6 +222,7 @@ export const useFinancialStore = create<FinancialStore>()(
       config:    DEFAULT_SIM_CONFIG,
       scenarios: seed.scenarios,
       activeScenarioId: seed.activeScenarioId,
+      primaryScenarioId: seed.activeScenarioId,
       livePrice: 0,
 
       updateProfile: (updates) =>
@@ -409,12 +414,15 @@ export const useFinancialStore = create<FinancialStore>()(
         set((s) => {
           if (s.scenarios.length <= 1) return {}; // never delete the last one
           const remaining = s.scenarios.filter((x) => x.id !== id);
-          if (id !== s.activeScenarioId) return { scenarios: remaining };
+          // If the primary was deleted, promote the first remaining plan to primary.
+          const primaryScenarioId = id === s.primaryScenarioId ? remaining[0].id : s.primaryScenarioId;
+          if (id !== s.activeScenarioId) return { scenarios: remaining, primaryScenarioId };
           const next = remaining[0];
           const config = { ...next.config, birth_year: yearOfISO(s.profile.birthDate), children: projectChildren(s.profile) };
           return {
             scenarios: remaining.map((x) => (x.id === next.id ? { ...x, config } : x)),
             activeScenarioId: next.id,
+            primaryScenarioId,
             config,
           };
         }),
@@ -431,12 +439,15 @@ export const useFinancialStore = create<FinancialStore>()(
           };
         }),
 
+      setPrimaryScenario: (id) =>
+        set((s) => (s.scenarios.some((x) => x.id === id) ? { primaryScenarioId: id } : {})),
+
       setLivePrice: (price) => set({ livePrice: price }),
 
       resetToDefaults: () =>
         set(() => {
           const seeded = makeDefaultScenarios(DEFAULT_SIM_CONFIG);
-          return { profile: DEFAULT_PROFILE, snapshot: DEFAULT_SNAPSHOT, baseline: pickShared(DEFAULT_SIM_CONFIG), config: DEFAULT_SIM_CONFIG, ...seeded };
+          return { profile: DEFAULT_PROFILE, snapshot: DEFAULT_SNAPSHOT, baseline: pickShared(DEFAULT_SIM_CONFIG), config: DEFAULT_SIM_CONFIG, ...seeded, primaryScenarioId: seeded.activeScenarioId };
         }),
 
       hydrate: (state) =>
@@ -463,17 +474,19 @@ export const useFinancialStore = create<FinancialStore>()(
               : { ...sc, unlinked: state.baseline ? sc.unlinked : diffUnlinked(sc.config, baseline) }
           );
           const config = { ...active.config, children: projectChildren(profile) };
-          return { profile, snapshot: state.snapshot ?? s.snapshot, baseline, scenarios, activeScenarioId, config };
+          const primaryScenarioId = scenarios.some((x) => x.id === state.primaryScenarioId)
+            ? state.primaryScenarioId! : activeScenarioId;
+          return { profile, snapshot: state.snapshot ?? s.snapshot, baseline, scenarios, activeScenarioId, primaryScenarioId, config };
         }),
       };
     },
     {
       name:    "horizon-financial-v10",
-      version: 11,
+      version: 12,
       storage: createJSONStorage(() => localStorage),
       partialize: (s) => ({
         profile: s.profile, snapshot: s.snapshot, baseline: s.baseline, config: s.config,
-        scenarios: s.scenarios, activeScenarioId: s.activeScenarioId,
+        scenarios: s.scenarios, activeScenarioId: s.activeScenarioId, primaryScenarioId: s.primaryScenarioId,
       }),
       migrate: (persisted: unknown) => {
         const p = persisted as Partial<HorizonState> & { config?: SimulationConfiguration };
@@ -508,6 +521,11 @@ export const useFinancialStore = create<FinancialStore>()(
             ...sc,
             unlinked: sc.unlinked ?? (sc.id === active.id ? [] : diffUnlinked(sc.config, baseline)),
           }));
+          // v12: introduce the primary scenario — default to the active one.
+          const pp = p as Partial<HorizonState>;
+          if (!pp.primaryScenarioId || !p.scenarios.some((x) => x.id === pp.primaryScenarioId)) {
+            pp.primaryScenarioId = active.id;
+          }
         }
         return p;
       },

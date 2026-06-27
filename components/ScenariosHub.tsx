@@ -9,7 +9,7 @@
  */
 import { useMemo, useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { Plus, Copy, Trash2, Sparkles, MoreVertical, Wallet, Eye, EyeOff, ChevronRight, Pencil, FileText } from "lucide-react";
+import { Plus, Copy, Trash2, Sparkles, MoreVertical, Wallet, Eye, EyeOff, ChevronRight, Pencil, FileText, Star } from "lucide-react";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
 import { useIsMobile } from "@/hooks/useIsMobile";
@@ -39,15 +39,15 @@ const iconBtn: React.CSSProperties = {
  * The menu renders through a portal with fixed positioning so it's never
  * clipped by the card grid / horizontal scroll strip, and flips upward when it
  * would otherwise run off the bottom of the screen. */
-function CardMenu({ canDelete, onRename, onDuplicate, onExport, onToggleHidden, hidden, onDelete }: {
-  canDelete: boolean; onRename?: () => void; onDuplicate: () => void; onExport: () => void;
+function CardMenu({ canDelete, onRename, onSetPrimary, onDuplicate, onExport, onToggleHidden, hidden, onDelete }: {
+  canDelete: boolean; onRename?: () => void; onSetPrimary?: () => void; onDuplicate: () => void; onExport: () => void;
   onToggleHidden?: () => void; hidden?: boolean; onDelete: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [coords, setCoords] = useState<{ top: number; right: number } | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const itemCount = (onRename ? 1 : 0) + 2 + (onToggleHidden ? 1 : 0) + (canDelete ? 1 : 0);
+  const itemCount = (onRename ? 1 : 0) + (onSetPrimary ? 1 : 0) + 2 + (onToggleHidden ? 1 : 0) + (canDelete ? 1 : 0);
 
   useEffect(() => {
     if (!open) return;
@@ -103,6 +103,7 @@ function CardMenu({ canDelete, onRename, onDuplicate, onExport, onToggleHidden, 
           onClick={(e) => e.stopPropagation()}
           style={{ position: "fixed", top: coords.top, right: coords.right, zIndex: 1000, minWidth: 160, background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.18)", padding: 5 }}
         >
+          {onSetPrimary && item(Star, "Set as primary", onSetPrimary)}
           {onRename && item(Pencil, "Rename", onRename)}
           {onToggleHidden && item(hidden ? Eye : EyeOff, hidden ? "Show on chart" : "Hide from chart", onToggleHidden)}
           {item(Copy, "Duplicate", onDuplicate)}
@@ -214,16 +215,17 @@ function SuggestionsStrip({ suggestions, isMobile }: { suggestions: Suggestion[]
   );
 }
 
-interface CardStat { fiYear?: number; fiAge?: number; finalNW: number; health: PlanHealth; outYear?: number; outAge?: number; exitAge?: number }
+interface CardStat { fiYear?: number; fiAge?: number; finalNW: number; health: PlanHealth; outYear?: number; outAge?: number; exitAge?: number; monthly?: number }
 
 /** A saved scenario card — legend + control for the comparison chart, and the
  * entry point into the deep-dive. Owns its own rename-editing state. */
 function ScenarioCard({
-  sc, color, st, hidden, multi, canDelete, isMobile,
+  sc, color, st, hidden, multi, canDelete, isMobile, isPrimary, onSetPrimary,
   onOpen, onToggleHidden, onRename, onDuplicate, onExport, onDelete,
 }: {
   sc: { id: string; name: string; config: { career_path: { exit_year: number } } };
   color: string; st?: CardStat; hidden: boolean; multi: boolean; canDelete: boolean; isMobile: boolean;
+  isPrimary: boolean; onSetPrimary: () => void;
   onOpen: () => void; onToggleHidden: () => void;
   onRename: (n: string) => void; onDuplicate: () => void; onExport: () => void; onDelete: () => void;
 }) {
@@ -235,7 +237,9 @@ function ScenarioCard({
       onKeyDown={(e) => { if (e.key === "Enter" && !editing) onOpen(); }}
       style={{
         position: "relative", cursor: "pointer", background: C.bgCard, borderRadius: 12,
-        border: `1px solid ${C.border}`, boxShadow: `0 1px 3px ${C.border}`,
+        // The primary plan is visually distinct: a teal accent border + ring.
+        border: isPrimary ? `1.5px solid ${C.teal}` : `1px solid ${C.border}`,
+        boxShadow: isPrimary ? `0 0 0 3px ${C.tealWash}` : `0 1px 3px ${C.border}`,
         padding: "12px 14px 14px", display: "flex", flexDirection: "column", gap: 10,
         opacity: hidden ? 0.55 : 1, transition: "border-color 0.15s, opacity 0.15s",
         // On mobile the cards live in a horizontal strip. Size to ~half the
@@ -243,12 +247,29 @@ function ScenarioCard({
         // off the edge — a clear signal the row scrolls.
         ...(isMobile ? { flex: "0 0 auto", width: "calc(50% - 26px)", maxWidth: 220, scrollSnapAlign: "start" } : {}),
       }}
-      onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.teal; }}
-      onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; }}
+      onMouseEnter={(e) => { if (!isPrimary) e.currentTarget.style.borderColor = C.teal; }}
+      onMouseLeave={(e) => { if (!isPrimary) e.currentTarget.style.borderColor = C.border; }}
     >
+      {isPrimary && (
+        <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: -2 }}>
+          <Star size={11} color={C.teal} fill={C.teal} />
+          <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: C.teal }}>Primary plan</span>
+        </div>
+      )}
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <span style={{ width: 9, height: 9, borderRadius: "50%", background: color, flexShrink: 0 }} />
         <EditableName name={sc.name} onCommit={onRename} editing={editing} setEditing={setEditing} clickToEdit={!isMobile} />
+        {/* Star toggle — set this plan as primary. Filled = already primary. */}
+        <button
+          aria-label={isPrimary ? "Primary plan" : "Set as primary"}
+          title={isPrimary ? "Your primary plan" : "Set as primary"}
+          onClick={(e) => { e.stopPropagation(); if (!isPrimary) onSetPrimary(); }}
+          style={{ ...iconBtn, cursor: isPrimary ? "default" : "pointer", color: isPrimary ? C.teal : C.inkFaint }}
+          onMouseEnter={(e) => { if (!isPrimary) e.currentTarget.style.background = C.bg; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+        >
+          <Star size={15} fill={isPrimary ? C.teal : "none"} />
+        </button>
         {/* Desktop keeps the chart-visibility toggle inline; on mobile it moves
             into the ⋯ menu so it can't be tapped by accident while navigating. */}
         {multi && !isMobile && (
@@ -266,6 +287,7 @@ function ScenarioCard({
         <CardMenu
           canDelete={canDelete}
           onRename={isMobile ? () => setEditing(true) : undefined}
+          onSetPrimary={isPrimary ? undefined : onSetPrimary}
           onDuplicate={onDuplicate}
           onExport={onExport}
           onToggleHidden={multi && isMobile ? onToggleHidden : undefined}
@@ -305,12 +327,32 @@ function ScenarioCard({
           )}
         </div>
       </div>
+
+      {/* The primary plan shows a little more — the levers you live with day to
+          day — since it's the one you return to. */}
+      {isPrimary && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 14px", paddingTop: 10, borderTop: `1px solid ${C.borderSoft}` }}>
+          <MiniStat label="Monthly spend" value={st?.monthly ? `$${Math.round(st.monthly).toLocaleString()}` : "—"} />
+          <MiniStat label="Reaches FI" value={st?.fiYear ? String(st.fiYear) : "—"} />
+          <MiniStat label="Net worth" value={fmtM(st?.finalNW ?? 0)} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** A tiny labelled figure used in the primary card's detail footer. */
+function MiniStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: C.inkFaint }}>{label}</div>
+      <div style={{ fontSize: 12, fontWeight: 700, color: C.inkMid, fontVariantNumeric: "tabular-nums" }}>{value}</div>
     </div>
   );
 }
 
 export default function ScenariosHub({ livePrices, onOpen }: { livePrices: LivePrices; onOpen: () => void }) {
-  const { scenarios, config, snapshot, setActiveScenario, addScenario, duplicateScenario, renameScenario, deleteScenario } = useFinancialStore();
+  const { scenarios, config, snapshot, primaryScenarioId, setActiveScenario, setPrimaryScenario, addScenario, duplicateScenario, renameScenario, deleteScenario } = useFinancialStore();
   const setFinancesOpen = useUIStore((s) => s.setFinancesOpen);
   const openReport = useUIStore((s) => s.openReport);
   const dollarMode = useUIStore((s) => s.dollarMode);
@@ -360,6 +402,7 @@ export default function ScenariosHub({ livePrices, onOpen }: { livePrices: LiveP
         outYear,
         outAge: outYear ? outYear - birthYear : undefined,
         exitAge: exitYear ? exitYear - birthYear : undefined,
+        monthly: sc.config.spending.monthly_lifestyle,
         finalNW,
       };
     }
@@ -432,11 +475,12 @@ export default function ScenariosHub({ livePrices, onOpen }: { livePrices: LiveP
           </div>
         </button>
 
-        {/* Heading */}
+        {/* Heading — this is the Compare destination on desktop; on mobile it's
+            the scenarios landing. */}
         <div style={{ marginBottom: 16 }}>
-          <h1 style={{ fontSize: 22, fontWeight: 800, color: C.ink, letterSpacing: "-0.01em" }}>Scenarios</h1>
+          <h1 style={{ fontSize: 22, fontWeight: 800, color: C.ink, letterSpacing: "-0.01em" }}>{isMobile ? "Scenarios" : "Compare scenarios"}</h1>
           <p style={{ fontSize: 13, color: C.inkSoft, marginTop: 4, maxWidth: 560 }}>
-            Compare your plans, fine-tune one by opening it, or spin up a new one. The scenario you open drives your countdown and both tabs.
+            Open one to make it active, ★ to set your primary, or spin up a new one. The primary plan is where the app lands.
           </p>
         </div>
 
@@ -466,6 +510,8 @@ export default function ScenariosHub({ livePrices, onOpen }: { livePrices: LiveP
               multi={multi}
               canDelete={scenarios.length > 1}
               isMobile={isMobile}
+              isPrimary={sc.id === primaryScenarioId}
+              onSetPrimary={() => setPrimaryScenario(sc.id)}
               onOpen={() => open(sc.id)}
               onToggleHidden={() => toggleHidden(sc.id)}
               onRename={(n) => renameScenario(sc.id, n)}
@@ -492,8 +538,9 @@ export default function ScenariosHub({ livePrices, onOpen }: { livePrices: LiveP
           </button>
         </div>
 
-        {/* Suggested scenarios — sideways-scrolling strip */}
-        <SuggestionsStrip suggestions={suggestions} isMobile={isMobile} />
+        {/* Suggested scenarios — mobile only here; on desktop, ideas live inside
+            each scenario (as branches of that plan), not on the compare screen. */}
+        {isMobile && <SuggestionsStrip suggestions={suggestions} isMobile={isMobile} />}
       </div>
     </div>
   );

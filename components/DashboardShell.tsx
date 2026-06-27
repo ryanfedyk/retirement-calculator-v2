@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Anchor, Wind, Clock, Compass } from "lucide-react";
 import { useHorizonProfile } from "@/config/horizonConfig";
 import { C } from "@/config/colors";
@@ -35,63 +35,68 @@ const NAV = [
 type NavId = typeof NAV[number]["id"];
 
 export default function DashboardShell() {
-  const [appView, setAppView] = useState<AppView>("financial");
-  // Persisted (survives refresh) so reloading keeps you in the open scenario.
-  const scenarioOpen = useUIStore((s) => s.scenarioOpen);
-  const setScenarioOpen = useUIStore((s) => s.setScenarioOpen);
   const [tab,   setTab]   = useState<NavId>("seasons");
   const [saved, setSaved] = useState<AdventureBlueprint[]>([]);
   const { retirementDate } = useRetirementDate();
   const { user } = useHorizonProfile();
-  const { snapshot, config } = useFinancialStore();
+  const { snapshot, config, activeScenarioId, primaryScenarioId, setActiveScenario } = useFinancialStore();
   const settingsOpen = useUIStore((s) => s.settingsOpen);
   const setSettingsOpen = useUIStore((s) => s.setSettingsOpen);
   const financesOpen = useUIStore((s) => s.financesOpen);
   const setFinancesOpen = useUIStore((s) => s.setFinancesOpen);
+  const compareOpen = useUIStore((s) => s.compareOpen);
+  const setCompareOpen = useUIStore((s) => s.setCompareOpen);
+  // The active scenario's remembered view (Trajectory/Reclaim), so returning to a
+  // scenario lands you where you left it.
+  const appView = useUIStore((s) => s.viewByScenario[activeScenarioId] ?? "financial");
+  const setScenarioView = useUIStore((s) => s.setScenarioView);
+  const setAppView = (v: AppView) => setScenarioView(activeScenarioId, v);
   const isMobile = useIsMobile();
   const prices = useLivePrices({ enabled: !isMobile });
 
-  // Let the browser Back button step back through the in-memory navigation
-  // (close an overlay, then leave a scenario for the hub) instead of unloading
-  // the page. Ordered top-most first. Disabled on mobile, which has its own nav.
+  // Land in the primary "home" scenario on first load, not wherever the active
+  // pointer was last left.
+  const landed = useRef(false);
+  useEffect(() => {
+    if (landed.current) return;
+    landed.current = true;
+    if (primaryScenarioId && primaryScenarioId !== activeScenarioId) setActiveScenario(primaryScenarioId);
+  }, [primaryScenarioId, activeScenarioId, setActiveScenario]);
+
+  const goHome = () => { setCompareOpen(false); if (primaryScenarioId) setActiveScenario(primaryScenarioId); };
+
+  // Let the browser Back button step back through the in-memory navigation (close
+  // an overlay, then leave the compare view). Ordered top-most first. Disabled on
+  // mobile, which has its own nav.
   useBrowserBackNav({
     enabled: !isMobile,
     layers: [
       { open: settingsOpen, close: () => setSettingsOpen(false) },
       { open: financesOpen, close: () => setFinancesOpen(false) },
-      { open: scenarioOpen, close: () => setScenarioOpen(false) },
+      { open: compareOpen, close: () => setCompareOpen(false) },
     ],
   });
 
   if (isMobile) return <MobileApp />;
 
-  // ── Scenarios hub — top-level landing ──
-  if (!scenarioOpen) {
-    return (
-      <div className="min-h-screen flex flex-col" style={{ background: C.bg }}>
-        <Header view={appView} onViewChange={setAppView} mode="hub" />
-        <SettingsPanel />
-        <FinancesOverlay livePrices={prices.livePrices} />
-        <ScenarioReportModal livePrices={prices.livePrices} />
-        <ScenariosHub livePrices={prices.livePrices} onOpen={() => setScenarioOpen(true)} />
-      </div>
-    );
-  }
-
-  // ── Scenario deep-dive ──
   return (
     <div className="min-h-screen flex flex-col" style={{ background: C.bg }}>
 
       <Header
         view={appView}
         onViewChange={setAppView}
-        mode="scenario"
-        onBack={() => setScenarioOpen(false)}
+        mode={compareOpen ? "compare" : "scenario"}
+        onBack={goHome}
       />
       <SettingsPanel />
       <FinancesOverlay livePrices={prices.livePrices} />
       <ScenarioReportModal livePrices={prices.livePrices} />
 
+      {compareOpen ? (
+        /* ── Compare scenarios — a destination reached from the dropdown ── */
+        <ScenariosHub livePrices={prices.livePrices} onOpen={() => setCompareOpen(false)} />
+      ) : (
+      <>
       {/* Countdown — reflects the open scenario, across both deep-dive tabs.
           The portfolio price ticker rides on the same line to save a widget. */}
       <CountdownStrip
@@ -156,6 +161,8 @@ export default function DashboardShell() {
             </div>
           </footer>
         </>
+      )}
+      </>
       )}
     </div>
   );

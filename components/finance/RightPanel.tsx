@@ -66,26 +66,30 @@ export function BranchStrip({ livePrices, title = "Branch this scenario", subtit
   const suggestions = useScenarioSuggestions(livePrices);
   const [expanded, setExpanded] = useState(false);
   if (!suggestions.length) return null;
-  const PREVIEW = 4;
-  const preview = suggestions.slice(0, PREVIEW);
+  // Collapsed = one slim line: a hint of the ideas. Expanded = horizontal carousel.
+  const teaser = suggestions.slice(0, 3).map((s) => s.title).join(" · ") + (suggestions.length > 3 ? ` · +${suggestions.length - 3}` : "");
 
   return (
     <div style={{ flexShrink: 0 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
-        <Sparkles size={13} color={C.inkFaint} />
-        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.inkFaint }}>{title}</span>
-        <span style={{ fontSize: 10, color: C.inkFaint }}>{subtitle}</span>
-        <button
-          onClick={() => setExpanded((e) => !e)}
-          style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", fontSize: 10, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: C.teal }}
-        >
+      <button
+        onClick={() => setExpanded((e) => !e)}
+        style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", background: "none", border: "none", cursor: "pointer", textAlign: "left", padding: "2px 0" }}
+      >
+        <Sparkles size={13} color={C.inkFaint} style={{ flexShrink: 0 }} />
+        <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.inkFaint }}>{title}</span>
+        {expanded ? (
+          <span style={{ flex: 1, minWidth: 0, fontSize: 10, color: C.inkFaint }}>{subtitle}</span>
+        ) : (
+          <span style={{ flex: 1, minWidth: 0, fontSize: 11.5, color: C.inkSoft, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{teaser}</span>
+        )}
+        <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: C.teal }}>
           {expanded ? "Show less ▴" : `Show all ${suggestions.length} ▾`}
-        </button>
-      </div>
+        </span>
+      </button>
 
-      {expanded ? (
-        // Full carousel — every idea as a card with the trade-off detail.
-        <div className="no-scrollbar" style={{ display: "flex", flexWrap: "wrap", gap: 10, paddingBottom: 4 }}>
+      {expanded && (
+        // Full carousel — every idea as a card, horizontally scrollable.
+        <div className="no-scrollbar" style={{ display: "flex", flexWrap: "nowrap", gap: 10, overflowX: "auto", paddingBottom: 4, marginTop: 10, scrollSnapType: "x proximity", WebkitOverflowScrolling: "touch" }}>
           {suggestions.map((s, j) => (
             <button
               key={j}
@@ -115,26 +119,6 @@ export function BranchStrip({ livePrices, title = "Branch this scenario", subtit
                   <div style={{ fontSize: 12.5, fontWeight: 800, color: s.nwColor, fontVariantNumeric: "tabular-nums" }}>{s.nwDelta}</div>
                 </div>
               </div>
-            </button>
-          ))}
-        </div>
-      ) : (
-        // Collapsed — slim one-line quick hits.
-        <div style={{ display: "flex", flexDirection: "column" }}>
-          {preview.map((s, j) => (
-            <button
-              key={j}
-              onClick={s.build}
-              title={`Branch a new scenario: ${s.title}`}
-              style={{ display: "flex", alignItems: "center", gap: 9, width: "100%", padding: "8px 8px", borderRadius: 8, border: "none", background: "transparent", cursor: "pointer", textAlign: "left", borderBottom: `1px solid ${C.borderSoft}` }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = C.bg)}
-              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-            >
-              <Plus size={13} color={C.inkFaint} style={{ flexShrink: 0 }} />
-              <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, color: C.inkMid, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</span>
-              <span style={{ flexShrink: 0, fontSize: 11.5, fontWeight: 700, color: s.timeColor, fontVariantNumeric: "tabular-nums" }}>{s.timeDelta}</span>
-              <span style={{ flexShrink: 0, fontSize: 11, color: C.inkFaint }}>·</span>
-              <span style={{ flexShrink: 0, fontSize: 11.5, fontWeight: 700, color: s.nwColor, fontVariantNumeric: "tabular-nums" }}>{s.nwDelta}</span>
             </button>
           ))}
         </div>

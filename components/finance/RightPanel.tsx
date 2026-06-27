@@ -268,7 +268,7 @@ export default function RightPanel({ livePrices }: Props) {
   const { children } = useHorizonProfile();
   const [chartView, setChartView] = useState<ChartView>("wealth");
   const [insightTab, setInsightTab] = useState<"today" | "ai">("today");
-  const [ageCap, setAgeCap] = useState<75 | 100>(75);
+  const [ageCap, setAgeCap] = useState<70 | 100>(70);
 
   // Year currently hovered on the chart — reveals subtle (secondary) milestones
   const [hoverYear, setHoverYear] = useState<string | null>(null);
@@ -670,7 +670,7 @@ export default function RightPanel({ livePrices }: Props) {
           {/* Horizon zoom — floats in the chart's bottom-right (not for the
               calendar timeline, which has no age horizon to cap). */}
           {chartView !== "timeline" && (
-            <HorizonZoomButton ageCap={ageCap} onToggle={() => setAgeCap((a) => (a === 100 ? 75 : 100))} />
+            <HorizonZoomButton ageCap={ageCap} onToggle={() => setAgeCap((a) => (a === 100 ? 70 : 100))} />
           )}
           {chartView === "timeline" ? (
             <LifeCalendar data={displayTrajectory} config={config} />

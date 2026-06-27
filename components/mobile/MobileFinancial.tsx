@@ -43,7 +43,7 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
   const dollarBasisLabel = dollarMode === "future" ? "future (nominal) dollars" : "today’s dollars";
   const { children } = useHorizonProfile();
   const [view, setView] = useState<View>("wealth");
-  const [ageCap, setAgeCap] = useState<75 | 100>(75);
+  const [ageCap, setAgeCap] = useState<70 | 100>(70);
 
   const googInfo      = livePrices["GOOG"] ?? livePrices["GOOGL"];
   const liveGoogPrice = googInfo?.price ?? 0;
@@ -276,7 +276,7 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
 
         {/* Chart, with the horizon-zoom magnifier floating in its bottom-right. */}
         <div style={{ position: "relative" }}>
-        <HorizonZoomButton ageCap={ageCap} onToggle={() => setAgeCap(a => (a === 100 ? 75 : 100))} size={30} />
+        <HorizonZoomButton ageCap={ageCap} onToggle={() => setAgeCap(a => (a === 100 ? 70 : 100))} size={30} />
         {view === "risk" ? (
           <ResponsiveContainer width="100%" height={300}>
             <AreaChart data={riskData} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>

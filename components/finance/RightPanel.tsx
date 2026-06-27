@@ -61,7 +61,7 @@ const RefLabel = (props: any) => {
 /** "Branch this scenario" — diverse offshoots of the current plan (retire a year
  * sooner, take a sabbatical, trim spending…), each previewing the time/money
  * trade-off. Building one creates a real scenario branched from this one. */
-export function BranchStrip({ livePrices }: { livePrices: LivePrices }) {
+export function BranchStrip({ livePrices, title = "Branch this scenario", subtitle = "· spin off a variation" }: { livePrices: LivePrices; title?: string; subtitle?: string }) {
   const suggestions = useScenarioSuggestions(livePrices);
   // Collapsed by default — still shows the first few ideas; expand to see them all.
   const [expanded, setExpanded] = useState(false);
@@ -73,8 +73,8 @@ export function BranchStrip({ livePrices }: { livePrices: LivePrices }) {
     <div style={{ flexShrink: 0 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
         <Sparkles size={13} color={C.inkFaint} />
-        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.inkFaint }}>Branch this scenario</span>
-        <span style={{ fontSize: 10, color: C.inkFaint }}>· spin off a variation</span>
+        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.inkFaint }}>{title}</span>
+        <span style={{ fontSize: 10, color: C.inkFaint }}>{subtitle}</span>
         {hiddenCount > 0 && (
           <button
             onClick={() => setExpanded((e) => !e)}

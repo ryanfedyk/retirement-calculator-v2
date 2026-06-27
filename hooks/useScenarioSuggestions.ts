@@ -22,8 +22,14 @@ const fmtM = (a: number) => {
   return `$${Math.round(a)}`;
 };
 const signM = (v: number) => `${v >= 0 ? "+" : "−"}${fmtM(Math.abs(v))}`;
-const fiMonthToDate = (m: number) => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth() + Math.round(m), 1); };
-const fmtDate = (d: Date) => d.toLocaleString("default", { month: "short", year: "numeric" });
+/** Human duration from a month count, e.g. 14 → "1y 2m", 8 → "8mo". */
+const fmtDur = (months: number) => {
+  const a = Math.abs(months);
+  const y = Math.floor(a / 12), mo = a % 12;
+  if (y && mo) return `${y}y ${mo}m`;
+  if (y) return `${y}y`;
+  return `${mo}mo`;
+};
 
 const NO_TAX_STATES = new Set(["AK", "FL", "NH", "NV", "SD", "TN", "TX", "WA", "WY", "NONE"]);
 
@@ -43,16 +49,15 @@ export interface Suggestion {
   title: string;
   /** Plain-language summary of what the idea changes. */
   detail: string;
-  /** Absolute projected FI date, e.g. "Mar 2032" / "30+ yrs" */
-  fiDate: string;
-  /** e.g. "4 mo earlier" / "no change" / "—" */
-  fiDelta: string;
-  fiColor: string;
-  /** Signed net-worth delta at the horizon vs the source scenario, e.g. "+$1.2M" */
+  /** The "time" axis of the trade-off — freedom reached sooner/later, e.g.
+   * "1y 2m sooner" / "8mo later" / "no change". */
+  timeDelta: string;
+  /** Evocative life-hours framing of the time axis, e.g. "10,200 hrs reclaimed". */
+  timeHours: string;
+  timeColor: string;
+  /** The "money" axis — net-worth trade-off at the horizon, e.g. "−$420k". */
   nwDelta: string;
   nwColor: string;
-  /** Label for the horizon year, e.g. "Net worth ’55" */
-  nwLabel: string;
   /** Create the scenario: an offshoot of the active one with this tweak applied. */
   build: () => void;
 }
@@ -161,7 +166,6 @@ export function useScenarioSuggestions(livePrices: LivePrices): Suggestion[] {
   }, [config, scenarios]);
 
   return useMemo(() => {
-    const nwLabel = `Net worth ’${String(new Date().getFullYear() + 30).slice(2)}`;
     const baseTraj = runSimulation(enrichedSnapshot, config, liveGoogPrice);
     const baseFi = continuousFiMonth(baseTraj);
     const baseFinal = baseTraj[baseTraj.length - 1]?.totalNetWorth ?? 0;
@@ -173,19 +177,22 @@ export function useScenarioSuggestions(livePrices: LivePrices): Suggestion[] {
       const fi = continuousFiMonth(traj);
       const finalNW = traj[traj.length - 1]?.totalNetWorth ?? 0;
 
+      // The trade-off: TIME (freedom reached sooner/later) vs MONEY (ending
+      // net worth). Time is the months your FI date shifts; we also surface it
+      // as "hours of life" — every month sooner is ~730 hours back.
       const dMonths = baseFi != null && fi != null ? Math.round(baseFi - fi) : null;
       const earlier = (dMonths ?? 0) > 0;
       const dMoney = finalNW - baseFinal;
+      const hours = dMonths ? Math.round((Math.abs(dMonths) * 730.5) / 100) * 100 : 0;
 
       return {
         title: idea.title,
         detail: idea.detail,
-        fiDate: fi != null ? fmtDate(fiMonthToDate(fi)) : "30+ yrs",
-        fiDelta: dMonths == null ? "—" : dMonths === 0 ? "no change" : `${Math.abs(dMonths)} mo ${earlier ? "earlier" : "later"}`,
-        fiColor: dMonths == null || dMonths === 0 ? C.inkFaint : earlier ? C.tealDark : C.warm,
+        timeDelta: dMonths == null ? "—" : dMonths === 0 ? "no change" : `${fmtDur(dMonths)} ${earlier ? "sooner" : "later"}`,
+        timeHours: dMonths && hours ? `${hours.toLocaleString()} hrs ${earlier ? "reclaimed" : "traded"}` : "",
+        timeColor: dMonths == null || dMonths === 0 ? C.inkFaint : earlier ? C.tealDark : C.warm,
         nwDelta: Math.abs(dMoney) < 1000 ? "≈ same" : signM(dMoney),
         nwColor: Math.abs(dMoney) < 1000 ? C.inkSoft : dMoney > 0 ? C.tealDark : C.warm,
-        nwLabel,
         build: () => addScenarioFromConfig(idea.title, tweaked, [...baseUnlinked, ...idea.unlink]),
       };
     });

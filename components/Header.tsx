@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Check, Cloud, LogOut, AlertCircle, Settings, ChevronDown, Wallet, LineChart, Compass, Pencil, Star, ArrowLeftRight, Plus, Copy, Trash2, FileText } from "lucide-react";
 import { createPortal } from "react-dom";
-import { C, SCENARIO_PALETTE as PALETTE } from "@/config/colors";
+import { C } from "@/config/colors";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { useCloudSync } from "@/lib/cloud/CloudSyncProvider";
 import { useUIStore } from "@/store/useUIStore";
@@ -131,7 +131,6 @@ function ScenarioMenu({ comparing }: { comparing: boolean }) {
   const confirm = useConfirm();
 
   const active = scenarios.find((s) => s.id === activeScenarioId);
-  const activeIdx = Math.max(0, scenarios.findIndex((s) => s.id === activeScenarioId));
   const isPrimaryActive = activeScenarioId === primaryScenarioId;
 
   const [open, setOpen] = useState(false);
@@ -201,7 +200,6 @@ function ScenarioMenu({ comparing }: { comparing: boolean }) {
         onMouseEnter={(e) => { if (!open) e.currentTarget.style.background = C.bg; }}
         onMouseLeave={(e) => { if (!open) e.currentTarget.style.background = "transparent"; }}
       >
-        <span style={{ width: 9, height: 9, borderRadius: "50%", background: PALETTE[activeIdx % PALETTE.length], flexShrink: 0 }} />
         <span style={{ fontSize: 14, fontWeight: 700, color: C.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {comparing ? "Comparing all" : active?.name ?? "Scenario"}
         </span>
@@ -212,13 +210,12 @@ function ScenarioMenu({ comparing }: { comparing: boolean }) {
       {open && coords && createPortal(
         <div ref={menuRef} style={{ position: "fixed", top: coords.top, left: coords.left, zIndex: 1000, width: 256, background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 12, boxShadow: "0 8px 24px rgba(0,0,0,0.18)", padding: 6, maxHeight: "80vh", overflowY: "auto" }}>
           {sectionLabel("Switch scenario")}
-          {scenarios.map((sc, i) => (
+          {scenarios.map((sc) => (
             <button key={sc.id} onClick={() => pick(sc.id)}
               style={{ display: "flex", alignItems: "center", gap: 9, width: "100%", padding: "8px 10px", background: "transparent", border: "none", borderRadius: 7, cursor: "pointer", textAlign: "left" }}
               onMouseEnter={(e) => (e.currentTarget.style.background = C.bg)}
               onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
             >
-              <span style={{ width: 9, height: 9, borderRadius: "50%", background: PALETTE[i % PALETTE.length], flexShrink: 0 }} />
               <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, color: C.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sc.name}</span>
               {sc.id === primaryScenarioId && <Star size={12} color={C.teal} fill={C.teal} style={{ flexShrink: 0 }} />}
               {sc.id === activeScenarioId && !comparing && <Check size={14} color={C.teal} style={{ flexShrink: 0 }} />}

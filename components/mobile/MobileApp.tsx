@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { LineChart, Compass, SlidersHorizontal, LogOut, Settings, ChevronLeft, Wallet, ChevronDown, Star, ArrowLeftRight, Plus, Copy, Pencil, FileText, Trash2, Check } from "lucide-react";
+import { LineChart, Compass, SlidersHorizontal, LogOut, Settings, ChevronLeft, Wallet, ChevronDown, Star, ArrowLeftRight, Plus, Copy, Pencil, FileText, Trash2, Check, Heart } from "lucide-react";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
@@ -15,6 +15,7 @@ import ConfigSheet from "./ConfigSheet";
 import FinancesOverlay from "@/components/finance/FinancesOverlay";
 import SettingsPanel from "@/components/SettingsPanel";
 import ScenarioReportModal from "@/components/ScenarioReportModal";
+import PartnerAlignment from "@/components/partner/PartnerAlignment";
 
 type View = "financial" | "forecasting";
 
@@ -163,6 +164,7 @@ export default function MobileApp() {
       <MobileScenarioSheet open={switcherOpen} onClose={() => setSwitcherOpen(false)} />
       <ConfigSheet open={configOpen} onClose={() => setConfigOpen(false)} />
       <FinancesOverlay livePrices={livePrices} />
+      <PartnerAlignment />
       <SettingsPanel />
       <ScenarioReportModal livePrices={livePrices} />
 
@@ -330,6 +332,13 @@ function MobileAccountMenu() {
             color: C.inkMid, fontSize: 14, cursor: "pointer", textAlign: "left",
           }}>
             <Settings size={15} /> Profile
+          </button>
+          <button onClick={() => { setOpen(false); useUIStore.getState().setPartnerOpen(true); }} style={{
+            width: "100%", display: "flex", alignItems: "center", gap: 8, marginTop: 2,
+            padding: "10px", background: "transparent", border: "none", borderRadius: 8,
+            color: C.inkMid, fontSize: 14, cursor: "pointer", textAlign: "left",
+          }}>
+            <Heart size={15} /> Partner alignment
           </button>
           <button onClick={() => { setOpen(false); signOutUser(); }} style={{
             width: "100%", display: "flex", alignItems: "center", gap: 8, marginTop: 2,

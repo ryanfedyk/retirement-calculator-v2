@@ -1,6 +1,6 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
-import { Check, Cloud, LogOut, AlertCircle, Settings, ChevronDown, Wallet, LineChart, Compass, Pencil, Star, ArrowLeftRight, Plus, Copy, Trash2, FileText } from "lucide-react";
+import { Check, Cloud, LogOut, AlertCircle, Settings, ChevronDown, Wallet, LineChart, Compass, Pencil, Star, ArrowLeftRight, Plus, Copy, Trash2, FileText, Heart } from "lucide-react";
 import { createPortal } from "react-dom";
 import { C } from "@/config/colors";
 import { useAuth } from "@/lib/auth/AuthProvider";
@@ -322,6 +322,18 @@ function AccountMenu() {
             onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
           >
             <Settings size={14} /> Profile
+          </button>
+          <button
+            onClick={() => { setOpen(false); useUIStore.getState().setPartnerOpen(true); }}
+            style={{
+              width: "100%", display: "flex", alignItems: "center", gap: 8, marginTop: 2,
+              padding: "9px 10px", background: "transparent", border: "none", borderRadius: 8,
+              color: C.inkMid, fontSize: 13, cursor: "pointer", textAlign: "left",
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = C.bg)}
+            onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+          >
+            <Heart size={14} /> Partner alignment
           </button>
           <button
             onClick={() => { setOpen(false); signOutUser(); }}

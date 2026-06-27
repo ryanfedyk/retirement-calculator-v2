@@ -15,6 +15,9 @@ export const useUIStore = create<{
   /** The shared "Your finances" overlay — openable from anywhere in the app. */
   financesOpen: boolean;
   setFinancesOpen: (v: boolean) => void;
+  /** The "Partner alignment" overlay. */
+  partnerOpen: boolean;
+  setPartnerOpen: (v: boolean) => void;
   /** Mobile only: whether a scenario deep-dive is open (vs. the scenarios hub).
    *  Persisted so a refresh keeps you where you were. Desktop now always lands in
    *  the primary scenario and uses `compareOpen` for the comparison destination. */
@@ -46,6 +49,8 @@ export const useUIStore = create<{
       setSettingsOpen: (v) => set({ settingsOpen: v }),
       financesOpen: false,
       setFinancesOpen: (v) => set({ financesOpen: v }),
+      partnerOpen: false,
+      setPartnerOpen: (v) => set({ partnerOpen: v }),
       scenarioOpen: false,
       setScenarioOpen: (v) => set({ scenarioOpen: v }),
       compareOpen: false,

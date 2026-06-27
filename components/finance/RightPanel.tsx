@@ -21,7 +21,8 @@ import { useHorizonProfile } from "@/config/horizonConfig";
 import ScenarioLevers from "./ScenarioLevers";
 import { useScenarioSuggestions } from "@/hooks/useScenarioSuggestions";
 import FireMoments from "@/components/fx/FireMoments";
-import { isCoastFI, MILESTONES } from "@/lib/fire/moments";
+import { isCoastFI } from "@/lib/fire/moments";
+import { buildNotices, sevColor, sevBg } from "@/lib/planNotices";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -121,9 +122,6 @@ export function BranchStrip({ livePrices, title = "Branch this scenario", subtit
   );
 }
 
-interface Notice { id: string; severity: "critical" | "warning" | "good"; title: string; body: string }
-const sevColor = (s: Notice["severity"]) => (s === "critical" ? "#c0492b" : s === "warning" ? C.warm : C.tealDark);
-const sevBg = (s: Notice["severity"]) => (s === "critical" ? "#fdece8" : s === "warning" ? C.warmWash : C.tealWash);
 
 const SummaryCard = ({
   label, value, sub, icon: Icon, iconBg, iconColor, children, onClick, actionHint,
@@ -324,34 +322,11 @@ export default function RightPanel({ livePrices }: Props) {
   // card. Copy is word-for-word with the original banners and the celebratory
   // FIRE callouts (MILESTONES), so the Alerts card and those notifications match.
   const isIndependent = todayPoint?.isIndependent ?? false;
-  const notices = useMemo<Notice[]>(() => {
-    const out: Notice[] = [];
-    // Plan-health — verbatim with the original plan-health banners.
-    if (plan.health === "shortfall") {
-      const age = plan.depletion ? Number((plan.depletion.date.match(/\d{4}/) || [])[0]) - birthYear : null;
-      out.push({ id: "shortfall", severity: "critical",
-        title: `This plan runs out of money${plan.depletion ? ` around ${plan.depletion.date}` : ""}`,
-        body: `${plan.depletion ? `At age ${age}, your invested assets are exhausted and can't cover spending. ` : ""}Try a later exit year, lower monthly spend, higher savings, or stronger returns.` });
-    } else if (!indepPoint) {
-      out.push({ id: "no-fi", severity: "critical",
-        title: "This plan doesn’t reach financial independence",
-        body: "Your assets never reach your FI number. Try a later exit year, lower monthly spend, higher savings, or stronger returns — the trajectory below stays under the FI target the whole way." });
-    } else if (plan.health === "tight") {
-      out.push({ id: "tight", severity: "warning",
-        title: "Cutting it close",
-        body: "This plan funds your retirement, but the cushion runs thin — a weak market stretch or unplanned expense could push it short. A little more savings or a slightly later exit adds margin." });
-    } else {
-      out.push({ id: "on-track", severity: "good",
-        title: "On track",
-        body: "Your plan funds retirement with a healthy cushion." });
-    }
-    // FIRE milestones — verbatim with the celebratory callouts (FireMoments).
-    const metrics = { netWorth: currentNW, swrTarget, isIndependent, savingsRate, coastFI };
-    for (const m of MILESTONES) {
-      if (m.active(metrics)) out.push({ id: m.id, severity: "good", title: `${m.emoji} ${m.title}`, body: m.sub });
-    }
-    return out;
-  }, [plan.health, plan.depletion, indepPoint, currentNW, swrTarget, isIndependent, coastFI, savingsRate, birthYear]);
+  const notices = useMemo(
+    () => buildNotices({ health: plan.health, depletion: plan.depletion, reachesFI: !!indepPoint, birthYear,
+      metrics: { netWorth: currentNW, swrTarget, isIndependent, savingsRate, coastFI } }),
+    [plan.health, plan.depletion, indepPoint, currentNW, swrTarget, isIndependent, coastFI, savingsRate, birthYear],
+  );
   // Tap-to-understand explanation modal for the summary cards.
   const [infoModal, setInfoModal] = useState<{ title: string; node: React.ReactNode } | null>(null);
   const openInfo = (title: string, node: React.ReactNode) => setInfoModal({ title, node });

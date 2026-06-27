@@ -1,7 +1,7 @@
 "use client";
 import { useState, useMemo } from "react";
 import { ResponsiveContainer, AreaChart, Area, Line, XAxis, YAxis, Tooltip, ReferenceLine, CartesianGrid } from "recharts";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, CheckCircle } from "lucide-react";
 import HorizonZoomButton from "@/components/finance/HorizonZoomButton";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
@@ -17,6 +17,7 @@ import ScenarioLevers from "@/components/finance/ScenarioLevers";
 import { BranchStrip } from "@/components/finance/RightPanel";
 import FireMoments from "@/components/fx/FireMoments";
 import { isCoastFI } from "@/lib/fire/moments";
+import { buildNotices, sevColor, sevBg } from "@/lib/planNotices";
 import type { LivePrices } from "@/components/finance/FinancialDashboard";
 
 const fmtM = (v: number) => {
@@ -75,6 +76,12 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
     realReturn: (config.market_assumptions.market_return_rate - config.market_assumptions.inflation_rate) / 100,
     yearsToRetirement: Math.max(0, 65 - (new Date().getFullYear() - birthYear)),
   });
+  const isIndependent = today?.isIndependent ?? false;
+  // Same Alerts content as desktop — plan health + FIRE milestones, in full.
+  const notices = useMemo(() => buildNotices({
+    health: plan.health, depletion: plan.depletion, reachesFI: !!indep, birthYear,
+    metrics: { netWorth: currentNW, swrTarget, isIndependent, savingsRate, coastFI },
+  }), [plan.health, plan.depletion, indep, currentNW, swrTarget, isIndependent, savingsRate, coastFI, birthYear]);
 
   // Top metric strip — Financial Independence first, then the momentum cards
   // (Coast FI / Freedom ratio / Years funded), all in one horizontal scroller.
@@ -213,40 +220,28 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
         align="start"
       />
 
-      {/* Plan health — runs out / cutting it close / never reaches FI */}
-      {plan.health === "shortfall" ? (
-        <div style={{ display: "flex", alignItems: "flex-start", gap: 10, background: "#fdece8", border: "2px solid #e0775a", borderRadius: 12, padding: "13px 14px" }}>
-          <AlertTriangle size={20} color="#c0492b" style={{ flexShrink: 0, marginTop: 1 }} />
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#a23818" }}>
-              This plan runs out of money{plan.depletion ? ` around ${plan.depletion.date}` : ""}
-            </div>
-            <div style={{ fontSize: 11, color: "#8a4a38", marginTop: 3, lineHeight: 1.5 }}>
-              {plan.depletion ? `At age ${Number((plan.depletion.date.match(/\d{4}/) || [])[0]) - birthYear}, your invested assets are exhausted. ` : ""}Adjust your exit year, spending, savings, or returns.
-            </div>
+      {/* Alerts — plan health + FIRE milestones, in full (same as desktop). */}
+      {notices.length > 0 && (
+        <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 16, padding: "14px 16px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+            <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: C.inkFaint }}>Alerts</span>
+            <span style={{ fontSize: 9, fontWeight: 700, color: C.inkFaint, background: C.bg, borderRadius: 99, padding: "1px 6px" }}>{notices.length}</span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {notices.map((n) => (
+              <div key={n.id} style={{ display: "flex", gap: 9 }}>
+                <span style={{ flexShrink: 0, marginTop: 1, width: 20, height: 20, borderRadius: 6, background: sevBg(n.severity), display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {n.severity === "good" ? <CheckCircle size={12} color={sevColor(n.severity)} /> : <AlertTriangle size={12} color={sevColor(n.severity)} />}
+                </span>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: sevColor(n.severity), lineHeight: 1.3 }}>{n.title}</div>
+                  <div style={{ fontSize: 11.5, color: C.inkMid, lineHeight: 1.5, marginTop: 2 }}>{n.body}</div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
-      ) : plan.health === "tight" ? (
-        <div style={{ display: "flex", alignItems: "flex-start", gap: 10, background: C.warmWash, border: `2px solid ${C.warmLight}`, borderRadius: 12, padding: "13px 14px" }}>
-          <AlertTriangle size={20} color={C.warm} style={{ flexShrink: 0, marginTop: 1 }} />
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: C.warm }}>Cutting it close</div>
-            <div style={{ fontSize: 11, color: "#8a5a3a", marginTop: 3, lineHeight: 1.5 }}>
-              Funds your retirement, but the cushion runs thin. A little more savings or a slightly later exit adds margin.
-            </div>
-          </div>
-        </div>
-      ) : !indep ? (
-        <div style={{ display: "flex", alignItems: "flex-start", gap: 10, background: "#fdece8", border: "2px solid #e0775a", borderRadius: 12, padding: "13px 14px" }}>
-          <AlertTriangle size={20} color="#c0492b" style={{ flexShrink: 0, marginTop: 1 }} />
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#a23818" }}>This plan doesn’t reach financial independence</div>
-            <div style={{ fontSize: 11, color: "#8a4a38", marginTop: 3, lineHeight: 1.5 }}>
-              Assets never reach your FI number. Adjust your exit year, spending, savings, or returns.
-            </div>
-          </div>
-        </div>
-      ) : null}
+      )}
 
       {/* Chart card — touchAction pan-y so dragging the chart never scrolls the page sideways */}
       <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 20, padding: "16px 12px 12px", touchAction: "pan-y" }}>

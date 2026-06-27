@@ -14,6 +14,7 @@ import { buildMomentumCards } from "@/components/finance/MotivationWidgets";
 import AiAnalysis from "@/components/finance/AiAnalysis";
 import PriceTicker from "@/components/finance/PriceTicker";
 import ScenarioLevers from "@/components/finance/ScenarioLevers";
+import { BranchStrip } from "@/components/finance/RightPanel";
 import FireMoments from "@/components/fx/FireMoments";
 import { isCoastFI } from "@/lib/fire/moments";
 import type { LivePrices } from "@/components/finance/FinancialDashboard";
@@ -198,6 +199,9 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
 
       {/* Scenario levers — summary + quick adjustment; click in for the full editor */}
       <ScenarioLevers onOpenEditor={onOpenConfig} />
+
+      {/* Branch this scenario — offshoots of the current plan (same as desktop) */}
+      <BranchStrip livePrices={livePrices} />
 
       {/* Portfolio price ticker (from the user's holdings) */}
       <PriceTicker

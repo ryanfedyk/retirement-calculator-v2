@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
-import { Anchor, Wind, Clock, Compass } from "lucide-react";
+import { Anchor, Wind, Clock, Compass, Sun } from "lucide-react";
 import { useHorizonProfile } from "@/config/horizonConfig";
 import { C } from "@/config/colors";
 import Header, { type AppView } from "@/components/Header";
@@ -17,6 +17,7 @@ import ReclaimedTimeCalculator from "@/components/ReclaimedTimeCalculator";
 import AdventureGenerator    from "@/components/AdventureGenerator";
 import DailyDeflationWidget  from "@/components/DailyDeflationWidget";
 import FinancialDashboard    from "@/components/finance/FinancialDashboard";
+import PerfectDay            from "@/components/forecasting/PerfectDay";
 import PriceTicker           from "@/components/finance/PriceTicker";
 import LifeEventsFab         from "@/components/forecasting/LifeEventsFab";
 import SettingsPanel         from "@/components/SettingsPanel";
@@ -27,10 +28,11 @@ import { useBrowserBackNav } from "@/hooks/useBrowserBackNav";
 import type { AdventureBlueprint } from "@/types/horizon";
 
 const NAV = [
-  { id: "seasons",   label: "Seasons",   icon: Anchor },
-  { id: "reclaim",   label: "Reclaim",   icon: Wind },
-  { id: "adventure", label: "Adventure", icon: Compass },
-  { id: "deflate",   label: "Deflate",   icon: Clock },
+  { id: "seasons",    label: "Seasons",     icon: Anchor },
+  { id: "perfectday", label: "Perfect Day", icon: Sun },
+  { id: "reclaim",    label: "Reclaim",     icon: Wind },
+  { id: "adventure",  label: "Adventure",   icon: Compass },
+  { id: "deflate",    label: "Deflate",     icon: Clock },
 ] as const;
 type NavId = typeof NAV[number]["id"];
 
@@ -145,8 +147,9 @@ export default function DashboardShell() {
           {/* Main */}
           <main className="flex-1 px-8 py-12">
             <div className="max-w-7xl mx-auto">
-              {tab === "seasons"   && <MacroSeasonsTimeline />}
-              {tab === "reclaim"   && <ReclaimedTimeCalculator />}
+              {tab === "seasons"    && <MacroSeasonsTimeline />}
+              {tab === "perfectday" && <PerfectDay />}
+              {tab === "reclaim"    && <ReclaimedTimeCalculator />}
               {tab === "adventure" && <AdventureGenerator saved={saved} setSaved={setSaved} />}
               {tab === "deflate"   && <DailyDeflationWidget />}
             </div>

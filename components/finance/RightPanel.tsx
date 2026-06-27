@@ -4,7 +4,7 @@ import {
   ResponsiveContainer, AreaChart, Area, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine,
 } from "recharts";
-import { Flag, CheckCircle, TrendingUp, CalendarDays, Sparkles, AlertTriangle, X, Wallet, Plus } from "lucide-react";
+import { Flag, CheckCircle, CalendarDays, Sparkles, AlertTriangle, X, Wallet, Plus } from "lucide-react";
 import HorizonZoomButton from "./HorizonZoomButton";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
@@ -21,7 +21,7 @@ import { useHorizonProfile } from "@/config/horizonConfig";
 import ScenarioLevers from "./ScenarioLevers";
 import { useScenarioSuggestions } from "@/hooks/useScenarioSuggestions";
 import FireMoments from "@/components/fx/FireMoments";
-import { isCoastFI } from "@/lib/fire/moments";
+import { isCoastFI, MILESTONES } from "@/lib/fire/moments";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -307,36 +307,38 @@ export default function RightPanel({ livePrices }: Props) {
     yearsToRetirement: Math.max(0, 65 - (new Date().getFullYear() - birthYear)),
   });
 
-  // ── Notifications ── plan-health status + FIRE milestones, surfaced as a card
-  // (and explained on tap) rather than a stack of banners.
+  // ── Notifications ── plan-health status + FIRE milestones, listed in the Alerts
+  // card. Copy is word-for-word with the original banners and the celebratory
+  // FIRE callouts (MILESTONES), so the Alerts card and those notifications match.
   const isIndependent = todayPoint?.isIndependent ?? false;
   const notices = useMemo<Notice[]>(() => {
     const out: Notice[] = [];
+    // Plan-health — verbatim with the original plan-health banners.
     if (plan.health === "shortfall") {
       const age = plan.depletion ? Number((plan.depletion.date.match(/\d{4}/) || [])[0]) - birthYear : null;
-      out.push({ id: "shortfall", severity: "critical", title: "This plan runs out of money",
-        body: `Your invested assets are projected to be exhausted${plan.depletion ? ` around ${plan.depletion.date}${age ? ` (age ${age})` : ""}` : ""}, leaving spending uncovered. Try a later exit year, lower monthly spend, higher savings, or stronger returns.` });
+      out.push({ id: "shortfall", severity: "critical",
+        title: `This plan runs out of money${plan.depletion ? ` around ${plan.depletion.date}` : ""}`,
+        body: `${plan.depletion ? `At age ${age}, your invested assets are exhausted and can't cover spending. ` : ""}Try a later exit year, lower monthly spend, higher savings, or stronger returns.` });
     } else if (!indepPoint) {
-      out.push({ id: "no-fi", severity: "critical", title: "Doesn’t reach financial independence",
-        body: "Your assets never reach your FI number, so work never becomes fully optional. A later exit year, lower spending, higher savings, or stronger returns would close the gap." });
+      out.push({ id: "no-fi", severity: "critical",
+        title: "This plan doesn’t reach financial independence",
+        body: "Your assets never reach your FI number. Try a later exit year, lower monthly spend, higher savings, or stronger returns — the trajectory below stays under the FI target the whole way." });
     } else if (plan.health === "tight") {
-      out.push({ id: "tight", severity: "warning", title: "Cutting it close",
-        body: "This plan funds your retirement, but the cushion runs thin — a weak market stretch or an unplanned expense could push it short. A little more savings or a slightly later exit adds margin." });
+      out.push({ id: "tight", severity: "warning",
+        title: "Cutting it close",
+        body: "This plan funds your retirement, but the cushion runs thin — a weak market stretch or unplanned expense could push it short. A little more savings or a slightly later exit adds margin." });
     } else {
-      out.push({ id: "on-track", severity: "good", title: "On track",
-        body: "Your plan funds retirement with a healthy cushion. Keep an eye on spending and savings as life changes." });
+      out.push({ id: "on-track", severity: "good",
+        title: "On track",
+        body: "Your plan funds retirement with a healthy cushion." });
     }
-    if (isIndependent) out.push({ id: "fi", severity: "good", title: "Financially independent",
-      body: "Your investable assets already cover 25× your annual spending — you’ve hit your FI number. Work is optional from here." });
-    else if (coastFI) out.push({ id: "coast", severity: "good", title: "Coasting to FI",
-      body: "If you stopped investing today, your current assets would still compound to your FI number by 65. From here you only need to cover expenses — no new contributions required." });
-    if (savingsRate >= 0.7) out.push({ id: "fat", severity: "good", title: "Fat-FIRE savings pace",
-      body: `You’re saving roughly ${Math.round(savingsRate * 100)}% of your net income — an exceptional tailwind toward FI.` });
-    else if (savingsRate >= 0.5) out.push({ id: "lean", severity: "good", title: "Strong savings pace",
-      body: `You’re saving roughly ${Math.round(savingsRate * 100)}% of your net income — a serious tailwind toward FI.` });
+    // FIRE milestones — verbatim with the celebratory callouts (FireMoments).
+    const metrics = { netWorth: currentNW, swrTarget, isIndependent, savingsRate, coastFI };
+    for (const m of MILESTONES) {
+      if (m.active(metrics)) out.push({ id: m.id, severity: "good", title: `${m.emoji} ${m.title}`, body: m.sub });
+    }
     return out;
-  }, [plan.health, plan.depletion, indepPoint, isIndependent, coastFI, savingsRate, birthYear]);
-  const primaryNotice = notices[0];
+  }, [plan.health, plan.depletion, indepPoint, currentNW, swrTarget, isIndependent, coastFI, savingsRate, birthYear]);
   // Tap-to-understand explanation modal for the summary cards.
   const [infoModal, setInfoModal] = useState<{ title: string; node: React.ReactNode } | null>(null);
   const openInfo = (title: string, node: React.ReactNode) => setInfoModal({ title, node });
@@ -508,9 +510,10 @@ export default function RightPanel({ livePrices }: Props) {
       {/* ── Branch this scenario — ideas that offshoot the current plan ── */}
       <BranchStrip livePrices={livePrices} />
 
-      {/* ── Summary cards: FI date · Progress to FI · Alerts ── A horizontal
-          scroll strip when tight. Each opens a plain-language explanation on tap. */}
-      <div className="no-scrollbar" style={{ display: "flex", flexShrink: 0, gap: 12, overflowX: "auto", paddingBottom: 4 }}>
+      {/* ── Summary cards: FI date · FI Number · Alerts ── A horizontal scroll
+          strip when tight. Top-aligned so the Alerts list can run as long as it
+          needs without stretching the others. */}
+      <div className="no-scrollbar" style={{ display: "flex", flexShrink: 0, alignItems: "flex-start", gap: 12, overflowX: "auto", paddingBottom: 4 }}>
         <SummaryCard
           label="Financial Independence"
           value={indepPoint ? indepPoint.date : "30+ Yrs"}
@@ -527,17 +530,17 @@ export default function RightPanel({ livePrices }: Props) {
           ))}
         />
         <SummaryCard
-          label="Progress to FI"
-          value={`${progress.toFixed(0)}%`}
+          label="FI Number"
+          value={`$${(swrTarget / 1_000_000).toFixed(2)}M`}
           sub=""
-          icon={TrendingUp}
-          iconBg={C.warmWash}
-          iconColor={C.warm}
+          icon={CheckCircle}
+          iconBg={C.tealWash}
+          iconColor={C.teal}
           actionHint="What does this mean?"
-          onClick={() => openInfo("Progress to FI", (
+          onClick={() => openInfo("FI Number", (
             <>
-              <p style={{ margin: 0 }}>How close your net worth today is to your FI number. Your <strong>FI number</strong> is 25× your annual expenses (net of rental income &amp; Social Security) — the nest egg that sustains a 4% withdrawal rate.</p>
-              <p style={{ margin: "10px 0 0" }}>You’re at <strong>${(currentNW / 1_000_000).toFixed(2)}M</strong> of a <strong>${(swrTarget / 1_000_000).toFixed(2)}M</strong> target ({progress.toFixed(0)}%).</p>
+              <p style={{ margin: 0 }}>Your <strong>FI number</strong> is 25× your annual expenses (net of rental income &amp; Social Security) — the nest egg that sustains a 4% withdrawal rate. For this scenario that’s <strong>${(swrTarget / 1_000_000).toFixed(2)}M</strong>.</p>
+              <p style={{ margin: "10px 0 0" }}>You’re <strong>{progress.toFixed(0)}%</strong> of the way there — <strong>${(currentNW / 1_000_000).toFixed(2)}M</strong> today.</p>
               <button onClick={() => { setInfoModal(null); useUIStore.getState().setFinancesOpen(true); }}
                 style={{ marginTop: 14, display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, border: "none", background: C.teal, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
                 <Wallet size={15} /> Open your finances
@@ -545,57 +548,42 @@ export default function RightPanel({ livePrices }: Props) {
             </>
           ))}
         >
+          {/* Progress lives under the FI number — the bar plus where you are now. */}
           <div style={{ marginTop: 8 }}>
             <div style={{ height: 4, borderRadius: 99, background: C.borderSoft }}>
               <div style={{ height: "100%", borderRadius: 99, background: C.teal, width: `${progress}%`, transition: "width 0.8s ease" }} />
             </div>
             <div style={{ fontSize: 10, color: C.inkFaint, marginTop: 4 }}>
-              ${(currentNW / 1_000_000).toFixed(2)}M of ${(swrTarget / 1_000_000).toFixed(2)}M · Rule of 25
+              {progress.toFixed(0)}% there · ${(currentNW / 1_000_000).toFixed(2)}M today
             </div>
           </div>
         </SummaryCard>
 
-        {/* Alerts — plan health + FIRE milestones; tap for the full list. */}
-        {primaryNotice && (
-          <button
-            title="Tap for details"
-            onClick={() => openInfo("Alerts & status", (
-              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                {notices.map((n) => (
-                  <div key={n.id} style={{ display: "flex", gap: 10 }}>
-                    <span style={{ flexShrink: 0, marginTop: 2, width: 22, height: 22, borderRadius: 6, background: sevBg(n.severity), display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      {n.severity === "good" ? <CheckCircle size={13} color={sevColor(n.severity)} /> : <AlertTriangle size={13} color={sevColor(n.severity)} />}
-                    </span>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: sevColor(n.severity) }}>{n.title}</div>
-                      <div style={{ fontSize: 12.5, color: C.inkMid, lineHeight: 1.55, marginTop: 2 }}>{n.body}</div>
-                    </div>
+        {/* Alerts — every active notification, in full: plan health + each FIRE
+            milestone, word-for-word with the banners/callouts they come from. */}
+        {notices.length > 0 && (
+          <div style={{
+            flex: "1 0 260px", background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 10,
+            padding: "14px 18px", maxHeight: 320, overflowY: "auto",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+              <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: C.inkFaint }}>Alerts</span>
+              <span style={{ fontSize: 9, fontWeight: 700, color: C.inkFaint, background: C.bg, borderRadius: 99, padding: "1px 6px" }}>{notices.length}</span>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {notices.map((n) => (
+                <div key={n.id} style={{ display: "flex", gap: 9 }}>
+                  <span style={{ flexShrink: 0, marginTop: 1, width: 20, height: 20, borderRadius: 6, background: sevBg(n.severity), display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    {n.severity === "good" ? <CheckCircle size={12} color={sevColor(n.severity)} /> : <AlertTriangle size={12} color={sevColor(n.severity)} />}
+                  </span>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 700, color: sevColor(n.severity), lineHeight: 1.3 }}>{n.title}</div>
+                    <div style={{ fontSize: 11.5, color: C.inkMid, lineHeight: 1.5, marginTop: 2 }}>{n.body}</div>
                   </div>
-                ))}
-              </div>
-            ))}
-            style={{
-              flex: "1 0 240px", background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 10,
-              padding: "16px 20px", display: "flex", flexDirection: "column", justifyContent: "space-between",
-              minHeight: 110, textAlign: "left", cursor: "pointer", font: "inherit",
-              transition: "border-color 0.15s, box-shadow 0.15s",
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.borderColor = sevColor(primaryNotice.severity); e.currentTarget.style.boxShadow = `0 1px 3px ${C.border}`; }}
-            onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.boxShadow = "none"; }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: C.inkFaint, marginBottom: 6 }}>Alerts</div>
-                <div style={{ fontSize: 15, fontWeight: 800, color: sevColor(primaryNotice.severity), lineHeight: 1.25, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{primaryNotice.title}</div>
-              </div>
-              <div style={{ width: 34, height: 34, flexShrink: 0, borderRadius: 8, background: sevBg(primaryNotice.severity), display: "flex", alignItems: "center", justifyContent: "center" }}>
-                {primaryNotice.severity === "good" ? <CheckCircle size={16} color={sevColor(primaryNotice.severity)} /> : <AlertTriangle size={16} color={sevColor(primaryNotice.severity)} />}
-              </div>
+                </div>
+              ))}
             </div>
-            <div style={{ fontSize: 10, color: C.inkFaint, marginTop: 8 }}>
-              {notices.length > 1 ? `+${notices.length - 1} more · tap for details` : "Tap for details"}
-            </div>
-          </button>
+          </div>
         )}
       </div>
 

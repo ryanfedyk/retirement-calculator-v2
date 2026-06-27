@@ -1,7 +1,6 @@
 "use client";
 import { useState, useMemo } from "react";
 import { ResponsiveContainer, AreaChart, Area, Line, XAxis, YAxis, Tooltip, ReferenceLine, CartesianGrid } from "recharts";
-import { AlertTriangle, CheckCircle } from "lucide-react";
 import HorizonZoomButton from "@/components/finance/HorizonZoomButton";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
@@ -10,14 +9,14 @@ import { runSimulation, findIndependencePoint, assessPlan, toDisplayDollars } fr
 import { runMonteCarlo } from "@/engine/montecarlo";
 import { getLifeEvents } from "@/lib/horizonUtils";
 import { useHorizonProfile } from "@/config/horizonConfig";
-import { buildMomentumCards } from "@/components/finance/MotivationWidgets";
 import AiAnalysis from "@/components/finance/AiAnalysis";
 import PriceTicker from "@/components/finance/PriceTicker";
 import ScenarioLevers from "@/components/finance/ScenarioLevers";
 import { BranchStrip } from "@/components/finance/RightPanel";
+import SummaryCards from "@/components/finance/SummaryCards";
 import FireMoments from "@/components/fx/FireMoments";
 import { isCoastFI } from "@/lib/fire/moments";
-import { buildNotices, sevColor, sevBg } from "@/lib/planNotices";
+import { buildNotices } from "@/lib/planNotices";
 import type { LivePrices } from "@/components/finance/FinancialDashboard";
 
 const fmtM = (v: number) => {
@@ -38,7 +37,7 @@ interface Props {
 }
 
 export default function MobileFinancial({ livePrices, pricesFetching, onRefreshPrices, onOpenConfig }: Props) {
-  const { config, snapshot, profile } = useFinancialStore();
+  const { config, snapshot } = useFinancialStore();
   const dollarMode = useUIStore((s) => s.dollarMode);
   const inflationRate = config.market_assumptions.inflation_rate || 0;
   const dollarBasisLabel = dollarMode === "future" ? "future (nominal) dollars" : "today’s dollars";
@@ -82,21 +81,6 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
     health: plan.health, depletion: plan.depletion, reachesFI: !!indep, birthYear,
     metrics: { netWorth: currentNW, swrTarget, isIndependent, savingsRate, coastFI },
   }), [plan.health, plan.depletion, indep, currentNW, swrTarget, isIndependent, savingsRate, coastFI, birthYear]);
-
-  // Top metric strip — Financial Independence first, then the momentum cards
-  // (Coast FI / Freedom ratio / Years funded), all in one horizontal scroller.
-  const metricCards = useMemo(() => {
-    const fi = {
-      id: "fi", hero: true, tag: "Financial Independence",
-      value: indep ? indep.date : "30+ yrs", unit: "",
-      blurb: `${fmtM(currentNW)} now · ${Math.round(progress)}% to ${fmtM(swrTarget)}`,
-      color: C.teal, pct: progress as number | null,
-    };
-    const momentum = today
-      ? buildMomentumCards(today, config, traj, profile.birthDate).map((c) => ({ id: c.tag, hero: false, ...c }))
-      : [];
-    return [fi, ...momentum];
-  }, [indep, currentNW, progress, swrTarget, today, config, traj, profile.birthDate]);
 
   // Sample yearly (every 12 months) to keep the mobile chart light & legible.
   // Re-express in the global money basis first (month-0 metrics are unaffected).
@@ -196,13 +180,16 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
 
       <FireMoments netWorth={currentNW} swrTarget={swrTarget} isIndependent={today?.isIndependent ?? false} savingsRate={savingsRate} coastFI={coastFI} />
 
-      {/* Metric strip — Financial Independence first, then momentum cards, in one
-          horizontal scroller. */}
-      <div className="no-scrollbar" style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 4, scrollSnapType: "x proximity", WebkitOverflowScrolling: "touch" }}>
-        {metricCards.map((c) => (
-          <MetricCard key={c.id} {...c} />
-        ))}
-      </div>
+      {/* Summary cards — identical to desktop: Financial Independence · Progress
+          to FI · Alerts. */}
+      <SummaryCards
+        indepDate={indep ? indep.date : null}
+        currentNW={currentNW}
+        swrTarget={swrTarget}
+        progress={progress}
+        notices={notices}
+        onOpenFinances={() => useUIStore.getState().setFinancesOpen(true)}
+      />
 
       {/* Scenario levers — summary + quick adjustment; click in for the full editor */}
       <ScenarioLevers onOpenEditor={onOpenConfig} />
@@ -220,28 +207,6 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
         align="start"
       />
 
-      {/* Alerts — plan health + FIRE milestones, in full (same as desktop). */}
-      {notices.length > 0 && (
-        <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 16, padding: "14px 16px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
-            <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: C.inkFaint }}>Alerts</span>
-            <span style={{ fontSize: 9, fontWeight: 700, color: C.inkFaint, background: C.bg, borderRadius: 99, padding: "1px 6px" }}>{notices.length}</span>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {notices.map((n) => (
-              <div key={n.id} style={{ display: "flex", gap: 9 }}>
-                <span style={{ flexShrink: 0, marginTop: 1, width: 20, height: 20, borderRadius: 6, background: sevBg(n.severity), display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  {n.severity === "good" ? <CheckCircle size={12} color={sevColor(n.severity)} /> : <AlertTriangle size={12} color={sevColor(n.severity)} />}
-                </span>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 700, color: sevColor(n.severity), lineHeight: 1.3 }}>{n.title}</div>
-                  <div style={{ fontSize: 11.5, color: C.inkMid, lineHeight: 1.5, marginTop: 2 }}>{n.body}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Chart card — touchAction pan-y so dragging the chart never scrolls the page sideways */}
       <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 20, padding: "16px 12px 12px", touchAction: "pan-y" }}>
@@ -343,34 +308,6 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
 
 // A single metric card in the top scroll strip. `hero` (Financial Independence)
 // gets the teal gradient so it still reads as primary while sitting in the row.
-function MetricCard({ tag, value, unit, blurb, color, pct, hero }: {
-  tag: string; value: string; unit?: string; blurb: string; color: string;
-  pct?: number | null; hero?: boolean;
-}) {
-  const soft = hero ? "rgba(255,255,255,0.85)" : C.inkSoft;
-  return (
-    <div style={{
-      flex: "0 0 auto", width: "80%", maxWidth: 340, scrollSnapAlign: "start",
-      background: hero ? `linear-gradient(135deg, ${C.tealDark}, ${C.teal})` : C.bgCard,
-      border: hero ? "none" : `1px solid ${C.border}`, borderRadius: 20, padding: "16px 18px",
-      minHeight: 150, display: "flex", flexDirection: "column",
-      boxShadow: hero ? `0 10px 30px ${C.teal}40` : "none",
-    }}>
-      <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: soft }}>{tag}</div>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 6 }}>
-        <span style={{ fontSize: 30, fontWeight: 300, letterSpacing: "-0.02em", color: hero ? "white" : color, fontVariantNumeric: "tabular-nums" }}>{value}</span>
-        {unit ? <span style={{ fontSize: 12, color: soft }}>{unit}</span> : null}
-      </div>
-      <div style={{ fontSize: 12, color: hero ? "rgba(255,255,255,0.92)" : C.inkMid, marginTop: 6, lineHeight: 1.5, flex: 1 }}>{blurb}</div>
-      {pct != null && (
-        <div style={{ marginTop: 10, height: 6, borderRadius: 999, background: hero ? "rgba(255,255,255,0.25)" : C.bg }}>
-          <div style={{ height: "100%", borderRadius: 999, background: hero ? "white" : color, width: `${Math.min(100, pct)}%`, transition: "width 0.6s ease" }} />
-        </div>
-      )}
-    </div>
-  );
-}
-
 // Tiny milestone label for the mobile chart — alternates two rows to reduce overlap.
 function MileLabel({ viewBox, value, fill, row = 0 }: any) {
   if (!viewBox) return null;

@@ -16,6 +16,7 @@ import { useIsMobile } from "@/hooks/useIsMobile";
 import { runSimulation, assessPlan, type PlanHealth } from "@/engine/calculator";
 import { useConfirm } from "@/components/ui/DialogProvider";
 import ScenarioCompare from "@/components/finance/ScenarioCompare";
+import { BranchStrip } from "@/components/finance/RightPanel";
 import { C, SCENARIO_PALETTE as PALETTE } from "@/config/colors";
 import type { LivePrices } from "@/hooks/useLivePrices";
 
@@ -476,8 +477,11 @@ export default function ScenariosHub({ livePrices, onOpen }: { livePrices: LiveP
           </button>
         </div>
 
-        {/* Ideas live inside each scenario now (as "Branch this scenario"), not on
-            the compare screen — on both desktop and mobile. */}
+        {/* Ideas to try — offshoots of your primary plan you can add as new
+            scenarios to compare. Same engine as the in-scenario "Branch" strip. */}
+        <div style={{ marginTop: 32 }}>
+          <BranchStrip livePrices={livePrices} title="Ideas to try" subtitle="· add as a new scenario to compare" />
+        </div>
       </div>
     </div>
   );

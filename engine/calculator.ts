@@ -1298,3 +1298,36 @@ export function assessPlan(points: TrajectoryPoint[]): PlanAssessment {
   }
   return { health: "on-track", fi };
 }
+
+export interface RetirementWindow {
+  /** Earliest exit year whose plan still funds retirement to age 100 and reaches FI. */
+  earliest: number | null;
+  /** Earliest exit year that's comfortably on-track (a real cushion). */
+  recommended: number | null;
+}
+
+/**
+ * Scan candidate exit years to find the soonest the user could retire and stay
+ * funded (`earliest`) and the soonest with a comfortable cushion (`recommended`).
+ * Later exits are healthier, so we scan ascending and stop once both are found.
+ */
+export function findRetirementWindow(
+  snapshot: FinancialSnapshot,
+  config: SimulationConfiguration,
+  livePrice = 0,
+): RetirementWindow {
+  const currentYear = new Date().getFullYear();
+  const maxYear = (config.birth_year || 1985) + 75;
+  let earliest: number | null = null;
+  let recommended: number | null = null;
+  for (let yr = currentYear; yr <= maxYear; yr++) {
+    const cfg: SimulationConfiguration = { ...structuredClone(config), career_path: { ...config.career_path, exit_year: yr } };
+    const pts = runSimulation(snapshot, cfg, livePrice);
+    const { health } = assessPlan(pts);
+    const reachesFI = !!findIndependencePoint(pts);
+    if (earliest == null && health !== "shortfall" && reachesFI) earliest = yr;
+    if (recommended == null && health === "on-track") recommended = yr;
+    if (earliest != null && recommended != null) break;
+  }
+  return { earliest, recommended };
+}

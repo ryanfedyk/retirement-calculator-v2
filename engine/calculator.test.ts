@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { runSimulation, findIndependencePoint, assessPlan, toDisplayDollars } from "@/engine/calculator";
+import { runSimulation, findIndependencePoint, assessPlan, toDisplayDollars, findRetirementWindow } from "@/engine/calculator";
 import { estimateMonthlySocialSecurity } from "@/engine/social_security";
 import { calculateTax } from "@/engine/tax_engine";
 import type { FinancialSnapshot, SimulationConfiguration } from "@/engine/calculator";
@@ -54,6 +54,21 @@ function idleSnap(cash: number): FinancialSnapshot {
   snap.liquid_assets.cash_savings = cash;
   return snap;
 }
+
+describe("findRetirementWindow — earliest fundable & recommended exit years", () => {
+  it("returns ordered years (recommended no earlier than earliest) for a fundable plan", () => {
+    const win = findRetirementWindow(idleSnap(5_000_000), baseConfig(), 0);
+    expect(win.earliest).not.toBeNull();
+    if (win.earliest != null && win.recommended != null) {
+      expect(win.recommended).toBeGreaterThanOrEqual(win.earliest);
+    }
+  });
+
+  it("never returns a year before the current year", () => {
+    const win = findRetirementWindow(idleSnap(5_000_000), baseConfig(), 0);
+    if (win.earliest != null) expect(win.earliest).toBeGreaterThanOrEqual(YEAR);
+  });
+});
 
 describe("assessPlan — solvency is separate from the FI flag", () => {
   it("flags a retiree who outspends modest assets as a shortfall (runs out of money)", () => {

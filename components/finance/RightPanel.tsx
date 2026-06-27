@@ -8,7 +8,7 @@ import { Flag, CheckCircle, CalendarDays, Sparkles, AlertTriangle, X, Wallet, Pl
 import HorizonZoomButton from "./HorizonZoomButton";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
-import { runSimulation, findIndependencePoint, assessPlan, toDisplayDollars } from "@/engine/calculator";
+import { runSimulation, findIndependencePoint, assessPlan, toDisplayDollars, findRetirementWindow } from "@/engine/calculator";
 import type { TrajectoryPoint } from "@/engine/calculator";
 import { runMonteCarlo } from "@/engine/montecarlo";
 import { MomentumTurnstile } from "./MotivationWidgets";
@@ -257,7 +257,7 @@ interface Props {
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 export default function RightPanel({ livePrices }: Props) {
-  const { snapshot, config, profile } = useFinancialStore();
+  const { snapshot, config, profile, updateNestedConfig } = useFinancialStore();
   const dollarMode = useUIStore((s) => s.dollarMode);
   const setPlanPanelOpen = useUIStore((s) => s.setPlanPanelOpen);
   const planPanelOpen = useUIStore((s) => s.planPanelOpen);
@@ -286,6 +286,12 @@ export default function RightPanel({ livePrices }: Props) {
   }), [snapshot, livePrices]);
 
   // ── Simulations (all use enriched snapshot) ───────────────────────────────
+  // Earliest exit year that stays funded, and the soonest with a real cushion.
+  const retireWindow = useMemo(
+    () => findRetirementWindow(enrichedSnapshot, config, liveGoogPrice),
+    [enrichedSnapshot, config, liveGoogPrice],
+  );
+
   const trajectoryData = useMemo(
     () => runSimulation(enrichedSnapshot, config, liveGoogPrice),
     [enrichedSnapshot, config, liveGoogPrice]
@@ -494,6 +500,36 @@ export default function RightPanel({ livePrices }: Props) {
       {/* The "Edit full plan" affordance opens the side panel; hide it while the
           panel is already open to avoid a redundant control. */}
       <ScenarioLevers onOpenEditor={planPanelOpen ? undefined : () => setPlanPanelOpen(true)} />
+
+      {/* ── When you could retire — earliest fundable & recommended exit years ── */}
+      {(retireWindow.earliest || retireWindow.recommended) && (
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "10px 18px", flexShrink: 0, background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 12, padding: "14px 16px" }}>
+          <div style={{ flex: "1 1 200px", minWidth: 0 }}>
+            <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: C.inkFaint }}>When you could retire</div>
+            <div style={{ fontSize: 11.5, color: C.inkSoft, marginTop: 2, lineHeight: 1.45 }}>The soonest you could leave and stay funded — and the soonest with a comfortable cushion.</div>
+          </div>
+          {([["Earliest", retireWindow.earliest, C.warm], ["Recommended", retireWindow.recommended, C.tealDark]] as [string, number | null, string][]).map(([label, yr, color]) => (
+            <div key={label} style={{ textAlign: "right", minWidth: 96 }}>
+              <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.inkFaint }}>{label}</div>
+              {yr ? (
+                <>
+                  <div style={{ fontSize: 18, fontWeight: 800, color, lineHeight: 1.1, fontVariantNumeric: "tabular-nums" }}>{yr}</div>
+                  <div style={{ fontSize: 10, color: C.inkSoft }}>age {yr - birthYear}</div>
+                  {yr !== config.career_path.exit_year && (
+                    <button onClick={() => updateNestedConfig("career_path", { exit_year: yr })}
+                      style={{ marginTop: 4, background: "none", border: `1px solid ${C.border}`, borderRadius: 7, padding: "3px 9px", fontSize: 10.5, fontWeight: 700, color: C.tealDark, cursor: "pointer" }}>
+                      Use
+                    </button>
+                  )}
+                  {yr === config.career_path.exit_year && <div style={{ fontSize: 9.5, fontWeight: 700, color: C.teal }}>current</div>}
+                </>
+              ) : (
+                <div style={{ fontSize: 13, fontWeight: 700, color: C.inkFaint, lineHeight: 1.4 }}>—</div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* ── Branch this scenario — ideas that offshoot the current plan ── */}
       <BranchStrip livePrices={livePrices} />

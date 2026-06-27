@@ -9,12 +9,11 @@
  */
 import { useMemo, useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { Plus, Copy, Trash2, Sparkles, MoreVertical, Wallet, Eye, EyeOff, ChevronRight, Pencil, FileText, Star } from "lucide-react";
+import { Plus, Copy, Trash2, MoreVertical, Wallet, Eye, EyeOff, ChevronRight, Pencil, FileText, Star } from "lucide-react";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { runSimulation, assessPlan, type PlanHealth } from "@/engine/calculator";
-import { useScenarioSuggestions, type Suggestion } from "@/hooks/useScenarioSuggestions";
 import { useConfirm } from "@/components/ui/DialogProvider";
 import ScenarioCompare from "@/components/finance/ScenarioCompare";
 import { C, SCENARIO_PALETTE as PALETTE } from "@/config/colors";
@@ -152,66 +151,6 @@ function EditableName({ name, onCommit, editing, setEditing, clickToEdit }: {
     >
       {name}
     </span>
-  );
-}
-
-/** Suggested tweaks as a quiet, secondary strip — visually subordinate to the
- * real scenario cards above (lighter "ghost" cards, muted text, smaller) so
- * suggestions read as optional ideas, not as competing saved plans. */
-function SuggestionsStrip({ suggestions, isMobile }: { suggestions: Suggestion[]; isMobile: boolean }) {
-  if (!suggestions.length) return null;
-
-  // Mobile: a horizontally-scrollable strip (scroll-snap, with the next card
-  // peeking). Desktop: wrap, so every idea is visible without a hidden scrollbar.
-  const containerStyle: React.CSSProperties = isMobile
-    ? { display: "flex", gap: 10, overflowX: "auto", paddingBottom: 6, scrollSnapType: "x proximity", WebkitOverflowScrolling: "touch" }
-    : { display: "flex", flexWrap: "wrap", gap: 10 };
-
-  return (
-    <div style={{ marginTop: 36 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
-        <Sparkles size={13} color={C.inkFaint} />
-        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.inkFaint }}>Ideas to try</span>
-        <span style={{ fontSize: 10, color: C.inkFaint }}>· tap to add as a scenario</span>
-      </div>
-
-      <div className={isMobile ? "no-scrollbar" : undefined} style={containerStyle}>
-        {suggestions.map((s, j) => (
-          <button
-            key={j}
-            onClick={s.build}
-            title={`Create a new scenario: ${s.title}`}
-            style={{
-              flex: "0 0 auto", width: 190, textAlign: "left",
-              ...(isMobile ? { scrollSnapAlign: "start" } : {}),
-              display: "flex", flexDirection: "column", gap: 6, padding: "11px 13px", borderRadius: 10,
-              border: `1px dashed ${C.border}`, background: "transparent", cursor: "pointer",
-              transition: "border-color 0.15s, background 0.15s",
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.borderColor = C.tealLight; e.currentTarget.style.background = C.bgCard; }}
-            onMouseLeave={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = "transparent"; }}
-          >
-            <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700, color: C.inkMid, minWidth: 0 }}>
-              <Plus size={13} color={C.inkFaint} style={{ flexShrink: 0 }} />
-              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</span>
-            </span>
-            <span style={{ fontSize: 10.5, color: C.inkSoft, lineHeight: 1.35 }}>{s.detail}</span>
-            {/* The trade-off: time you gain (or give up) vs. the net-worth cost. */}
-            <div style={{ display: "flex", gap: 14, marginTop: 2 }}>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: C.inkFaint }}>Freedom</div>
-                <div style={{ fontSize: 12.5, fontWeight: 800, color: s.timeColor, fontVariantNumeric: "tabular-nums" }}>{s.timeDelta}</div>
-                {s.timeHours && <div style={{ fontSize: 8.5, color: C.inkFaint, whiteSpace: "nowrap" }}>{s.timeHours}</div>}
-              </div>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: C.inkFaint }}>Net worth</div>
-                <div style={{ fontSize: 12.5, fontWeight: 800, color: s.nwColor, fontVariantNumeric: "tabular-nums" }}>{s.nwDelta}</div>
-              </div>
-            </div>
-          </button>
-        ))}
-      </div>
-    </div>
   );
 }
 
@@ -356,7 +295,6 @@ export default function ScenariosHub({ livePrices, onOpen }: { livePrices: LiveP
   const setFinancesOpen = useUIStore((s) => s.setFinancesOpen);
   const openReport = useUIStore((s) => s.openReport);
   const dollarMode = useUIStore((s) => s.dollarMode);
-  const suggestions = useScenarioSuggestions(livePrices);
   const confirm = useConfirm();
   const isMobile = useIsMobile();
 
@@ -538,9 +476,8 @@ export default function ScenariosHub({ livePrices, onOpen }: { livePrices: LiveP
           </button>
         </div>
 
-        {/* Suggested scenarios — mobile only here; on desktop, ideas live inside
-            each scenario (as branches of that plan), not on the compare screen. */}
-        {isMobile && <SuggestionsStrip suggestions={suggestions} isMobile={isMobile} />}
+        {/* Ideas live inside each scenario now (as "Branch this scenario"), not on
+            the compare screen — on both desktop and mobile. */}
       </div>
     </div>
   );

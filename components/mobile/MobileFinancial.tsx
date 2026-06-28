@@ -197,10 +197,6 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
         onOpenFinances={() => useUIStore.getState().setFinancesOpen(true)}
       />
 
-      {/* Scenario levers — summary + quick adjustment; the retirement-window
-          notches and "Branch this scenario" live in here now. */}
-      <ScenarioLevers onOpenEditor={onOpenConfig} livePrices={livePrices} retireWindow={retireWindow} />
-
       {/* Chart card — touchAction pan-y so dragging the chart never scrolls the page sideways */}
       <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 20, padding: "16px 12px 12px", touchAction: "pan-y" }}>
         {/* Live prices for your holdings — the chart's inputs, given a home atop it. */}
@@ -303,6 +299,10 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
         )}
         </div>
       </div>
+
+      {/* Scenario levers — directly under the chart so tuning and watching the
+          trajectory react stays one tight feedback loop. "What if…" lives in here. */}
+      <ScenarioLevers onOpenEditor={onOpenConfig} livePrices={livePrices} retireWindow={retireWindow} />
 
       {/* AI Coach — insight below the chart */}
       <AiAnalysis config={config} snapshot={snapshot} trajectory={traj} />

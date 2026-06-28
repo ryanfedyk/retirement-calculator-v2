@@ -1,16 +1,15 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Anchor, Wind, Compass, Sun } from "lucide-react";
+import { Anchor, Wind, CalendarRange, Sun } from "lucide-react";
 import { C } from "@/config/colors";
 import { useRetirementDate } from "@/hooks/useRetirementDate";
 import MacroSeasonsTimeline from "@/components/MacroSeasonsTimeline";
 import ReclaimedTimeCalculator from "@/components/ReclaimedTimeCalculator";
-import AdventureGenerator from "@/components/AdventureGenerator";
+import PerfectYear from "@/components/forecasting/PerfectYear";
 import PerfectDay from "@/components/forecasting/PerfectDay";
 import LifeEventsFab from "@/components/forecasting/LifeEventsFab";
-import type { AdventureBlueprint } from "@/types/horizon";
 
-type Sub = "seasons" | "perfectday" | "reclaim" | "adventure";
+type Sub = "seasons" | "perfectday" | "reclaim" | "year";
 
 function useCountdown(target: Date) {
   const [now, setNow] = useState(() => Date.now());
@@ -31,7 +30,6 @@ export default function MobileForecasting() {
   const { retirementDate, exitYear } = useRetirementDate();
   const { days, hours, mins, secs } = useCountdown(retirementDate);
   const [sub, setSub] = useState<Sub>("seasons");
-  const [saved, setSaved] = useState<AdventureBlueprint[]>([]);
 
   const months = Math.floor(days / 30.44);
   const summers = Math.max(0, exitYear - new Date().getFullYear());
@@ -40,7 +38,7 @@ export default function MobileForecasting() {
     { id: "seasons",    label: "Seasons",  icon: Anchor },
     { id: "perfectday", label: "Day",      icon: Sun },
     { id: "reclaim",    label: "Reclaim",  icon: Wind },
-    { id: "adventure",  label: "Adventure",icon: Compass },
+    { id: "year",       label: "Year",     icon: CalendarRange },
   ];
 
   return (
@@ -106,7 +104,7 @@ export default function MobileForecasting() {
         {sub === "seasons"    && <MacroSeasonsTimeline />}
         {sub === "perfectday" && <PerfectDay />}
         {sub === "reclaim"    && <ReclaimedTimeCalculator />}
-        {sub === "adventure" && <AdventureGenerator saved={saved} setSaved={setSaved} />}
+        {sub === "year" && <PerfectYear />}
       </div>
 
       {/* FAB to add life events — sits above the bottom tab bar */}

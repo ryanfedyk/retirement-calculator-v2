@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
-import { Anchor, Wind, Compass, Sun } from "lucide-react";
+import { Anchor, Wind, CalendarRange, Sun } from "lucide-react";
 import { useHorizonProfile } from "@/config/horizonConfig";
 import { C } from "@/config/colors";
 import Header, { type AppView } from "@/components/Header";
@@ -14,7 +14,7 @@ import { useRetirementDate } from "@/hooks/useRetirementDate";
 import FlightMap             from "@/components/FlightMap";
 import MacroSeasonsTimeline  from "@/components/MacroSeasonsTimeline";
 import ReclaimedTimeCalculator from "@/components/ReclaimedTimeCalculator";
-import AdventureGenerator    from "@/components/AdventureGenerator";
+import PerfectYear          from "@/components/forecasting/PerfectYear";
 import FinancialDashboard    from "@/components/finance/FinancialDashboard";
 import PerfectDay            from "@/components/forecasting/PerfectDay";
 import PriceTicker           from "@/components/finance/PriceTicker";
@@ -27,19 +27,17 @@ import { useUIStore } from "@/store/useUIStore";
 import { usePartnerStore } from "@/store/usePartnerStore";
 import { decodeAnswers } from "@/lib/partnerAlignment";
 import { useBrowserBackNav } from "@/hooks/useBrowserBackNav";
-import type { AdventureBlueprint } from "@/types/horizon";
 
 const NAV = [
   { id: "seasons",    label: "Seasons",     icon: Anchor },
   { id: "perfectday", label: "Perfect Day", icon: Sun },
   { id: "reclaim",    label: "Reclaim",     icon: Wind },
-  { id: "adventure",  label: "Adventure",   icon: Compass },
+  { id: "year",       label: "Perfect Year", icon: CalendarRange },
 ] as const;
 type NavId = typeof NAV[number]["id"];
 
 export default function DashboardShell() {
   const [tab,   setTab]   = useState<NavId>("seasons");
-  const [saved, setSaved] = useState<AdventureBlueprint[]>([]);
   const { retirementDate } = useRetirementDate();
   const { user } = useHorizonProfile();
   const { snapshot, config, activeScenarioId, primaryScenarioId, setActiveScenario } = useFinancialStore();
@@ -144,7 +142,7 @@ export default function DashboardShell() {
       {/* ── Forecasting View ── */}
       {appView === "forecasting" && (
         <>
-          <FlightMap pinnedAdventures={saved} />
+          <FlightMap />
           <LifeEventsFab />
 
           {/* Nav */}
@@ -169,7 +167,7 @@ export default function DashboardShell() {
               {tab === "seasons"    && <MacroSeasonsTimeline />}
               {tab === "perfectday" && <PerfectDay />}
               {tab === "reclaim"    && <ReclaimedTimeCalculator />}
-              {tab === "adventure" && <AdventureGenerator saved={saved} setSaved={setSaved} />}
+              {tab === "year" && <PerfectYear />}
             </div>
           </main>
 

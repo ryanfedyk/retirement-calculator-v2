@@ -197,8 +197,9 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
         onOpenFinances={() => useUIStore.getState().setFinancesOpen(true)}
       />
 
-      {/* Chart card — touchAction pan-y so dragging the chart never scrolls the page sideways */}
-      <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 20, padding: "16px 12px 12px", touchAction: "pan-y" }}>
+      {/* Chart lives directly on the canvas (no card) to cut visual complexity.
+          touchAction pan-y so dragging the chart never scrolls the page sideways. */}
+      <div style={{ padding: "0 2px", touchAction: "pan-y" }}>
         {/* Live prices for your holdings — the chart's inputs, given a home atop it. */}
         <div style={{ padding: "0 4px 12px", marginBottom: 12, borderBottom: `1px solid ${C.borderSoft}` }}>
           <PriceTicker
@@ -302,7 +303,7 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
 
       {/* Scenario levers — directly under the chart so tuning and watching the
           trajectory react stays one tight feedback loop. "What if…" lives in here. */}
-      <ScenarioLevers onOpenEditor={onOpenConfig} livePrices={livePrices} retireWindow={retireWindow} />
+      <ScenarioLevers onOpenEditor={onOpenConfig} livePrices={livePrices} retireWindow={retireWindow} bare />
 
       {/* AI Coach — insight below the chart */}
       <AiAnalysis config={config} snapshot={snapshot} trajectory={traj} />

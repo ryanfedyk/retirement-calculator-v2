@@ -31,13 +31,16 @@ export async function POST(req: Request) {
 
   const prompt = `
 You are a thoughtful career and life-design coach mapping out the "macro-seasons"
-of a tech executive's glide path from full-time work to retirement.
+of someone's glide path from full-time work to retirement.
+
+Do NOT name or assume a specific employer, company, or industry — keep all
+content employer-agnostic so it fits any user.
 
 Here is the timeline (each season already has fixed years, type, and a work-intensity %):
 ${timeline}
 
 Season types:
-- taper      = winding down at the current employer (Google), progressively lower intensity
+- taper      = winding down at the user's current employer, progressively lower intensity
 - sabbatical = a deliberate full break from work
 - jump       = a high-agency entrepreneurial "career jump" / startup bet
 - bridge     = a lower-intensity bridge job between peak career and full retirement

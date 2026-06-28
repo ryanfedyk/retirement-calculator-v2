@@ -1,17 +1,16 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Anchor, Wind, Compass, Clock, Sun } from "lucide-react";
+import { Anchor, Wind, Compass, Sun } from "lucide-react";
 import { C } from "@/config/colors";
 import { useRetirementDate } from "@/hooks/useRetirementDate";
 import MacroSeasonsTimeline from "@/components/MacroSeasonsTimeline";
 import ReclaimedTimeCalculator from "@/components/ReclaimedTimeCalculator";
 import AdventureGenerator from "@/components/AdventureGenerator";
-import DailyDeflationWidget from "@/components/DailyDeflationWidget";
 import PerfectDay from "@/components/forecasting/PerfectDay";
 import LifeEventsFab from "@/components/forecasting/LifeEventsFab";
 import type { AdventureBlueprint } from "@/types/horizon";
 
-type Sub = "seasons" | "perfectday" | "reclaim" | "adventure" | "deflate";
+type Sub = "seasons" | "perfectday" | "reclaim" | "adventure";
 
 function useCountdown(target: Date) {
   const [now, setNow] = useState(() => Date.now());
@@ -42,7 +41,6 @@ export default function MobileForecasting() {
     { id: "perfectday", label: "Day",      icon: Sun },
     { id: "reclaim",    label: "Reclaim",  icon: Wind },
     { id: "adventure",  label: "Adventure",icon: Compass },
-    { id: "deflate",    label: "Deflate",  icon: Clock },
   ];
 
   return (
@@ -109,7 +107,6 @@ export default function MobileForecasting() {
         {sub === "perfectday" && <PerfectDay />}
         {sub === "reclaim"    && <ReclaimedTimeCalculator />}
         {sub === "adventure" && <AdventureGenerator saved={saved} setSaved={setSaved} />}
-        {sub === "deflate"   && <DailyDeflationWidget />}
       </div>
 
       {/* FAB to add life events — sits above the bottom tab bar */}

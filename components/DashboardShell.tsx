@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
-import { Anchor, Wind, Clock, Compass, Sun } from "lucide-react";
+import { Anchor, Wind, Compass, Sun } from "lucide-react";
 import { useHorizonProfile } from "@/config/horizonConfig";
 import { C } from "@/config/colors";
 import Header, { type AppView } from "@/components/Header";
@@ -15,7 +15,6 @@ import FlightMap             from "@/components/FlightMap";
 import MacroSeasonsTimeline  from "@/components/MacroSeasonsTimeline";
 import ReclaimedTimeCalculator from "@/components/ReclaimedTimeCalculator";
 import AdventureGenerator    from "@/components/AdventureGenerator";
-import DailyDeflationWidget  from "@/components/DailyDeflationWidget";
 import FinancialDashboard    from "@/components/finance/FinancialDashboard";
 import PerfectDay            from "@/components/forecasting/PerfectDay";
 import PriceTicker           from "@/components/finance/PriceTicker";
@@ -35,7 +34,6 @@ const NAV = [
   { id: "perfectday", label: "Perfect Day", icon: Sun },
   { id: "reclaim",    label: "Reclaim",     icon: Wind },
   { id: "adventure",  label: "Adventure",   icon: Compass },
-  { id: "deflate",    label: "Deflate",     icon: Clock },
 ] as const;
 type NavId = typeof NAV[number]["id"];
 
@@ -172,7 +170,6 @@ export default function DashboardShell() {
               {tab === "perfectday" && <PerfectDay />}
               {tab === "reclaim"    && <ReclaimedTimeCalculator />}
               {tab === "adventure" && <AdventureGenerator saved={saved} setSaved={setSaved} />}
-              {tab === "deflate"   && <DailyDeflationWidget />}
             </div>
           </main>
 

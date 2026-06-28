@@ -1,236 +1,149 @@
 "use client";
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { C } from "@/config/colors";
 import { HORIZON_CONFIG } from "@/config/horizonConfig";
+import { useFinancialStore } from "@/store/useFinancialStore";
 
-const PHASE_TARGETS: Record<number, number> = { 1: 50, 2: 45, 3: 38, 4: 30 };
+// The conventional full-retirement benchmark we measure "reclaimed" prime years
+// against, and the horizon for the life-in-weeks grid.
+const BENCHMARK_AGE = 65;
+const HORIZON_AGE   = 90;
+const WEEKS = 52;
 
 const LIFE_USES = [
-  { label: "Guitar sessions", icon: "🎸", hoursEach: 1 },
-  { label: "Long trail runs",  icon: "🏃", hoursEach: 2 },
-  { label: "Full family weekends", icon: "👨‍👩‍👧‍👧", hoursEach: 16 },
-  { label: "Days of slow travel", icon: "🌍", hoursEach: 10 },
-  { label: "Deep reading sessions", icon: "📖", hoursEach: 2 },
-  { label: "Uninterrupted mornings", icon: "☀️", hoursEach: 3 },
+  { label: "weekends with people you love", icon: "👨‍👩‍👧‍👧", weeksDiv: 1 / 2 }, // ~2 weekend-days per week
+  { label: "summers in your prime",          icon: "☀️", weeksDiv: 52 },
+  { label: "slow-travel trips (2 wks each)",  icon: "🌍", weeksDiv: 2 },
+  { label: "mornings that are yours",         icon: "🌅", weeksDiv: 1 / 7 },
 ];
 
+/**
+ * Reclaimed Time — a dynamic, interactive picture of the life you buy back.
+ * The centerpiece is a "life in weeks" grid: every square is one week from now
+ * to age 90. Drag your exit year and watch the prime-of-life weeks you reclaim
+ * (vs. working to 65) light up. A rotating mantra sits in the hero — the daily
+ * mantras now live here rather than in a standalone tab you'd never revisit.
+ */
 export default function ReclaimedTimeCalculator() {
-  const [currentHours, setCurrentHours] = useState<number>(HORIZON_CONFIG.work.avgHoursPerWeek);
-  const [theaterHours, setTheaterHours] = useState<number>(HORIZON_CONFIG.work.corporateTheaterHoursPerWeek);
+  const { config, updateNestedConfig } = useFinancialStore();
+  const nowYear   = new Date().getFullYear();
+  const birthYear = config.birth_year || nowYear - 40;
+  const currentAge = Math.max(18, nowYear - birthYear);
+  const exitYear  = config.career_path.exit_year;
+  const exitAge   = Math.max(currentAge, exitYear - birthYear);
 
-  const calcs = useMemo(() => HORIZON_CONFIG.phases.map((phase) => {
-    const target      = PHASE_TARGETS[phase.id];
-    const weeklyDelta = Math.max(0, currentHours - target);
-    const theaterSave = theaterHours * (phase.id * 0.25);
-    const weeklyTotal = weeklyDelta + theaterSave;
-    const phaseTotal  = Math.round(weeklyTotal * 52);
-    return { phase, target, weeklyDelta, theaterSave: Math.round(theaterSave * 10) / 10, weeklyTotal: Math.round(weeklyTotal * 10) / 10, phaseTotal };
-  }), [currentHours, theaterHours]);
+  // Rotate the mantra in the hero for a living, dynamic feel.
+  const mantras = HORIZON_CONFIG.mantras;
+  const [mantraIdx, setMantraIdx] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setMantraIdx(i => (i + 1) % mantras.length), 7000);
+    return () => clearInterval(id);
+  }, [mantras.length]);
 
-  const grandTotal   = calcs.reduce((s, c) => s + c.phaseTotal, 0);
-  const maxWeekly    = Math.max(...calcs.map(c => c.weeklyTotal), 1);
+  const setExit = (yr: number) => updateNestedConfig("career_path", { exit_year: yr });
 
-  // Hours saved in the current week vs. full intensity
-  const weekNowSaved = calcs[0].weeklyTotal;
+  const stats = useMemo(() => {
+    const primeYears = Math.max(0, BENCHMARK_AGE - exitAge); // reclaimed vs working to 65
+    const primeWeeks = primeYears * WEEKS;
+    const freeYears  = Math.max(0, HORIZON_AGE - exitAge);
+    return { primeYears, primeWeeks, freeYears };
+  }, [exitAge]);
+
+  // Build the life-in-weeks grid: one row per year from this year to age 90.
+  const rows = useMemo(() => {
+    const out: { age: number; kind: "work" | "prime" | "free" }[] = [];
+    for (let age = currentAge; age < HORIZON_AGE; age++) {
+      const kind = age < exitAge ? "work" : age < BENCHMARK_AGE ? "prime" : "free";
+      out.push({ age, kind });
+    }
+    return out;
+  }, [currentAge, exitAge]);
+
+  const cellColor = (kind: "work" | "prime" | "free") =>
+    kind === "work" ? C.borderSoft : kind === "prime" ? C.teal : C.tealLight;
+
+  const maxExit = Math.max(birthYear + 70, exitYear);
 
   return (
     <div>
-      {/* ── Header ── */}
-      <div className="mb-10">
-        <h2 style={{ color: C.ink }} className="text-2xl font-light tracking-tight mb-2">
-          Reclaimed Time
-        </h2>
-        <p style={{ color: C.inkSoft }} className="text-sm">
-          Every hour you stop giving to corporate theater is an hour you can invest in the life
-          waiting on the other side. Adjust your inputs — watch the compound effect.
+      {/* ── Hero: rotating mantra + the headline number ── */}
+      <div className="mb-8 p-7 rounded-2xl" style={{ background: C.tealWash, border: `1px solid ${C.tealLight}` }}>
+        <p style={{ color: C.tealDark }} className="text-[10px] uppercase tracking-widest mb-3">Reclaimed Time</p>
+        <p key={mantraIdx} style={{ color: C.ink, animation: "fadeIn 0.8s ease" }} className="text-xl md:text-2xl font-light leading-relaxed italic">
+          &ldquo;{mantras[mantraIdx]}&rdquo;
         </p>
-      </div>
-
-      {/* ── Inputs ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-10">
-        {[
-          {
-            label: "Current hours per week at work",
-            sub: `${Math.round((currentHours / 168) * 100)}% of your waking week`,
-            value: currentHours, min: 35, max: 80,
-            set: setCurrentHours, accent: C.tealDark,
-          },
-          {
-            label: "Corporate theater hours per week",
-            sub: "Performative meetings, unnecessary admin, status theater",
-            value: theaterHours, min: 0, max: 25,
-            set: setTheaterHours, accent: C.teal,
-          },
-        ].map(s => (
-          <div key={s.label} className="p-6 rounded-2xl border"
-               style={{ background: C.bgCard, borderColor: C.borderSoft }}>
-            <p style={{ color: C.inkSoft }} className="text-[11px] uppercase tracking-widest mb-1">{s.label}</p>
-            <p style={{ color: C.inkFaint }} className="text-[10px] mb-4">{s.sub}</p>
-            <div className="flex items-center gap-5">
-              <input type="range" min={s.min} max={s.max} value={s.value}
-                     onChange={e => s.set(Number(e.target.value))}
-                     className="flex-1" style={{ accentColor: s.accent }} />
-              <span style={{ color: C.ink }} className="text-4xl font-extralight tabular-nums w-14 text-right">
-                {s.value}
-              </span>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* ── This Week Callout ── */}
-      <div className="mb-8 p-5 rounded-2xl flex items-center gap-5"
-           style={{ background: C.tealWash, border: `1px solid ${C.tealLight}` }}>
-        <div className="text-center shrink-0">
-          <p style={{ color: C.tealDark }} className="text-[10px] uppercase tracking-widest mb-1">This Week</p>
-          <p style={{ color: C.ink }} className="text-4xl font-extralight tabular-nums">
-            {weekNowSaved.toFixed(1)}
-          </p>
-          <p style={{ color: C.inkSoft }} className="text-[11px]">hrs you could reclaim</p>
+        <div className="mt-6 flex items-end gap-3 flex-wrap">
+          <span style={{ color: C.tealDark }} className="text-5xl font-extralight tabular-nums leading-none">{stats.primeYears}</span>
+          <span style={{ color: C.inkMid }} className="text-sm mb-1">
+            {stats.primeYears === 1 ? "year" : "years"} of your <strong>prime</strong> reclaimed by leaving at {exitYear} instead of {BENCHMARK_AGE}
+            {stats.primeYears === 0 && " — drag your exit year earlier to buy some back"}
+          </span>
         </div>
-        <div className="w-px self-stretch" style={{ background: C.tealLight }} />
-        <p style={{ color: C.inkMid }} className="text-sm leading-relaxed italic">
-          Starting Phase 1 today at {PHASE_TARGETS[1]} hrs/week instead of {currentHours} frees{" "}
-          <span style={{ color: C.ink }} className="font-semibold not-italic">{weekNowSaved.toFixed(1)} hours</span> this
-          week alone. Over Phase 1 that compounds to{" "}
-          <span style={{ color: C.ink }} className="font-semibold not-italic">{calcs[0].phaseTotal.toLocaleString()} hours</span>.
-        </p>
       </div>
 
-      {/* ── Per-Phase Bar Chart ── */}
+      {/* ── Interactive exit-year control ── */}
       <div className="mb-8 p-6 rounded-2xl border" style={{ background: C.bgCard, borderColor: C.borderSoft }}>
-        <p style={{ color: C.inkFaint }} className="text-[10px] uppercase tracking-widest mb-6">
-          Weekly Hours Reclaimed — By Phase
-        </p>
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+          <p style={{ color: C.inkSoft }} className="text-[11px] uppercase tracking-widest">Exit year — drag to see the weeks you reclaim</p>
+          <span style={{ color: C.ink }} className="text-2xl font-light tabular-nums">{exitYear} <span style={{ color: C.inkSoft }} className="text-sm">· age {exitAge}</span></span>
+        </div>
+        <input type="range" min={nowYear} max={maxExit} value={exitYear}
+               onChange={e => setExit(Number(e.target.value))}
+               className="w-full" style={{ accentColor: C.teal, cursor: "pointer" }} />
+      </div>
 
-        <div className="space-y-5">
-          {calcs.map(({ phase, target, weeklyDelta, theaterSave, weeklyTotal, phaseTotal }, i) => (
-            <div key={phase.id}>
-              <div className="flex items-center justify-between mb-1.5">
-                <div className="flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: C.phase[i] }} />
-                  <span style={{ color: C.inkMid }} className="text-xs font-medium">{phase.name}</span>
-                  <span style={{ color: C.inkFaint }} className="text-[10px]">→ target {target} hrs/wk</span>
-                </div>
-                <div className="flex items-baseline gap-3">
-                  <span style={{ color: C.phase[i] }} className="text-base font-light tabular-nums">
-                    +{weeklyTotal}h/wk
-                  </span>
-                  <span style={{ color: C.inkFaint }} className="text-[11px] tabular-nums">
-                    {phaseTotal.toLocaleString()} hrs/yr
-                  </span>
-                </div>
+      {/* ── Life in weeks ── */}
+      <div className="mb-8 p-6 rounded-2xl border" style={{ background: C.bgCard, borderColor: C.borderSoft }}>
+        <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
+          <p style={{ color: C.inkFaint }} className="text-[10px] uppercase tracking-widest">Your life in weeks — now to {HORIZON_AGE}</p>
+          <div className="flex gap-4">
+            {[["work", "Working"], ["prime", "Prime reclaimed"], ["free", "Beyond 65"]].map(([k, label]) => (
+              <div key={k} className="flex items-center gap-1.5">
+                <span style={{ width: 9, height: 9, borderRadius: 2, background: cellColor(k as "work") }} />
+                <span style={{ color: C.inkFaint }} className="text-[10px]">{label}</span>
               </div>
+            ))}
+          </div>
+        </div>
 
-              {/* Stacked bar: work reduction + theater reduction */}
-              <div className="flex rounded-full overflow-hidden h-3" style={{ background: C.bg, gap: 1 }}>
-                {/* Work hours reduction segment */}
-                {weeklyDelta > 0 && (
-                  <div
-                    className="h-full rounded-l-full transition-all duration-500"
-                    style={{
-                      width: `${(weeklyDelta / maxWeekly) * 100}%`,
-                      backgroundColor: C.phase[i],
-                    }}
-                    title={`Work reduction: ${weeklyDelta}h`}
-                  />
-                )}
-                {/* Theater hours segment */}
-                {theaterSave > 0 && (
-                  <div
-                    className="h-full transition-all duration-500"
-                    style={{
-                      width: `${(theaterSave / maxWeekly) * 100}%`,
-                      backgroundColor: `${C.phase[i]}66`,
-                      borderRadius: weeklyDelta === 0 ? "999px 999px 999px 999px" : "0 999px 999px 0",
-                    }}
-                    title={`Theater reduction: ${theaterSave}h`}
-                  />
-                )}
+        <div className="flex flex-col" style={{ gap: 3 }}>
+          {rows.map(({ age, kind }) => (
+            <div key={age} className="flex items-center" style={{ gap: 3 }}>
+              {age % 5 === 0
+                ? <span style={{ color: C.inkFaint, fontSize: 8, width: 18, flexShrink: 0, textAlign: "right" }} className="tabular-nums">{age}</span>
+                : <span style={{ width: 18, flexShrink: 0 }} />}
+              <div className="flex flex-wrap" style={{ gap: 2, flex: 1 }}>
+                {Array.from({ length: WEEKS }).map((_, w) => (
+                  <span key={w} style={{
+                    width: 6, height: 6, borderRadius: 1.5, flexShrink: 0,
+                    background: cellColor(kind),
+                    transition: "background 0.4s ease",
+                  }} />
+                ))}
               </div>
-
-              {weeklyDelta === 0 && theaterSave === 0 && (
-                <p style={{ color: C.inkFaint }} className="text-[10px] mt-1 italic">
-                  Already at or below target for this phase.
-                </p>
-              )}
             </div>
           ))}
         </div>
-
-        {/* Legend */}
-        <div className="flex gap-5 mt-5 pt-4 border-t" style={{ borderColor: C.borderSoft }}>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-2 rounded-full" style={{ background: C.tealDark }} />
-            <span style={{ color: C.inkFaint }} className="text-[10px]">Work hours reduction</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-2 rounded-full" style={{ background: `${C.tealDark}55` }} />
-            <span style={{ color: C.inkFaint }} className="text-[10px]">Theater hours reduction</span>
-          </div>
-        </div>
       </div>
 
-      {/* ── Grand Total ── */}
-      <div className="p-8 rounded-2xl mb-10"
-           style={{ background: `${C.phase[0]}14`, border: `1px solid ${C.phase[0]}44` }}>
-        <div className="flex items-end justify-between gap-6 flex-wrap">
-          <div>
-            <p style={{ color: C.tealDark }} className="text-[10px] uppercase tracking-widest mb-3">
-              Total Hours Reclaimed — All Four Phases
-            </p>
-            <p style={{ color: C.ink }} className="text-6xl font-extralight tabular-nums mb-2">
-              {grandTotal.toLocaleString()}
-            </p>
-            <p style={{ color: C.inkMid }} className="text-sm">
-              {Math.round(grandTotal / 24).toLocaleString()} full days ·{" "}
-              {Math.round(grandTotal / (24 * 7)).toLocaleString()} full weeks ·{" "}
-              {(grandTotal / (24 * 365)).toFixed(1)} years
-            </p>
-          </div>
-          <div className="text-right">
-            <p style={{ color: C.inkFaint }} className="text-[10px] uppercase tracking-widest mb-2">
-              Compounding across phases
-            </p>
-            <div className="flex items-end gap-1.5">
-              {calcs.map((c, i) => (
-                <div key={i} className="flex flex-col items-center gap-1">
-                  <span style={{ color: C.phase[i] }} className="text-[10px] tabular-nums">
-                    {c.phaseTotal.toLocaleString()}
-                  </span>
-                  <div
-                    className="w-6 rounded-t-sm"
-                    style={{
-                      height: `${Math.round((c.phaseTotal / Math.max(...calcs.map(x => x.phaseTotal))) * 48)}px`,
-                      backgroundColor: C.phase[i],
-                    }}
-                  />
-                  <span style={{ color: C.inkFaint }} className="text-[9px]">Y{i + 1}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Life Translations ── */}
+      {/* ── What the reclaimed prime time buys ── */}
       <p style={{ color: C.inkFaint }} className="text-[10px] uppercase tracking-widest mb-5">
-        What {grandTotal.toLocaleString()} hours buys you
+        What those {stats.primeWeeks.toLocaleString()} prime weeks become
       </p>
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {LIFE_USES.map(m => (
-          <div key={m.label} className="p-5 rounded-2xl border flex items-start gap-3"
+          <div key={m.label} className="p-5 rounded-2xl border flex flex-col gap-2"
                style={{ background: C.bgCard, borderColor: C.borderSoft }}>
-            <span className="text-2xl shrink-0">{m.icon}</span>
-            <div>
-              <p style={{ color: C.teal }} className="text-2xl font-extralight tabular-nums leading-none mb-1">
-                {Math.round(grandTotal / m.hoursEach).toLocaleString()}
-              </p>
-              <p style={{ color: C.inkSoft }} className="text-[11px] leading-relaxed">{m.label}</p>
-            </div>
+            <span className="text-2xl">{m.icon}</span>
+            <p style={{ color: C.teal }} className="text-2xl font-extralight tabular-nums leading-none">
+              {Math.round(stats.primeWeeks / m.weeksDiv).toLocaleString()}
+            </p>
+            <p style={{ color: C.inkSoft }} className="text-[11px] leading-relaxed">{m.label}</p>
           </div>
         ))}
       </div>
+
+      <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }`}</style>
     </div>
   );
 }

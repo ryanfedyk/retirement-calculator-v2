@@ -1,13 +1,16 @@
 "use client";
 /**
- * useScenarioSuggestions — the "Ideas to try" engine. Takes the scenario you're
- * currently looking at and spins off a diverse set of what-ifs (retire a year
- * sooner/later, take a sabbatical, change careers, trim spending, buy a second
- * home, cooler/hotter markets, move to a no-tax state…). Each previews its
- * impact on the FI date and ending net worth, and `build()` turns it into a real
- * scenario — a true offshoot of the one you started from.
+ * useScenarioSuggestions — the "What if…" engine. Takes the scenario you're
+ * currently looking at and offers a diverse set of moves you can make: the three
+ * career *phases* first (Sabbatical, Career Jump, Bridge Job), then broader
+ * what-ifs (retire sooner/later, trim spending, buy a second home, cooler/hotter
+ * markets, move to a no-tax state…).
  *
- * Consumed by the Scenarios hub.
+ * Each card previews its impact on the FI date and ending net worth and offers
+ * two moves: `apply()` changes the scenario you're in right now, while
+ * `duplicate()` spins the idea off into a brand-new scenario.
+ *
+ * Consumed by ScenarioLevers (embedded "What if…" strip) and the Scenarios hub.
  */
 import { useMemo } from "react";
 import { useFinancialStore } from "@/store/useFinancialStore";
@@ -33,6 +36,13 @@ const fmtDur = (months: number) => {
 
 const NO_TAX_STATES = new Set(["AK", "FL", "NH", "NV", "SD", "TN", "TX", "WA", "WY", "NONE"]);
 
+/** Top-level config sections an idea may touch — used to apply an idea to the
+ * CURRENT scenario by diffing the tweaked clone against the live config and
+ * routing each changed section through the store's fork-aware setter. */
+const TWEAKABLE_SECTIONS: (keyof SimulationConfiguration)[] = [
+  "career_path", "income_profile", "spending", "market_assumptions", "tax_assumptions", "life_events",
+];
+
 /** A what-if applied to a cloned config, plus the baseline paths it forks. */
 interface Idea {
   title: string;
@@ -41,6 +51,10 @@ interface Idea {
   apply: (cfg: SimulationConfiguration) => void;
   /** Shared-baseline leaf paths this idea overrides (so the offshoot stays linked elsewhere). */
   unlink: string[];
+  /** "phase" cards (Sabbatical/Career Jump/Bridge Job) lead the strip and show an active state. */
+  kind: "phase" | "idea";
+  /** For phases: whether it's already on in the current scenario. */
+  active?: boolean;
   /** Only offer the idea when it actually differs from the current scenario. */
   when?: (cfg: SimulationConfiguration) => boolean;
 }
@@ -49,6 +63,10 @@ export interface Suggestion {
   title: string;
   /** Plain-language summary of what the idea changes. */
   detail: string;
+  /** "phase" leads the strip; "idea" follows. */
+  kind: "phase" | "idea";
+  /** A phase that's already part of the current scenario (its apply() removes it). */
+  active: boolean;
   /** The "time" axis of the trade-off — freedom reached sooner/later, e.g.
    * "1y 2m sooner" / "8mo later" / "no change". */
   timeDelta: string;
@@ -58,8 +76,10 @@ export interface Suggestion {
   /** The "money" axis — net-worth trade-off at the horizon, e.g. "−$420k". */
   nwDelta: string;
   nwColor: string;
-  /** Create the scenario: an offshoot of the active one with this tweak applied. */
-  build: () => void;
+  /** Apply the move to the scenario you're in right now (phases toggle on/off). */
+  apply: () => void;
+  /** Spin the move off into a brand-new scenario (an offshoot of the active one). */
+  duplicate: () => void;
 }
 
 export function useScenarioSuggestions(livePrices: LivePrices): Suggestion[] {
@@ -91,70 +111,76 @@ export function useScenarioSuggestions(livePrices: LivePrices): Suggestion[] {
     const bridgeSalary = Math.round(salary * 0.4);
     const thisYear = new Date().getFullYear();
 
-    const list: Idea[] = [
-      { title: "Reclaim a year", detail: `Leave a year earlier — exit ${exit - 1}`, unlink: [], apply: (c) => { c.career_path.exit_year -= 1; } },
-      { title: "Trade a year for security", detail: `Work one more year — exit ${exit + 1}`, unlink: [], apply: (c) => { c.career_path.exit_year += 1; } },
+    // ── The three career phases — always shown, leading the strip. Applying
+    // toggles the phase on the current scenario; an active phase's apply() turns
+    // it back off. Seed sensible income defaults so a freshly-enabled phase has
+    // a real effect on the projection.
+    const phases: Idea[] = [
       {
-        title: "Take a gap year to travel", detail: "A 1-year sabbatical + $40k of travel, then a bridge role back to work",
-        unlink: ["life_events", "income_profile.bridge_gross_annual"], when: () => !cp.use_sabbatical,
-        apply: (c) => {
-          c.career_path.use_sabbatical = true;
-          c.career_path.sabbatical_duration = 1;
-          c.life_events = [...(c.life_events ?? []), { name: "Gap-year travel", year: thisYear + 1, cost: 40_000, auto: false }];
-          // A sabbatical returns to work, not straight to retirement — ease back
-          // in with a bridge role unless a jump/bridge is already modeled.
-          if (!c.career_path.use_jump && !c.career_path.use_bridge) {
-            c.career_path.use_bridge = true;
-            c.career_path.bridge_duration = 3;
-            c.income_profile.bridge_gross_annual = bridgeSalary;
-          }
-        },
+        title: "Sabbatical", kind: "phase", active: cp.use_sabbatical,
+        detail: "Step away for a 1-year break, then return to work refreshed.",
+        unlink: [],
+        apply: cp.use_sabbatical
+          ? (c) => { c.career_path.use_sabbatical = false; }
+          : (c) => { c.career_path.use_sabbatical = true; c.career_path.sabbatical_duration = 1; },
       },
       {
-        title: "Follow your passion", detail: `Switch to an encore career at ~${fmtK(passionSalary)}/yr for 5 years`,
+        title: "Career Jump", kind: "phase", active: cp.use_jump,
+        detail: `Pivot to an encore career at ~${fmtK(passionSalary)}/yr before retiring.`,
         unlink: ["income_profile.jump_gross_annual", "income_profile.jump_bonus_rate"],
-        when: () => !cp.use_jump,
-        apply: (c) => {
-          c.career_path.use_jump = true;
-          c.career_path.jump_duration = 5;
-          c.income_profile.jump_gross_annual = passionSalary;
-          c.income_profile.jump_bonus_rate = 5;
-        },
+        apply: cp.use_jump
+          ? (c) => { c.career_path.use_jump = false; }
+          : (c) => {
+              c.career_path.use_jump = true;
+              c.career_path.jump_duration = c.career_path.jump_duration || 5;
+              if (!c.income_profile.jump_gross_annual) {
+                c.income_profile.jump_gross_annual = passionSalary;
+                c.income_profile.jump_bonus_rate = 5;
+              }
+            },
       },
       {
-        title: "Take a bridge job", detail: `A 3-year part-time bridge role at ~${fmtK(bridgeSalary)}/yr before fully retiring`,
+        title: "Bridge Job", kind: "phase", active: cp.use_bridge,
+        detail: `Ease out with a part-time bridge role at ~${fmtK(bridgeSalary)}/yr.`,
         unlink: ["income_profile.bridge_gross_annual"],
-        when: () => !cp.use_bridge,
-        apply: (c) => {
-          c.career_path.use_bridge = true;
-          c.career_path.bridge_duration = 3;
-          c.income_profile.bridge_gross_annual = bridgeSalary;
-        },
+        apply: cp.use_bridge
+          ? (c) => { c.career_path.use_bridge = false; }
+          : (c) => {
+              c.career_path.use_bridge = true;
+              c.career_path.bridge_duration = c.career_path.bridge_duration || 3;
+              if (!c.income_profile.bridge_gross_annual) c.income_profile.bridge_gross_annual = bridgeSalary;
+            },
       },
+    ];
+
+    // ── Broader what-ifs — filtered to ones that actually differ.
+    const more: Idea[] = [
+      { title: "Reclaim a year", kind: "idea", detail: `Leave a year earlier — exit ${exit - 1}`, unlink: [], apply: (c) => { c.career_path.exit_year -= 1; } },
+      { title: "Trade a year for security", kind: "idea", detail: `Work one more year — exit ${exit + 1}`, unlink: [], apply: (c) => { c.career_path.exit_year += 1; } },
       {
-        title: "Simplify your lifestyle", detail: `Trim spending 15% — to ${fmtK(trimmed)}/mo`, unlink: ["spending.monthly_lifestyle"],
+        title: "Simplify your lifestyle", kind: "idea", detail: `Trim spending 15% — to ${fmtK(trimmed)}/mo`, unlink: ["spending.monthly_lifestyle"],
         when: () => trimmed < spend,
         apply: (c) => { c.spending.monthly_lifestyle = trimmed; },
       },
       {
-        title: "Buy a vacation cabin", detail: "A $250k purchase in 3 years plus ~$1.2k/mo upkeep", unlink: ["life_events", "spending.monthly_lifestyle"],
+        title: "Buy a vacation cabin", kind: "idea", detail: "A $250k purchase in 3 years plus ~$1.2k/mo upkeep", unlink: ["life_events", "spending.monthly_lifestyle"],
         apply: (c) => {
           c.life_events = [...(c.life_events ?? []), { name: "Vacation cabin", year: thisYear + 3, cost: 250_000, auto: false }];
           c.spending.monthly_lifestyle += 1_200; // carrying costs (taxes, upkeep, insurance)
         },
       },
       {
-        title: "Relocate somewhere tax-friendly", detail: "Move to a state with no income tax", unlink: ["tax_assumptions.state_of_residence"],
+        title: "Relocate somewhere tax-friendly", kind: "idea", detail: "Move to a state with no income tax", unlink: ["tax_assumptions.state_of_residence"],
         when: () => !NO_TAX_STATES.has(config.tax_assumptions.state_of_residence),
         apply: (c) => { c.tax_assumptions.state_of_residence = "FL"; },
       },
       {
-        title: "Weather a cooler market", detail: "Stress-test with 6% market returns", unlink: ["market_assumptions.market_return_rate"],
+        title: "Weather a cooler market", kind: "idea", detail: "Stress-test with 6% market returns", unlink: ["market_assumptions.market_return_rate"],
         when: () => ret > 6,
         apply: (c) => { c.market_assumptions.market_return_rate = 6; },
       },
       {
-        title: "Ride a booming market", detail: "Model a strong run — 10% market returns", unlink: ["market_assumptions.market_return_rate"],
+        title: "Ride a booming market", kind: "idea", detail: "Model a strong run — 10% market returns", unlink: ["market_assumptions.market_return_rate"],
         when: () => ret < 10,
         apply: (c) => { c.market_assumptions.market_return_rate = 10; },
       },
@@ -162,7 +188,8 @@ export function useScenarioSuggestions(livePrices: LivePrices): Suggestion[] {
     // Drop ideas that don't differ from the current scenario, and ones you've
     // already turned into a scenario (built ideas are named after the idea).
     const existingNames = new Set(scenarios.map((s) => s.name));
-    return list.filter((i) => (!i.when || i.when(config)) && !existingNames.has(i.title));
+    const filtered = more.filter((i) => (!i.when || i.when(config)) && !existingNames.has(i.title));
+    return [...phases, ...filtered];
   }, [config, scenarios]);
 
   return useMemo(() => {
@@ -185,15 +212,30 @@ export function useScenarioSuggestions(livePrices: LivePrices): Suggestion[] {
       const dMoney = finalNW - baseFinal;
       const hours = dMonths ? Math.round((Math.abs(dMonths) * 730.5) / 100) * 100 : 0;
 
+      // Apply to the CURRENT scenario: diff the tweaked clone against the live
+      // config and route each changed section through the fork-aware setter.
+      const apply = () => {
+        const store = useFinancialStore.getState();
+        const cur = store.config;
+        for (const sec of TWEAKABLE_SECTIONS) {
+          if (JSON.stringify(cur[sec]) !== JSON.stringify(tweaked[sec])) {
+            store.updateNestedConfig(sec, tweaked[sec] as never);
+          }
+        }
+      };
+
       return {
         title: idea.title,
         detail: idea.detail,
+        kind: idea.kind,
+        active: !!idea.active,
         timeDelta: dMonths == null ? "—" : dMonths === 0 ? "no change" : `${fmtDur(dMonths)} ${earlier ? "sooner" : "later"}`,
         timeHours: dMonths && hours ? `${hours.toLocaleString()} hrs ${earlier ? "reclaimed" : "traded"}` : "",
         timeColor: dMonths == null || dMonths === 0 ? C.inkFaint : earlier ? C.tealDark : C.warm,
         nwDelta: Math.abs(dMoney) < 1000 ? "≈ same" : signM(dMoney),
         nwColor: Math.abs(dMoney) < 1000 ? C.inkSoft : dMoney > 0 ? C.tealDark : C.warm,
-        build: () => addScenarioFromConfig(idea.title, tweaked, [...baseUnlinked, ...idea.unlink]),
+        apply,
+        duplicate: () => addScenarioFromConfig(idea.title, tweaked, [...baseUnlinked, ...idea.unlink]),
       };
     });
   }, [ideas, config, enrichedSnapshot, liveGoogPrice, baseUnlinked, addScenarioFromConfig]);

@@ -10,6 +10,24 @@ import type { RetirementWindow } from "@/engine/calculator";
 
 const money = (n: number) => `$${Math.round(n).toLocaleString()}`;
 
+/** A concise, plain-language summary of what this scenario is about — exit year,
+ * spending, and any career phases in play. Shown atop "Tune this scenario" in
+ * place of the old phase chips (phases now live in the "What if…" cards). */
+function describeScenario(cp: { exit_year: number; use_sabbatical?: boolean; sabbatical_duration?: number; use_jump?: boolean; use_bridge?: boolean }, monthlySpend: number): string {
+  const phases: string[] = [];
+  if (cp.use_sabbatical) phases.push(cp.sabbatical_duration === 1 ? "a year-long sabbatical" : `a ${cp.sabbatical_duration ?? 1}-year sabbatical`);
+  if (cp.use_jump) phases.push("a career jump");
+  if (cp.use_bridge) phases.push("a bridge job");
+  let s = `Leave work in ${cp.exit_year} and live on ${money(monthlySpend)}/mo`;
+  if (phases.length) {
+    const list = phases.length === 1 ? phases[0]
+      : phases.length === 2 ? `${phases[0]} and ${phases[1]}`
+      : `${phases.slice(0, -1).join(", ")}, and ${phases[phases.length - 1]}`;
+    s += `, with ${list} along the way`;
+  }
+  return `${s}.`;
+}
+
 /** A small chip that reveals an explanatory tooltip on hover/focus. The acronym
  * code is dropped on narrow screens (emoji stays) to protect the layout. */
 function TipChip({ emoji, code, tip, color }: { emoji: string; code: string; tip: string; color: string }) {
@@ -64,19 +82,6 @@ function Slider({ label, value, display, min, max, step, accent, onChange, badge
   );
 }
 
-function PhaseChip({ label, on, color, onClick }: { label: string; on: boolean; color: string; onClick: () => void }) {
-  return (
-    <button onClick={onClick} style={{
-      padding: "6px 12px", borderRadius: 99, fontSize: 11, fontWeight: 600, cursor: "pointer",
-      border: `1px solid ${on ? color : C.border}`,
-      background: on ? `${color}1a` : C.bgCard,
-      color: on ? color : C.inkSoft, transition: "all 0.15s",
-    }}>
-      {label}
-    </button>
-  );
-}
-
 /**
  * Scenario levers — the headline of the Financial tab. Compact sliders + phase
  * toggles that update the live trajectory instantly. This is the "play with it"
@@ -104,10 +109,16 @@ export default function ScenarioLevers({ onOpenEditor, livePrices, retireWindow 
 
   return (
     <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 18px", boxShadow: `0 1px 3px ${C.border}`, flexShrink: 0 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
         <span style={{ width: 3, height: 15, borderRadius: 2, background: C.teal }} />
         <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: C.ink }}>Tune this scenario</span>
       </div>
+
+      {/* Plain-language gist of the scenario — replaces the old phase chips
+          (phases now live as cards in the "What if…" strip below). */}
+      <p style={{ fontSize: 13, lineHeight: 1.5, color: C.inkMid, margin: "0 0 14px" }}>
+        {describeScenario(cp, sp.monthly_lifestyle)}
+      </p>
 
       <div className="@container" style={{ display: "flex", flexWrap: "wrap", gap: "14px 22px", marginBottom: 14 }}>
         <Slider label="Exit Year" value={cp.exit_year} display={String(cp.exit_year)}
@@ -124,16 +135,11 @@ export default function ScenarioLevers({ onOpenEditor, livePrices, retireWindow 
           onChange={v => updateNestedConfig("market_assumptions", { market_return_rate: v })} />
       </div>
 
-      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
-        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: C.inkFaint, marginRight: 2 }}>Phases</span>
-        <PhaseChip label="Sabbatical" on={cp.use_sabbatical} color="#d98a3d" onClick={() => updateNestedConfig("career_path", { use_sabbatical: !cp.use_sabbatical })} />
-        <PhaseChip label="Career Jump" on={cp.use_jump} color="#2a9d7f" onClick={() => updateNestedConfig("career_path", { use_jump: !cp.use_jump })} />
-        <PhaseChip label="Bridge Job" on={cp.use_bridge} color="#3a7d9c" onClick={() => updateNestedConfig("career_path", { use_bridge: !cp.use_bridge })} />
-      </div>
-
-      {/* Branch this scenario — embedded as an extension of "Tune this scenario". */}
+      {/* "What if…" — the three career phases (Sabbatical / Career Jump / Bridge
+          Job) plus broader what-ifs, each appliable here or duplicable into a new
+          scenario. Embedded as an extension of "Tune this scenario". */}
       {livePrices && (
-        <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${C.borderSoft}` }}>
+        <div style={{ paddingTop: 2 }}>
           <BranchStrip livePrices={livePrices} />
         </div>
       )}

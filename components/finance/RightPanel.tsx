@@ -253,12 +253,16 @@ export default function RightPanel({ livePrices }: Props) {
     }));
   }, [displayTrajectory, earlierData, laterData, dollarMode, inflationRate]);
 
-  // Trim the trajectory to the selected age horizon (75 = focused, 100 = full).
+  // Trim the trajectory to the selected age horizon (70 = focused, 100 = full).
+  // The income & expense breakdowns always show the full lifetime — their whole
+  // point is to surface late-life streams like Social Security (which only starts
+  // at 67+), so capping them at 70 would hide it almost entirely.
+  const isBreakdown = chartView === "income" || chartView === "expenses";
   const cappedChartData = useMemo(() => {
-    if (ageCap >= 100) return chartData;
+    if (ageCap >= 100 || isBreakdown) return chartData;
     const maxYear = birthYear + ageCap;
     return chartData.filter((d) => { const y = Number(String(d.date).split(" ")[1]); return !y || y <= maxYear; });
-  }, [chartData, ageCap, birthYear]);
+  }, [chartData, ageCap, birthYear, isBreakdown]);
 
   // ── Monte Carlo (sequence-of-returns risk) ────────────────────────────────
   // Only computed while the Risk view is open — it runs hundreds of full
@@ -432,6 +436,7 @@ export default function RightPanel({ livePrices }: Props) {
             <div style={{ fontSize: 10, color: C.inkSoft, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {chartView === "timeline" ? "Month-by-month phases & milestones" :
                chartView === "risk"     ? `Median & 10th–90th percentile across ${monteCarlo?.runs ?? 0} return paths · ${dollarBasisLabel}` :
+               isBreakdown              ? `Annual streams across your lifetime · in ${dollarBasisLabel}` :
                `Projection to age ${ageCap} · in ${dollarBasisLabel}`}
             </div>
           </div>
@@ -458,7 +463,7 @@ export default function RightPanel({ livePrices }: Props) {
         <div style={{ position: "relative", flex: 1, padding: "8px 20px 16px", minHeight: 0, overflow: "hidden" }}>
           {/* Horizon zoom — floats in the chart's bottom-right (not for the
               calendar timeline, which has no age horizon to cap). */}
-          {chartView !== "timeline" && (
+          {chartView !== "timeline" && !isBreakdown && (
             <HorizonZoomButton ageCap={ageCap} onToggle={() => setAgeCap((a) => (a === 100 ? 70 : 100))} />
           )}
           {chartView === "timeline" ? (

@@ -72,7 +72,7 @@ Please evaluate TWO separate goals:
 1. **Retirement Track** — Is the user on track to retire at ${config.career_path.exit_year} with sustainable income?
 2. **FI Track** — Is the user on track to achieve Financial Independence where assets cover expenses indefinitely?
 
-Be specific: reference actual numbers from the data (salary, GOOG shares, spending, market rates, etc). Be direct and personal — this is their actual plan, not a hypothetical.
+Be specific: reference actual numbers from the data (salary, concentrated/employer stock, spending, market rates, etc). Do NOT name a specific employer or company. Be direct and personal — this is their actual plan, not a hypothetical.
 
 Return ONLY raw JSON in this exact shape (no markdown, no code fences):
 {

@@ -147,11 +147,11 @@ export default function ScenarioLevers({ onOpenEditor, livePrices, retireWindow 
       {onOpenEditor && (
         <button onClick={onOpenEditor} style={{
           display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%",
-          marginTop: 14, padding: "11px 14px", borderRadius: 10,
-          background: C.teal, border: "none", cursor: "pointer",
-          fontSize: 13, fontWeight: 700, color: "#fff",
+          marginTop: 14, padding: "10px 14px", borderRadius: 10,
+          background: C.bgCard, border: `1px solid ${C.tealLight}`, cursor: "pointer",
+          fontSize: 12.5, fontWeight: 600, color: C.tealDark,
         }}>
-          Fine-tune every detail <ChevronRight size={16} />
+          Fine-tune every detail <ChevronRight size={15} />
         </button>
       )}
     </div>

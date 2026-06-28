@@ -115,9 +115,10 @@ export default function SummaryCards({ indepDate, currentNW, swrTarget, progress
         {/* Alerts — first few + "more", full detail in a popover */}
         {notices.length > 0 && (
           <button onClick={() => open("Alerts & status", alertsNode)} title="See all alerts" style={{ ...cardBase, cursor: "pointer", font: "inherit" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>
+            {/* Compact header so the first alert sits right under it. */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 10 }}>
               <Label>Alerts · {notices.length}</Label>
-              <Chip bg={sevBg(worst)} color={sevColor(worst)} icon={worst === "good" ? CheckCircle : AlertTriangle} />
+              {worst === "good" ? <CheckCircle size={16} color={sevColor(worst)} /> : <AlertTriangle size={16} color={sevColor(worst)} />}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {shown.map((n) => (

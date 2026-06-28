@@ -5,14 +5,13 @@ import HorizonZoomButton from "@/components/finance/HorizonZoomButton";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
-import { runSimulation, findIndependencePoint, assessPlan, toDisplayDollars } from "@/engine/calculator";
+import { runSimulation, findIndependencePoint, assessPlan, toDisplayDollars, findRetirementWindow } from "@/engine/calculator";
 import { runMonteCarlo } from "@/engine/montecarlo";
 import { getLifeEvents } from "@/lib/horizonUtils";
 import { useHorizonProfile } from "@/config/horizonConfig";
 import AiAnalysis from "@/components/finance/AiAnalysis";
 import PriceTicker from "@/components/finance/PriceTicker";
 import ScenarioLevers from "@/components/finance/ScenarioLevers";
-import { BranchStrip } from "@/components/finance/RightPanel";
 import SummaryCards from "@/components/finance/SummaryCards";
 import FireMoments from "@/components/fx/FireMoments";
 import { isCoastFI } from "@/lib/fire/moments";
@@ -59,6 +58,10 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
   const traj = useMemo(
     () => runSimulation(enrichedSnapshot, config, liveGoogPrice),
     [enrichedSnapshot, config, liveGoogPrice]
+  );
+  const retireWindow = useMemo(
+    () => findRetirementWindow(enrichedSnapshot, config, liveGoogPrice),
+    [enrichedSnapshot, config, liveGoogPrice],
   );
 
   const indep    = findIndependencePoint(traj);
@@ -191,25 +194,23 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
         onOpenFinances={() => useUIStore.getState().setFinancesOpen(true)}
       />
 
-      {/* Scenario levers — summary + quick adjustment; click in for the full editor */}
-      <ScenarioLevers onOpenEditor={onOpenConfig} />
-
-      {/* Branch this scenario — offshoots of the current plan (same as desktop) */}
-      <BranchStrip livePrices={livePrices} />
-
-      {/* Portfolio price ticker (from the user's holdings) */}
-      <PriceTicker
-        holdings={snapshot.other_investments}
-        livePrices={livePrices}
-        concentratedSymbol={config.use_equity_comp ? config.concentrated_symbol : ""}
-        pricesFetching={pricesFetching}
-        onRefreshPrices={onRefreshPrices}
-        align="start"
-      />
-
+      {/* Scenario levers — summary + quick adjustment; the retirement-window
+          notches and "Branch this scenario" live in here now. */}
+      <ScenarioLevers onOpenEditor={onOpenConfig} livePrices={livePrices} retireWindow={retireWindow} />
 
       {/* Chart card — touchAction pan-y so dragging the chart never scrolls the page sideways */}
       <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 20, padding: "16px 12px 12px", touchAction: "pan-y" }}>
+        {/* Live prices for your holdings — the chart's inputs, given a home atop it. */}
+        <div style={{ padding: "0 4px 12px", marginBottom: 12, borderBottom: `1px solid ${C.borderSoft}` }}>
+          <PriceTicker
+            holdings={snapshot.other_investments}
+            livePrices={livePrices}
+            concentratedSymbol={config.use_equity_comp ? config.concentrated_symbol : ""}
+            pricesFetching={pricesFetching}
+            onRefreshPrices={onRefreshPrices}
+            align="start"
+          />
+        </div>
         {/* View pills */}
         <div style={{ display: "flex", gap: 6, padding: "0 4px 14px", justifyContent: "center" }}>
           {(["wealth", "income", "expenses", "risk"] as View[]).map(v => (

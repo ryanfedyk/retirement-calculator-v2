@@ -11,7 +11,7 @@ import { useUIStore } from "@/store/useUIStore";
 import { runSimulation, findIndependencePoint, assessPlan, toDisplayDollars, findRetirementWindow } from "@/engine/calculator";
 import type { TrajectoryPoint } from "@/engine/calculator";
 import { runMonteCarlo } from "@/engine/montecarlo";
-import { MomentumTurnstile } from "./MotivationWidgets";
+import { MomentumGrid } from "./MotivationWidgets";
 import AiAnalysis from "./AiAnalysis";
 import { C } from "@/config/colors";
 import LifeCalendar from "./LifeCalendar";
@@ -579,7 +579,7 @@ export default function RightPanel({ livePrices }: Props) {
       </div>
 
       {insightTab === "today" && todayPoint && (
-        <MomentumTurnstile point={todayPoint} config={config} trajectory={trajectoryData} birthDate={profile.birthDate} />
+        <MomentumGrid point={todayPoint} config={config} trajectory={trajectoryData} birthDate={profile.birthDate} />
       )}
 
       {/* ── AI Analysis ── */}

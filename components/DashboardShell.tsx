@@ -120,9 +120,8 @@ export default function DashboardShell() {
         <ScenariosHub livePrices={prices.livePrices} onOpen={() => setCompareOpen(false)} />
       ) : (
       <>
-      {/* Countdown — reflects the open scenario, across both deep-dive tabs. The
-          "Your finances" pill rides on the same line: it links back to the global
-          balance sheet AND carries the live price ticker, so it does both jobs. */}
+      {/* Countdown — reflects the open scenario, across both deep-dive tabs.
+          The portfolio price ticker rides on the same line to save a widget. */}
       <CountdownStrip
         right={
           <PriceTicker
@@ -133,7 +132,6 @@ export default function DashboardShell() {
             pricesFetching={prices.pricesFetching}
             onRefreshPrices={prices.refresh}
             align="end"
-            onOpenFinances={() => setFinancesOpen(true)}
           />
         }
       />

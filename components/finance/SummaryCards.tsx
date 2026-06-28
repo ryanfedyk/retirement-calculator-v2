@@ -122,10 +122,7 @@ export default function SummaryCards({ indepDate, currentNW, swrTarget, progress
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {shown.map((n) => (
-                <div key={n.id} style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                  <span style={{ flexShrink: 0, width: 7, height: 7, borderRadius: "50%", background: sevColor(n.severity) }} />
-                  <span style={{ fontSize: 12, fontWeight: 600, color: sevColor(n.severity), overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{n.title}</span>
-                </div>
+                <span key={n.id} style={{ fontSize: 12, fontWeight: 600, color: sevColor(n.severity), overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{n.title}</span>
               ))}
             </div>
             <div style={{ fontSize: 10, color: C.inkFaint, marginTop: "auto", paddingTop: 8 }}>{extra > 0 ? `+${extra} more · tap for details` : "Tap for details"}</div>

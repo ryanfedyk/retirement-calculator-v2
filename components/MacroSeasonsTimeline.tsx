@@ -168,55 +168,8 @@ export default function MacroSeasonsTimeline() {
         </div>
       </div>
 
-      {/* ── Current Season Callout ── */}
-      <div className="mb-8 p-6 rounded-2xl" style={{ background: C.tealWash, border: `1px solid ${C.tealLight}` }}>
-        <div className="flex items-start justify-between gap-6 flex-wrap">
-          <div className="min-w-0">
-            <p style={{ color: C.tealDark }} className="text-[10px] uppercase tracking-widest mb-1">
-              You are here — {current.label}
-            </p>
-            <h3 style={{ color: C.ink }} className="text-xl font-semibold mb-1">{current.name}</h3>
-            <p style={{ color: C.inkMid }} className="text-sm italic mb-4">{current.tagline}</p>
-
-            <div className="flex items-start gap-2 p-3 rounded-xl" style={{ background: "white", border: `1px solid ${C.tealLight}` }}>
-              <div className="w-1 rounded-full shrink-0" style={{ background: C.teal, alignSelf: "stretch", minHeight: 20 }} />
-              <p style={{ color: C.inkMid }} className="text-sm leading-relaxed">
-                <span style={{ color: C.teal }} className="font-semibold">Permission: </span>
-                {current.permission}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex gap-6 shrink-0 flex-wrap">
-            <div className="text-center">
-              <p style={{ color: C.tealDark }} className="text-[10px] uppercase tracking-widest mb-1">Months In</p>
-              <p style={{ color: C.ink }} className="text-3xl font-extralight tabular-nums">{monthsIn}</p>
-              <div className="w-16 h-0.5 rounded-full mt-2 mx-auto" style={{ background: C.border }}>
-                <div className="h-full rounded-full" style={{ width: `${phaseProgress}%`, background: C.teal }} />
-              </div>
-              <p style={{ color: C.inkFaint }} className="text-[10px] mt-1">{phaseProgress}% through</p>
-            </div>
-
-            {next && (
-              <div className="text-center">
-                <p style={{ color: C.tealDark }} className="text-[10px] uppercase tracking-widest mb-1">Next Season In</p>
-                <p style={{ color: C.ink }} className="text-3xl font-extralight tabular-nums">{monthsUntilNext}</p>
-                <p style={{ color: C.inkFaint }} className="text-[10px] mt-1">months</p>
-              </div>
-            )}
-
-            <div className="text-center">
-              <p style={{ color: C.tealDark }} className="text-[10px] uppercase tracking-widest mb-1">Throttle</p>
-              <p style={{ color: current.color }} className="text-3xl font-extralight tabular-nums">
-                {current.intensity}%
-              </p>
-              <p style={{ color: C.inkFaint }} className="text-[10px] mt-1">of full output</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Season Cards — expandable ── */}
+      {/* ── Season Cards — expandable (the current season opens by default and
+          carries the "you are here" detail, so there's no separate callout) ── */}
       <div className="space-y-3">
         {seasons.map((s, i) => {
           const isActive   = i === currentIndex;
@@ -299,6 +252,37 @@ export default function MacroSeasonsTimeline() {
                       </li>
                     ))}
                   </ul>
+
+                  {/* Permission — the "you are here" line, now folded into the card. */}
+                  <div className="mt-5 flex items-start gap-2 p-3 rounded-xl" style={{ background: `${color}10`, border: `1px solid ${color}33` }}>
+                    <div className="w-1 rounded-full shrink-0" style={{ background: color, alignSelf: "stretch", minHeight: 18 }} />
+                    <p style={{ color: C.inkMid }} className="text-sm leading-relaxed">
+                      <span style={{ color }} className="font-semibold">Permission: </span>{s.permission}
+                    </p>
+                  </div>
+
+                  {/* For the season you're in, the live "where am I" stats. */}
+                  {isActive && (
+                    <div className="mt-4 flex gap-6 flex-wrap">
+                      <div>
+                        <p style={{ color: C.inkFaint }} className="text-[10px] uppercase tracking-widest mb-1">Months in</p>
+                        <p style={{ color: C.ink }} className="text-2xl font-extralight tabular-nums">{monthsIn}</p>
+                        <div className="w-16 h-0.5 rounded-full mt-1.5" style={{ background: C.border }}>
+                          <div className="h-full rounded-full" style={{ width: `${phaseProgress}%`, background: color }} />
+                        </div>
+                      </div>
+                      {next && (
+                        <div>
+                          <p style={{ color: C.inkFaint }} className="text-[10px] uppercase tracking-widest mb-1">Next season in</p>
+                          <p style={{ color: C.ink }} className="text-2xl font-extralight tabular-nums">{monthsUntilNext}<span className="text-sm"> mo</span></p>
+                        </div>
+                      )}
+                      <div>
+                        <p style={{ color: C.inkFaint }} className="text-[10px] uppercase tracking-widest mb-1">Throttle</p>
+                        <p style={{ color }} className="text-2xl font-extralight tabular-nums">{current.intensity}%</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

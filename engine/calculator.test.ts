@@ -494,14 +494,18 @@ describe("ACA subsidy in early retirement (#11)", () => {
     return { snap, cfg };
   }
 
-  it("subsidizes healthcare for a low-MAGI early retiree but not a high-MAGI one", () => {
-    const low  = earlyRetiree(0, 2_000_000);        // lives off cash → ~0 MAGI
-    const high = earlyRetiree(200_000, 0);          // big rental → high MAGI
+  it("subsidizes a modest-MAGI early retiree but cuts off a high-MAGI one (400% FPL cliff)", () => {
+    const low  = earlyRetiree(0, 700_000);          // small taxable base → modest MAGI
+    const high = earlyRetiree(200_000, 0);          // big rental → MAGI well over 400% FPL
     const lowT  = runSimulation(low.snap, low.cfg, 200);
     const highT = runSimulation(high.snap, high.cfg, 200);
+    const fullPremium = 1_000 * 12; // healthcare_premium, no inflation → unsubsidized annual
     // By year 3 the prior-year MAGI is established and drives the subsidy.
     expect(lowT[36].healthcareCost).toBeLessThan(highT[36].healthcareCost);
-    expect(lowT[36].healthcareCost).toBeLessThan(2_000); // heavily subsidized at low income
+    // The high earner is over 400% FPL → subsidy cliff → pays ~the full premium.
+    expect(highT[36].healthcareCost).toBeGreaterThan(fullPremium * 0.9);
+    // The modest earner still gets a real subsidy off that full premium.
+    expect(lowT[36].healthcareCost).toBeLessThan(fullPremium * 0.7);
   });
 
   it("sizes healthcare by the real household, not a static aca_family_size", () => {

@@ -16,7 +16,7 @@ import { useIsMobile } from "@/hooks/useIsMobile";
 import { runSimulation, assessPlan, type PlanHealth } from "@/engine/calculator";
 import { useConfirm } from "@/components/ui/DialogProvider";
 import ScenarioCompare from "@/components/finance/ScenarioCompare";
-import { BranchStrip } from "@/components/finance/RightPanel";
+import { BranchStrip } from "@/components/finance/BranchStrip";
 import { C, SCENARIO_PALETTE as PALETTE } from "@/config/colors";
 import type { LivePrices } from "@/hooks/useLivePrices";
 

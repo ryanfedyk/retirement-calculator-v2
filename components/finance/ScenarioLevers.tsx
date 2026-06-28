@@ -4,6 +4,11 @@ import { ChevronRight } from "lucide-react";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { C } from "@/config/colors";
 import { colTier } from "@/lib/fire/moments";
+import { BranchStrip } from "./BranchStrip";
+import type { LivePrices } from "./FinancialDashboard";
+import type { RetirementWindow } from "@/engine/calculator";
+
+interface Marker { value: number; label: string; color: string }
 
 const money = (n: number) => `$${Math.round(n).toLocaleString()}`;
 
@@ -38,8 +43,8 @@ function TipChip({ emoji, code, tip, color }: { emoji: string; code: string; tip
   );
 }
 
-function Slider({ label, value, display, min, max, step, accent, onChange, badge }: {
-  label: string; value: number; display: string; min: number; max: number; step: number; accent: string; onChange: (v: number) => void; badge?: React.ReactNode;
+function Slider({ label, value, display, min, max, step, accent, onChange, badge, markers }: {
+  label: string; value: number; display: string; min: number; max: number; step: number; accent: string; onChange: (v: number) => void; badge?: React.ReactNode; markers?: Marker[];
 }) {
   return (
     <div style={{ flex: "1 1 150px", minWidth: 140 }}>
@@ -54,6 +59,21 @@ function Slider({ label, value, display, min, max, step, accent, onChange, badge
       <input type="range" min={min} max={max} step={step} value={value}
         onChange={e => onChange(+e.target.value)}
         style={{ width: "100%", accentColor: accent, cursor: "pointer" }} />
+      {/* Notches on the track — e.g. earliest / recommended retirement years. */}
+      {markers && markers.length > 0 && (
+        <div style={{ position: "relative", height: 13, marginTop: 1 }}>
+          {markers.map((m) => {
+            const pct = Math.max(0, Math.min(100, ((m.value - min) / (max - min)) * 100));
+            return (
+              <div key={m.label} title={`${m.label}: ${m.value}`}
+                style={{ position: "absolute", left: `${pct}%`, top: 0, transform: "translateX(-50%)", display: "flex", flexDirection: "column", alignItems: "center", pointerEvents: "none" }}>
+                <div style={{ width: 2, height: 5, background: m.color, borderRadius: 1 }} />
+                <div style={{ fontSize: 8, fontWeight: 800, letterSpacing: "0.02em", color: m.color, whiteSpace: "nowrap" }}>{m.value}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -78,12 +98,17 @@ function PhaseChip({ label, on, color, onClick }: { label: string; on: boolean; 
  * to surface a "click in" affordance into the full, more robust editor (mobile
  * uses this to open the config sheet); detailed inputs all live there.
  */
-export default function ScenarioLevers({ onOpenEditor }: { onOpenEditor?: () => void } = {}) {
+export default function ScenarioLevers({ onOpenEditor, livePrices, retireWindow }: { onOpenEditor?: () => void; livePrices?: LivePrices; retireWindow?: RetirementWindow } = {}) {
   const { config, updateNestedConfig } = useFinancialStore();
   const cp = config.career_path;
   const sp = config.spending;
   const ma = config.market_assumptions;
   const maxExit = Math.max(2040, (config.birth_year || 1985) + 75, cp.exit_year);
+
+  // Earliest fundable & recommended exit years, shown as notches on the slider.
+  const exitMarkers: Marker[] = [];
+  if (retireWindow?.earliest) exitMarkers.push({ value: retireWindow.earliest, label: "Earliest you could retire", color: C.warm });
+  if (retireWindow?.recommended) exitMarkers.push({ value: retireWindow.recommended, label: "Recommended", color: C.tealDark });
 
   const setExit = (yr: number) => {
     updateNestedConfig("career_path", { exit_year: yr });
@@ -102,7 +127,7 @@ export default function ScenarioLevers({ onOpenEditor }: { onOpenEditor?: () => 
 
       <div className="@container" style={{ display: "flex", flexWrap: "wrap", gap: "14px 22px", marginBottom: 14 }}>
         <Slider label="Exit Year" value={cp.exit_year} display={String(cp.exit_year)}
-          min={2024} max={maxExit} step={1} accent={C.teal} onChange={setExit} />
+          min={2024} max={maxExit} step={1} accent={C.teal} onChange={setExit} markers={exitMarkers} />
         <Slider label="Monthly Spend" value={sp.monthly_lifestyle} display={money(sp.monthly_lifestyle)}
           min={3000} max={35000} step={250} accent={C.warm}
           badge={(() => { const t = colTier(sp.monthly_lifestyle); return (
@@ -114,12 +139,30 @@ export default function ScenarioLevers({ onOpenEditor }: { onOpenEditor?: () => 
           onChange={v => updateNestedConfig("market_assumptions", { market_return_rate: v })} />
       </div>
 
+      {/* Legend for the Exit Year notches. */}
+      {exitMarkers.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "2px 14px", marginBottom: 14, marginTop: -2 }}>
+          {exitMarkers.map((m) => (
+            <span key={m.label} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10, color: C.inkSoft }}>
+              <span style={{ width: 7, height: 7, borderRadius: 2, background: m.color }} /> {m.label} <strong style={{ color: m.color }}>{m.value}</strong>
+            </span>
+          ))}
+        </div>
+      )}
+
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
         <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: C.inkFaint, marginRight: 2 }}>Phases</span>
         <PhaseChip label="Sabbatical" on={cp.use_sabbatical} color="#d98a3d" onClick={() => updateNestedConfig("career_path", { use_sabbatical: !cp.use_sabbatical })} />
         <PhaseChip label="Career Jump" on={cp.use_jump} color="#2a9d7f" onClick={() => updateNestedConfig("career_path", { use_jump: !cp.use_jump })} />
         <PhaseChip label="Bridge Job" on={cp.use_bridge} color="#3a7d9c" onClick={() => updateNestedConfig("career_path", { use_bridge: !cp.use_bridge })} />
       </div>
+
+      {/* Branch this scenario — embedded as an extension of "Tune this scenario". */}
+      {livePrices && (
+        <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${C.borderSoft}` }}>
+          <BranchStrip livePrices={livePrices} />
+        </div>
+      )}
 
       {onOpenEditor && (
         <button onClick={onOpenEditor} style={{

@@ -6,7 +6,7 @@ import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
 import { useConfirm } from "@/components/ui/DialogProvider";
 import { STATE_OPTIONS } from "@/engine/state_tax";
-import { estimateMonthlySocialSecurity } from "@/engine/social_security";
+import { estimateMonthlySocialSecurity, estimatePIA, estimateSpousalBenefit } from "@/engine/social_security";
 import { ageFromISO, isoDate, yearOfISO } from "@/config/sharedConfig";
 import LinkedNumberField from "@/components/finance/LinkedNumberField";
 
@@ -106,6 +106,13 @@ export default function SettingsPanel() {
   const ta = baseline.tax_assumptions;
   const ma = baseline.market_assumptions;
   const kids = profile.children;
+  // Partner SS = the GREATER of their own benefit or a spousal benefit (up to
+  // 50% of the primary's), so a partner with no earnings record still draws on
+  // the primary's record — mirrors the engine so the displayed number matches.
+  const partnerSSEstimate = Math.max(
+    estimateMonthlySocialSecurity(ip.partner_gross_annual_salary || 0, ss?.start_age ?? 67),
+    estimateSpousalBenefit(estimatePIA(ip.gross_annual_salary, 35), ss?.start_age ?? 67),
+  );
   // Suggested W-4 allowances ≈ self (+ spouse) + dependents.
   const suggestedAllowances = (ta.filing_status === "married_joint" ? 2 : 1) + kids.length;
   const thisYear = new Date().getFullYear();
@@ -224,9 +231,9 @@ export default function SettingsPanel() {
                 <LinkedNumberField
                   linked={ss?.partner_ss_linked !== false}
                   displayValue={ss?.partner_ss_linked !== false
-                    ? estimateMonthlySocialSecurity(ip.partner_gross_annual_salary || 0, ss?.start_age ?? 67)
+                    ? partnerSSEstimate
                     : (ss?.partner_monthly_amount ?? 0)}
-                  onOverride={() => updateBaseline("social_security", { partner_ss_linked: false, partner_monthly_amount: estimateMonthlySocialSecurity(ip.partner_gross_annual_salary || 0, ss?.start_age ?? 67) } as any)}
+                  onOverride={() => updateBaseline("social_security", { partner_ss_linked: false, partner_monthly_amount: partnerSSEstimate } as any)}
                   onChange={v => updateBaseline("social_security", { partner_monthly_amount: v, partner_ss_linked: false } as any)}
                   onRelink={() => updateBaseline("social_security", { partner_ss_linked: true } as any)} />
               </Field>

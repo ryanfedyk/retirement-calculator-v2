@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Sparkles, Check, Plus, Copy } from "lucide-react";
+import { Sparkles, Check, Plus, CopyPlus, Clock, TrendingUp } from "lucide-react";
 import { C } from "@/config/colors";
 import { useScenarioSuggestions, type Suggestion } from "@/hooks/useScenarioSuggestions";
 import type { LivePrices } from "./FinancialDashboard";
@@ -44,76 +44,64 @@ export function BranchStrip({ livePrices, title = "What if…", subtitle = "· a
   );
 }
 
-/** A single "what if" card: title + plain-language detail + the time/money
- * trade-off (or an "active" state for a phase already in the plan), then the two
- * moves — Apply (to this scenario) and Duplicate (into a new one). */
+/** A compact "what if" card. The whole card is the primary action — clicking it
+ * applies the move to the current scenario (an active phase toggles back off). A
+ * small secondary "open in a new scenario" button sits in the corner. */
 function Card({ s }: { s: Suggestion }) {
   const isPhase = s.kind === "phase";
   const accent = isPhase ? C.teal : C.inkFaint;
+  const apply = () => s.apply();
   return (
     <div
+      role="button"
+      tabIndex={0}
+      onClick={apply}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); apply(); } }}
+      title={s.active ? "Click to remove from this scenario" : "Click to apply to this scenario"}
       style={{
-        flex: "0 0 auto", width: 212, textAlign: "left", display: "flex", flexDirection: "column", gap: 7,
-        padding: "12px 13px", borderRadius: 10,
+        position: "relative", flex: "0 0 auto", width: 158, textAlign: "left", display: "flex", flexDirection: "column", gap: 4,
+        padding: "9px 10px", borderRadius: 9, cursor: "pointer",
         border: `1px ${isPhase ? "solid" : "dashed"} ${s.active ? C.tealLight : C.border}`,
-        background: s.active ? C.tealWash : "transparent",
+        background: s.active ? C.tealWash : "transparent", transition: "border-color 0.15s, background 0.15s",
       }}
+      onMouseEnter={(e) => { if (!s.active) { e.currentTarget.style.borderColor = C.tealLight; e.currentTarget.style.background = C.bgCard; } }}
+      onMouseLeave={(e) => { if (!s.active) { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = "transparent"; } }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 5, minWidth: 0 }}>
-        {isPhase ? <Sparkles size={12} color={accent} style={{ flexShrink: 0 }} /> : <Plus size={13} color={accent} style={{ flexShrink: 0 }} />}
-        <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: 700, color: C.inkMid, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</span>
-        {s.active && (
-          <span style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 3, fontSize: 8.5, fontWeight: 800, letterSpacing: "0.04em", textTransform: "uppercase", color: C.tealDark, background: "#ffffffcc", borderRadius: 5, padding: "1px 5px" }}>
-            <Check size={9} /> Active
-          </span>
-        )}
+      {/* Secondary move: spin the idea off into its own scenario. */}
+      <button
+        onClick={(e) => { e.stopPropagation(); s.duplicate(); }}
+        title="Open in a new scenario"
+        aria-label="Open in a new scenario"
+        style={{
+          position: "absolute", top: 6, right: 6, display: "inline-flex", alignItems: "center", justifyContent: "center",
+          width: 22, height: 22, borderRadius: 6, border: `1px solid ${C.border}`, background: C.bgCard, color: C.inkSoft, cursor: "pointer",
+        }}
+      >
+        <CopyPlus size={12} />
+      </button>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 0, paddingRight: 24 }}>
+        {isPhase ? <Sparkles size={11} color={accent} style={{ flexShrink: 0 }} /> : <Plus size={12} color={accent} style={{ flexShrink: 0 }} />}
+        <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 700, color: C.inkMid, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</span>
       </div>
 
-      <span style={{ fontSize: 10.5, color: C.inkSoft, lineHeight: 1.35, minHeight: 28 }}>{s.detail}</span>
+      <span style={{ fontSize: 10, color: C.inkSoft, lineHeight: 1.3, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{s.detail}</span>
 
-      {/* Active phases are already baked into the plan — no delta to show. */}
-      {!s.active && (
-        <div style={{ display: "flex", gap: 14, marginTop: 1 }}>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: C.inkFaint }}>Freedom</div>
-            <div style={{ fontSize: 12.5, fontWeight: 800, color: s.timeColor, fontVariantNumeric: "tabular-nums" }}>{s.timeDelta}</div>
-            {s.timeHours && <div style={{ fontSize: 8.5, color: C.inkFaint, whiteSpace: "nowrap" }}>{s.timeHours}</div>}
-          </div>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: C.inkFaint }}>Net worth</div>
-            <div style={{ fontSize: 12.5, fontWeight: 800, color: s.nwColor, fontVariantNumeric: "tabular-nums" }}>{s.nwDelta}</div>
-          </div>
+      {/* Compact trade-off footer — or an "active" marker for a phase in the plan. */}
+      {s.active ? (
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9.5, fontWeight: 800, letterSpacing: "0.04em", textTransform: "uppercase", color: C.tealDark }}>
+          <Check size={10} /> In this plan
+        </span>
+      ) : (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, fontVariantNumeric: "tabular-nums" }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10.5, fontWeight: 700, color: s.timeColor }}>
+            <Clock size={10} /> {s.timeDelta}
+          </span>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10.5, fontWeight: 700, color: s.nwColor }}>
+            <TrendingUp size={10} /> {s.nwDelta}
+          </span>
         </div>
       )}
-
-      {/* Two moves: Apply to this scenario · Duplicate into a new one. An active
-          phase's Apply removes it instead. */}
-      <div style={{ display: "flex", gap: 6, marginTop: "auto", paddingTop: 4 }}>
-        <button
-          onClick={s.apply}
-          title={s.active ? "Remove from this scenario" : "Apply to this scenario"}
-          style={{
-            flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 4,
-            padding: "6px 8px", borderRadius: 7, cursor: "pointer", fontSize: 11, fontWeight: 700,
-            border: "none",
-            background: s.active ? C.bg : C.teal,
-            color: s.active ? C.inkMid : "#fff",
-          }}
-        >
-          {s.active ? "Remove" : "Apply"}
-        </button>
-        <button
-          onClick={s.duplicate}
-          title="Duplicate into a new scenario"
-          style={{
-            flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 4,
-            padding: "6px 9px", borderRadius: 7, cursor: "pointer", fontSize: 11, fontWeight: 700,
-            border: `1px solid ${C.border}`, background: C.bgCard, color: C.tealDark,
-          }}
-        >
-          <Copy size={12} /> Copy
-        </button>
-      </div>
     </div>
   );
 }

@@ -242,16 +242,33 @@ function getFPL(familySize: number): number {
   return base + perPerson * Math.max(0, familySize - 1);
 }
 
-// ACA maximum required premium contribution as % of MAGI (2025 ARP rules)
-function acaMaxContributionPct(fplRatio: number): number {
-  if (fplRatio <= 1.00) return 0.000;
-  if (fplRatio <= 1.33) return 0.000;
-  if (fplRatio <= 1.50) return 0.020;
-  if (fplRatio <= 2.00) return 0.060;
-  if (fplRatio <= 2.50) return 0.080;
-  if (fplRatio <= 3.00) return 0.100;
-  return 0.085; // ARP cap: max 8.5% of income for any income level
+// ACA premium tax credit — the "applicable percentage" of income you're expected
+// to pay toward the benchmark plan, by income as a multiple of the Federal
+// Poverty Line. Returns null when there is NO subsidy.
+//
+// The ARPA/IRA *enhanced* subsidies (8.5%-of-income cap at every income level,
+// no upper limit) EXPIRED at the end of 2025. From 2026 on, absent new
+// legislation, the law reverts to the original sliding scale — including the
+// **400% FPL subsidy cliff**: a household even $1 over 400% FPL gets nothing and
+// pays the full unsubsidized premium. This matters a lot for an early retiree
+// with rental + investment income, whose MAGI commonly clears 400% FPL. Values
+// approximate the pre-ARPA schedule (indexed ~2021).
+function acaApplicablePct(fplRatio: number): number | null {
+  if (fplRatio < 1.38) return 0;       // ≤138% FPL → Medicaid (expansion states) ≈ free
+  if (fplRatio <= 1.50) return 0.0314;
+  if (fplRatio <= 2.00) return 0.0529;
+  if (fplRatio <= 2.50) return 0.0743;
+  if (fplRatio <= 3.00) return 0.0908;
+  if (fplRatio <= 4.00) return 0.0983;
+  return null;                         // > 400% FPL → subsidy cliff: no premium tax credit
 }
+
+// Taxable brokerage/cash throws off dividends & interest every year — ordinary
+// MAGI even in years with no asset sales. A diversified taxable portfolio yields
+// ~2%/yr (qualified dividends + interest); count it toward MAGI so ACA/IRMAA see
+// it. (The *tax* on it is already modeled via market_assumptions.dividend drag;
+// this only adds it to the MAGI tally for subsidy/surcharge tests.)
+const TAXABLE_DIVIDEND_YIELD = 0.02;
 
 // ── IRS Uniform Lifetime Table (2022+) ───────────────────────────────────────
 // RMD divisor by age: the required minimum distribution is the prior year-end
@@ -791,10 +808,20 @@ export const runSimulation = (
       }
     }
 
+    // Dividends & interest on taxable balances — recurring investment income that
+    // counts toward MAGI every year, even when no assets are sold. Taxable buckets
+    // only (401k/IRA/Roth/529 are sheltered): brokerage/cash, other holdings, and
+    // any concentrated employer/jump stock.
+    const taxableInvestBalance = Math.max(0, liquidCash) + totalOtherInvestmentsValue
+      + Math.max(0, currentGoogShares * currentGoogPrice) + currentJumpStockValue;
+    const taxableDivMonthly = (taxableInvestBalance * TAXABLE_DIVIDEND_YIELD) / 12;
+
     // Accumulate this month's recurring taxable income toward the year's MAGI
-    // (wages net of 401k, rental, and the taxable portion of Social Security).
-    // Lumpy items — RMDs, realized capital gains — are added at their own sites.
-    magiThisYear += Math.max(0, annualW2Gross - annualK401) / 12 + annualRentalGross / 12 + taxableSSForMagi / 12;
+    // (wages net of 401k, rental, the taxable portion of Social Security, and
+    // dividends/interest on taxable accounts). Lumpy items — RMDs, realized
+    // capital gains — are added at their own sites.
+    magiThisYear += Math.max(0, annualW2Gross - annualK401) / 12 + annualRentalGross / 12
+      + taxableSSForMagi / 12 + taxableDivMonthly;
 
     // Healthcare
     const partnerIsWorking = ip.use_partner_income && ip.partner_has_health_insurance &&
@@ -839,7 +866,7 @@ export const runSimulation = (
     // MAGI from two years prior. Fall back to a current-year estimate before two
     // years of history exist (e.g. someone already 65+ at the start of the plan).
     const irmaaMagi = magiByYear.get(currentYear - 2)
-      ?? (Math.max(0, annualW2Gross - annualK401) + annualRentalGross + taxableSSForMagi);
+      ?? (Math.max(0, annualW2Gross - annualK401) + annualRentalGross + taxableSSForMagi + taxableDivMonthly * 12);
     const irmaaSurcharge = adultsOnMed > 0
       ? irmaaMonthlySurcharge(irmaaMagi, effectiveFiling)
       : 0;
@@ -859,19 +886,22 @@ export const runSimulation = (
 
       // ACA premium subsidy. Applies during any pre-Medicare window where the
       // household buys its own coverage — the sabbatical AND early retirement —
-      // capping the premium at the ARPA-style % of MAGI. Driven by the household's
+      // capping the premium at the applicable % of MAGI. Driven by the household's
       // actual MAGI (prior completed year), so a retiree who keeps income low
       // (living off cash/Roth/basis) qualifies for large subsidies, while one
-      // funding spending with big taxable withdrawals does not — exactly the
-      // dynamic the old "sabbatical-only" rule missed.
+      // with rental + investment income that clears 400% FPL gets NOTHING (the
+      // post-2025 subsidy cliff) and pays the full unsubsidized premium.
       const acaWindow = (phase === 'SABBATICAL' || phase === 'RETIRED') && !primaryOnMed;
       if (acaWindow && (opt?.enable_aca_optimization ?? true)) {
         const fpl            = getFPL(householdSize);
         const magiForACA     = magiByYear.get(currentYear - 1)
-          ?? (annualRentalGross + taxableSSForMagi + Math.max(0, annualW2Gross - annualK401));
-        const maxContribPct  = acaMaxContributionPct(magiForACA / fpl);
-        const maxMonthly     = (magiForACA * maxContribPct) / 12;
-        currentHealthcareCost = Math.min(currentHealthcareCost, maxMonthly);
+          ?? (annualRentalGross + taxableSSForMagi + Math.max(0, annualW2Gross - annualK401) + taxableDivMonthly * 12);
+        const pct            = acaApplicablePct(magiForACA / fpl);
+        // pct === null → above 400% FPL → no premium tax credit → full premium.
+        if (pct !== null) {
+          const maxMonthly = (magiForACA * pct) / 12;
+          currentHealthcareCost = Math.min(currentHealthcareCost, maxMonthly);
+        }
       }
 
       expense += currentHealthcareCost;

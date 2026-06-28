@@ -106,16 +106,18 @@ export default function ReclaimedTimeCalculator() {
           </div>
         </div>
 
-        <div className="flex flex-col" style={{ gap: 3 }}>
+        {/* 52 fractional columns per year so the weeks always fit the width —
+            cells scale down on mobile, up on desktop (capped so they stay tidy). */}
+        <div className="flex flex-col" style={{ gap: 2.5, maxWidth: 640 }}>
           {rows.map(({ age, kind }) => (
-            <div key={age} className="flex items-center" style={{ gap: 3 }}>
+            <div key={age} className="flex items-center" style={{ gap: 4 }}>
               {age % 5 === 0
-                ? <span style={{ color: C.inkFaint, fontSize: 8, width: 18, flexShrink: 0, textAlign: "right" }} className="tabular-nums">{age}</span>
-                : <span style={{ width: 18, flexShrink: 0 }} />}
-              <div className="flex flex-wrap" style={{ gap: 2, flex: 1 }}>
+                ? <span style={{ color: C.inkFaint, fontSize: 8, width: 16, flexShrink: 0, textAlign: "right" }} className="tabular-nums">{age}</span>
+                : <span style={{ width: 16, flexShrink: 0 }} />}
+              <div style={{ display: "grid", gridTemplateColumns: `repeat(${WEEKS}, 1fr)`, gap: 2, flex: 1 }}>
                 {Array.from({ length: WEEKS }).map((_, w) => (
                   <span key={w} style={{
-                    width: 6, height: 6, borderRadius: 1.5, flexShrink: 0,
+                    aspectRatio: "1", borderRadius: 1.5,
                     background: cellColor(kind),
                     transition: "background 0.4s ease",
                   }} />

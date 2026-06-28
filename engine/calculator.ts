@@ -229,7 +229,7 @@ export function toDisplayDollars(
 
 import { calculateTaxRaw } from './tax_engine';
 import type { StateCode } from './state_tax';
-import { estimateMonthlySocialSecurity } from './social_security';
+import { estimateMonthlySocialSecurity, estimatePIA, claimingFactor, estimateSpousalBenefit } from './social_security';
 
 // Age at which a child is assumed to leave the family health plan (post-college).
 const CHILD_OFF_PLAN_AGE = 22;
@@ -731,6 +731,11 @@ export const runSimulation = (
       // Years worked (assuming a career start at ~22) scales the benefit down for
       // early retirees, whose 35-year earnings average includes zero years.
       const primaryYearsWorked = config.career_path.exit_year - ((config.birth_year ?? 1980) + 22);
+      // The primary's PIA (100%-of-FRA benefit) — also the basis for the partner's
+      // spousal benefit, so compute it whether or not the primary has claimed yet.
+      const primaryPIA = config.social_security.social_security_linked !== false
+        ? estimatePIA(ip.gross_annual_salary, primaryYearsWorked)
+        : config.social_security.monthly_amount / claimingFactor(claimAge);
       let primaryBenefit = 0;
       if (currentAge >= claimAge) {
         primaryBenefit = config.social_security.social_security_linked !== false
@@ -738,15 +743,22 @@ export const runSimulation = (
           : config.social_security.monthly_amount;
       }
 
-      // Partner: starts when the partner reaches the claim age (from their own
-      // birth year), estimated from their income unless overridden.
+      // Partner: claims at the SS start age. A spouse always receives the GREATER
+      // of their own benefit or a spousal benefit (up to 50% of the primary's
+      // PIA) — so a partner with little or no earnings record still draws Social
+      // Security on the primary's record. If no partner birth year is set, assume
+      // the partner is the same age as the primary (matches the healthcare model).
       let partnerBenefit = 0;
-      if (ip.use_partner_income && ip.partner_birth_year) {
-        const partnerAge = currentYear - ip.partner_birth_year;
+      if (ip.use_partner_income) {
+        const partnerAge = ip.partner_birth_year ? currentYear - ip.partner_birth_year : currentAge;
         if (partnerAge >= claimAge) {
-          partnerBenefit = config.social_security.partner_ss_linked !== false
-            ? estimateMonthlySocialSecurity(ip.partner_gross_annual_salary || 0, claimAge)
-            : (config.social_security.partner_monthly_amount || 0);
+          if (config.social_security.partner_ss_linked !== false) {
+            const partnerOwn = estimateMonthlySocialSecurity(ip.partner_gross_annual_salary || 0, claimAge);
+            const spousal = estimateSpousalBenefit(primaryPIA, claimAge);
+            partnerBenefit = Math.max(partnerOwn, spousal);
+          } else {
+            partnerBenefit = config.social_security.partner_monthly_amount || 0;
+          }
         }
       }
 

@@ -329,6 +329,42 @@ describe("early-retiree Social Security benefit (AIME)", () => {
   });
 });
 
+describe("spousal Social Security (non-working partner)", () => {
+  // A partner with no earnings record still draws SS on the primary's record
+  // (up to 50% of the primary's PIA). Build a household with a $0-income partner
+  // both already past the claim age and confirm SS exceeds the primary alone.
+  function household(partnerSalary: number): SimulationConfiguration {
+    const cfg = baseConfig();
+    cfg.birth_year = YEAR - 67;          // primary already claiming
+    cfg.career_path.exit_year = YEAR - 1;
+    cfg.career_path.use_sabbatical = false;
+    cfg.career_path.use_jump = false;
+    cfg.career_path.use_bridge = false;
+    cfg.income_profile.gross_annual_salary = 150_000;
+    cfg.income_profile.use_partner_income = true;
+    cfg.income_profile.partner_gross_annual_salary = partnerSalary;
+    cfg.income_profile.partner_birth_year = YEAR - 67; // partner also claiming
+    cfg.social_security.start_age = 67;
+    return cfg;
+  }
+
+  it("pays a non-working partner a spousal benefit (≈50% of primary)", () => {
+    const single = runSimulation(baseSnap(), { ...household(0), income_profile: { ...household(0).income_profile, use_partner_income: false } }, 200);
+    const couple = runSimulation(baseSnap(), household(0), 200);
+    const at = (t: ReturnType<typeof runSimulation>) => t.find(p => p.socialSecurityNet > 0)?.socialSecurityNet ?? 0;
+    // The non-working partner adds a spousal benefit on top of the primary's.
+    expect(at(couple)).toBeGreaterThan(at(single));
+  });
+
+  it("uses the partner's own benefit when it exceeds the spousal amount", () => {
+    const lowEarner = runSimulation(baseSnap(), household(0), 200);
+    const highEarner = runSimulation(baseSnap(), household(150_000), 200);
+    const at = (t: ReturnType<typeof runSimulation>) => t.find(p => p.socialSecurityNet > 0)?.socialSecurityNet ?? 0;
+    // A partner who out-earned the 50% spousal floor draws their own (larger) benefit.
+    expect(at(highEarner)).toBeGreaterThan(at(lowEarner));
+  });
+});
+
 describe("healthcare cost realism (medical inflation + LTC)", () => {
   function healthRetiree(): SimulationConfiguration {
     const cfg = baseConfig();

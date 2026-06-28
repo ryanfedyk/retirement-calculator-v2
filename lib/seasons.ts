@@ -32,7 +32,7 @@ export function seasonsSignature(config: SimulationConfiguration): string {
 }
 
 // Palette — first four match C.phase (taper greens); later ones distinguish
-// the post-Google career types.
+// the post-career-exit phase types.
 const PALETTE = {
   taper:      ["#1e4a3e", "#2d7a66", "#4aab92", "#80c4ae"],
   sabbatical: "#d98a3d",
@@ -41,7 +41,23 @@ const PALETTE = {
   retired:    "#7a6da8",
 };
 
-// Default taper archetypes (used when there's a Google taper window).
+// When you're still several years out, there's no reason to ease off — this is
+// the "bank peak earnings" season that fills the runway BEFORE the wind-down.
+const PEAK_CAREER = {
+  name: "Peak Career", intensity: 95,
+  tagline: "Full throttle. You're still years out — bank peak earnings while you can.",
+  focus: "Compound earnings and equity; there's no need to taper yet.",
+  permission: "You are permitted to go all-in — the wind-down comes later, not now.",
+  actions: [
+    "Max out every tax-advantaged account while the income is high.",
+    "Push for the comp, scope, and equity you've earned.",
+    "Bank the surplus — every year now shortens the glide later.",
+    "Note what energizes vs. drains you; it informs the taper to come.",
+  ],
+};
+
+// Wind-down archetypes for the FINAL years before exit — ordered most→least
+// intensive, so the last season is always "The Ultimate Offramp".
 const TAPER_ARCHETYPES = [
   {
     name: "The Structural Architect", intensity: 85,
@@ -93,7 +109,7 @@ const TAPER_ARCHETYPES = [
   },
 ];
 
-// Default content for each post-Google career type.
+// Default content for each post-career-exit phase type.
 const POST_DEFAULTS: Record<Exclude<SeasonType, "taper">, Omit<Season, "id" | "label" | "startYear" | "endYear" | "color" | "type">> = {
   sabbatical: {
     name: "The Sabbatical", intensity: 0,
@@ -147,7 +163,7 @@ const POST_DEFAULTS: Record<Exclude<SeasonType, "taper">, Omit<Season, "id" | "l
 
 /**
  * Build the deterministic season timeline from the retirement model.
- * Spans from this year through the final post-Google phase. This is the
+ * Spans from this year through the final post-exit phase. This is the
  * source of truth for year ranges; Gemini (when available) enriches the
  * names/taglines/actions but the structure here always renders.
  */
@@ -157,28 +173,47 @@ export function buildSeasons(config: SimulationConfiguration): Season[] {
   const seasons: Season[] = [];
   let id = 0;
 
-  // ── Google taper window: now → exit_year, scaled across 4 archetypes ──────
+  // ── Career runway: now → exit_year ────────────────────────────────────────
+  // The active wind-down (delegating, succession, glide-slope) belongs in the
+  // FINAL few years — not the moment someone is still 4+ years out. So fill the
+  // lead years with a single "Peak Career" season and reserve the taper
+  // archetypes (ending in "Ultimate Offramp") for the last ~3 years.
   const exit = cp.exit_year;
   const taperSpan = Math.max(0, exit - nowYear);
+  const WIND_DOWN_MAX = 3;
 
   if (taperSpan > 0) {
-    const n = Math.min(4, Math.max(1, taperSpan)); // up to 4 archetype phases
-    // Use the last `n` archetypes so the final one is always "Ultimate Offramp".
-    const archetypes = TAPER_ARCHETYPES.slice(4 - n);
-    for (let i = 0; i < n; i++) {
-      const start = nowYear + Math.round((i / n) * taperSpan);
-      const end   = nowYear + Math.round(((i + 1) / n) * taperSpan);
+    const windDown = Math.min(WIND_DOWN_MAX, taperSpan); // final years that actually taper
+    const leadSpan = taperSpan - windDown;               // steady "peak" years before it
+
+    // Lead season: still years out → no need to ease off yet.
+    if (leadSpan > 0) {
+      seasons.push({
+        id: id++, type: "taper", ...PEAK_CAREER,
+        label: leadSpan === 1 ? `${nowYear}` : `${nowYear}–${nowYear + leadSpan}`,
+        startYear: nowYear, endYear: nowYear + leadSpan,
+        color: PALETTE.taper[0],
+      });
+    }
+
+    // Wind-down: one archetype per remaining year, ending in "Ultimate Offramp".
+    // A gentle 3-step (build systems → advise → glide); the most aggressive
+    // "Radical Delegator" is reserved and not shown years out.
+    const WIND_DOWN = [TAPER_ARCHETYPES[0], TAPER_ARCHETYPES[2], TAPER_ARCHETYPES[3]];
+    const archetypes = WIND_DOWN.slice(WIND_DOWN.length - windDown);
+    for (let i = 0; i < windDown; i++) {
+      const start = nowYear + leadSpan + i;
       const a = archetypes[i];
       seasons.push({
         id: id++, type: "taper", ...a,
-        label: start === end - 1 ? `${start}` : `${start}–${end}`,
-        startYear: start, endYear: end,
-        color: PALETTE.taper[4 - n + i],
+        label: `${start}`,
+        startYear: start, endYear: start + 1,
+        color: PALETTE.taper[Math.min(3, 4 - windDown + i)],
       });
     }
   }
 
-  // ── Post-Google career phases ─────────────────────────────────────────────
+  // ── Post-exit career phases ─────────────────────────────────────────────
   let cursor = exit;
   const pushPost = (type: Exclude<SeasonType, "taper" | "retired">, dur: number) => {
     if (dur <= 0) return;

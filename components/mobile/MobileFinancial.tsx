@@ -10,7 +10,6 @@ import { runMonteCarlo } from "@/engine/montecarlo";
 import { getLifeEvents } from "@/lib/horizonUtils";
 import { useHorizonProfile } from "@/config/horizonConfig";
 import AiAnalysis from "@/components/finance/AiAnalysis";
-import PriceTicker from "@/components/finance/PriceTicker";
 import ScenarioLevers from "@/components/finance/ScenarioLevers";
 import SummaryCards from "@/components/finance/SummaryCards";
 import FireMoments from "@/components/fx/FireMoments";
@@ -35,7 +34,7 @@ interface Props {
   onOpenConfig: () => void;
 }
 
-export default function MobileFinancial({ livePrices, pricesFetching, onRefreshPrices, onOpenConfig }: Props) {
+export default function MobileFinancial({ livePrices, onOpenConfig }: Props) {
   const { config, snapshot } = useFinancialStore();
   const dollarMode = useUIStore((s) => s.dollarMode);
   const inflationRate = config.market_assumptions.inflation_rate || 0;
@@ -195,22 +194,14 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
         progress={progress}
         notices={notices}
         onOpenFinances={() => useUIStore.getState().setFinancesOpen(true)}
+        holdings={snapshot.other_investments}
+        livePrices={livePrices}
+        concentratedSymbol={config.use_equity_comp ? config.concentrated_symbol : ""}
       />
 
       {/* Chart lives directly on the canvas (no card) to cut visual complexity.
           touchAction pan-y so dragging the chart never scrolls the page sideways. */}
       <div style={{ padding: "0 2px", touchAction: "pan-y" }}>
-        {/* Live prices for your holdings — the chart's inputs, given a home atop it. */}
-        <div style={{ padding: "0 4px 12px", marginBottom: 12, borderBottom: `1px solid ${C.borderSoft}` }}>
-          <PriceTicker
-            holdings={snapshot.other_investments}
-            livePrices={livePrices}
-            concentratedSymbol={config.use_equity_comp ? config.concentrated_symbol : ""}
-            pricesFetching={pricesFetching}
-            onRefreshPrices={onRefreshPrices}
-            align="start"
-          />
-        </div>
         {/* View pills */}
         <div style={{ display: "flex", gap: 6, padding: "0 4px 14px", justifyContent: "center" }}>
           {(["wealth", "income", "expenses", "risk"] as View[]).map(v => (

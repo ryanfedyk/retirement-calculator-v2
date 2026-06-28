@@ -397,6 +397,9 @@ export default function RightPanel({ livePrices }: Props) {
         progress={progress}
         notices={notices}
         onOpenFinances={() => useUIStore.getState().setFinancesOpen(true)}
+        holdings={snapshot.other_investments}
+        livePrices={livePrices}
+        concentratedSymbol={config.use_equity_comp ? config.concentrated_symbol : ""}
       />
 
       {/* ── Main chart (the hero) ── */}

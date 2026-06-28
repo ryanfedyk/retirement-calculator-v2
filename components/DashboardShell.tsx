@@ -17,7 +17,6 @@ import ReclaimedTimeCalculator from "@/components/ReclaimedTimeCalculator";
 import PerfectYear          from "@/components/forecasting/PerfectYear";
 import FinancialDashboard    from "@/components/finance/FinancialDashboard";
 import PerfectDay            from "@/components/forecasting/PerfectDay";
-import PriceTicker           from "@/components/finance/PriceTicker";
 import LifeEventsFab         from "@/components/forecasting/LifeEventsFab";
 import SettingsPanel         from "@/components/SettingsPanel";
 import ScenarioReportModal   from "@/components/ScenarioReportModal";
@@ -117,20 +116,8 @@ export default function DashboardShell() {
       ) : (
       <>
       {/* Countdown — reflects the open scenario, across both deep-dive tabs.
-          The portfolio price ticker rides on the same line to save a widget. */}
-      <CountdownStrip
-        right={
-          <PriceTicker
-            holdings={snapshot.other_investments}
-            livePrices={prices.livePrices}
-            concentratedSymbol={config.use_equity_comp ? config.concentrated_symbol : ""}
-            pricesUpdatedAt={prices.pricesUpdatedAt}
-            pricesFetching={prices.pricesFetching}
-            onRefreshPrices={prices.refresh}
-            align="end"
-          />
-        }
-      />
+          (Live prices now ride on the Progress-to-FI summary card.) */}
+      <CountdownStrip />
 
       {/* ── Financial View ── */}
       {appView === "financial" && (

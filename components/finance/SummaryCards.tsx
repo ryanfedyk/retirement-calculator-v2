@@ -3,8 +3,24 @@ import { useState } from "react";
 import { HelpCircle, AlertTriangle, CheckCircle, X, Flag, TrendingUp } from "lucide-react";
 import { C } from "@/config/colors";
 import { sevColor, sevBg, type Notice } from "@/lib/planNotices";
+import type { FinancialSnapshot } from "@/engine/calculator";
+import type { LivePrices } from "@/hooks/useLivePrices";
 
 const fmtMM = (n: number) => `$${(n / 1_000_000).toFixed(2)}M`;
+
+/** The focused ticker symbols for the live-price line: the employer/concentrated
+ * stock (if held) plus the single largest holding. */
+function tickerSymbols(holdings: FinancialSnapshot["other_investments"] | undefined, livePrices: LivePrices, concSym?: string): string[] {
+  const held = (holdings ?? []).filter((h) => h.symbol);
+  const valueOf = (h: { symbol: string; shares: number; current_price: number }) =>
+    h.shares * (livePrices[h.symbol.toUpperCase()]?.price ?? h.current_price ?? 0);
+  const out: string[] = [];
+  const cs = (concSym ?? "").toUpperCase();
+  if (cs && held.some((h) => h.symbol.toUpperCase() === cs)) out.push(cs);
+  const largest = held.reduce<typeof held[number] | null>((b, h) => (!b || valueOf(h) > valueOf(b) ? h : b), null);
+  if (largest) { const s = largest.symbol.toUpperCase(); if (!out.includes(s)) out.push(s); }
+  return out;
+}
 
 /**
  * The scenario summary strip — Financial Independence · Progress to FI · Alerts.
@@ -13,14 +29,18 @@ const fmtMM = (n: number) => `$${(n / 1_000_000).toFixed(2)}M`;
  * differentiation; a small "?" opens an explanation; tapping the FI Number card
  * opens finances; the Alerts card opens the full list in a popover.
  */
-export default function SummaryCards({ indepDate, currentNW, swrTarget, progress, notices, onOpenFinances }: {
+export default function SummaryCards({ indepDate, currentNW, swrTarget, progress, notices, onOpenFinances, holdings, livePrices, concentratedSymbol }: {
   indepDate: string | null;
   currentNW: number;
   swrTarget: number;
   progress: number;
   notices: Notice[];
   onOpenFinances: () => void;
+  holdings?: FinancialSnapshot["other_investments"];
+  livePrices?: LivePrices;
+  concentratedSymbol?: string;
 }) {
+  const tickers = livePrices ? tickerSymbols(holdings, livePrices, concentratedSymbol) : [];
   const [modal, setModal] = useState<{ title: string; node: React.ReactNode } | null>(null);
   const open = (title: string, node: React.ReactNode) => setModal({ title, node });
 
@@ -108,7 +128,22 @@ export default function SummaryCards({ indepDate, currentNW, swrTarget, progress
             <div style={{ height: 5, borderRadius: 99, background: C.borderSoft }}>
               <div style={{ height: "100%", borderRadius: 99, background: C.teal, width: `${progress}%`, transition: "width 0.8s ease" }} />
             </div>
-            <div style={{ fontSize: 10, color: C.inkFaint, marginTop: 5 }}>{progress.toFixed(0)}% of your FI number</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 5, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 10, color: C.inkFaint }}>{progress.toFixed(0)}% of your FI number</span>
+              {tickers.length > 0 && (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 8, marginLeft: "auto" }}>
+                  {tickers.map((sym) => {
+                    const info = livePrices?.[sym];
+                    return (
+                      <span key={sym} style={{ display: "inline-flex", alignItems: "baseline", gap: 3, fontVariantNumeric: "tabular-nums" }}>
+                        <span style={{ fontSize: 9, fontWeight: 700, color: C.inkSoft }}>{sym}</span>
+                        <span style={{ fontSize: 10, color: C.inkMid }}>{info?.price ? `$${info.price.toFixed(2)}` : "–"}</span>
+                      </span>
+                    );
+                  })}
+                </span>
+              )}
+            </div>
           </div>
         </button>
 

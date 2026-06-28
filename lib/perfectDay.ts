@@ -76,6 +76,8 @@ export const ACTIVITIES: Activity[] = [
   { id: "hike",      label: "Hike",                  emoji: "🥾", category: "Adventure", cost: 10 },
   { id: "daytrip",   label: "Day trip",              emoji: "🚗", category: "Adventure", cost: 120 },
   { id: "travel",    label: "Plan / take travel",    emoji: "✈️", category: "Adventure", cost: 0,  prep: "Earmark a travel budget line and a first-year trip list." },
+  { id: "bigtrip",   label: "Extended trip abroad",  emoji: "🌍", category: "Adventure", cost: 400, prep: "Pick one bucket-list region and start a rough itinerary + budget now." },
+  { id: "visitfar",  label: "Visit far-away family", emoji: "🧳", category: "Adventure", cost: 150, prep: "Factor regular trips to the people you love who live far away." },
   { id: "boat",      label: "Sailing or boating",    emoji: "⛵", category: "Adventure", cost: 300, prep: "Rent before you buy — carrying costs are the real expense." },
   { id: "photo",     label: "Photography",           emoji: "📷", category: "Adventure", cost: 30 },
 

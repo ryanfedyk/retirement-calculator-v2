@@ -1,6 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
-import { Plus, X, Wallet, Sparkles, RotateCcw, Check, Loader2 } from "lucide-react";
+import { Plus, X, Sparkles, RotateCcw, Check, Loader2 } from "lucide-react";
 import { C } from "@/config/colors";
 import { useUIStore } from "@/store/useUIStore";
 import { useFinancialStore } from "@/store/useFinancialStore";
@@ -68,7 +68,7 @@ export default function PerfectDay() {
           )}
         </div>
         <p style={{ fontSize: 13, color: C.inkSoft, maxWidth: 620, lineHeight: 1.5 }}>
-          Retirement isn't an absence of work — it's a day you actually want to live, on repeat. Build one below, and we'll show what it asks of your plan and what to start preparing now.
+          This is headspace work, not a budget. Retirement isn't an absence of work — it's a day you actually want to live, on repeat. Build one below and notice how it feels: where your energy, connection, and meaning come from. (The money is a quiet footnote.)
         </p>
       </div>
 
@@ -122,25 +122,9 @@ export default function PerfectDay() {
       {/* Insights */}
       {hasAny && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.inkFaint }}>What this means for your plan</div>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.inkFaint }}>What your day is telling you</div>
 
-          {/* Cost */}
-          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 14, background: C.tealWash, border: `1px solid ${C.tealLight}`, borderRadius: 12, padding: "14px 16px" }}>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: C.tealDark }}>This day costs about</div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: C.ink, fontVariantNumeric: "tabular-nums" }}>
-                {money(insights.monthlyCost)}/mo <span style={{ fontSize: 13, fontWeight: 600, color: C.inkSoft }}>· {money(insights.annualCost)}/yr</span>
-              </div>
-            </div>
-            <button onClick={() => setFinancesOpen(true)} style={{
-              marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8,
-              border: "none", background: C.teal, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer",
-            }}>
-              <Wallet size={15} /> Check my spending
-            </button>
-          </div>
-
-          {/* Balance coaching */}
+          {/* Balance coaching — the emotional read leads now */}
           <div style={{ display: "flex", gap: 10, background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 12, padding: "14px 16px" }}>
             <span style={{ fontSize: 18, lineHeight: 1, flexShrink: 0 }}>{insights.gap ? "💡" : "✨"}</span>
             <div>
@@ -236,6 +220,14 @@ export default function PerfectDay() {
                 </button>
               </div>
             )}
+          </div>
+
+          {/* Cost — a quiet footnote, not the headline. */}
+          <div style={{ fontSize: 11.5, color: C.inkFaint, lineHeight: 1.5 }}>
+            For reference, a day like this runs about <span style={{ color: C.inkSoft, fontWeight: 600 }}>{money(insights.monthlyCost)}/mo</span> in lifestyle spending.{" "}
+            <button onClick={() => setFinancesOpen(true)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: C.tealDark, fontSize: 11.5, fontWeight: 600, textDecoration: "underline" }}>
+              See it against your plan
+            </button>
           </div>
         </div>
       )}

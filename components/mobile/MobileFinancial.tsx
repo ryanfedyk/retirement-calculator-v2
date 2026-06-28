@@ -203,7 +203,7 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
 
       {/* Chart card — touchAction pan-y so dragging the chart never scrolls the page sideways */}
       <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 20, padding: "16px 12px 12px", touchAction: "pan-y" }}>
-        {/* "Your finances" link + live prices in one pill, atop the chart. */}
+        {/* Live prices for your holdings — the chart's inputs, given a home atop it. */}
         <div style={{ padding: "0 4px 12px", marginBottom: 12, borderBottom: `1px solid ${C.borderSoft}` }}>
           <PriceTicker
             holdings={snapshot.other_investments}
@@ -212,7 +212,6 @@ export default function MobileFinancial({ livePrices, pricesFetching, onRefreshP
             pricesFetching={pricesFetching}
             onRefreshPrices={onRefreshPrices}
             align="start"
-            onOpenFinances={() => useUIStore.getState().setFinancesOpen(true)}
           />
         </div>
         {/* View pills */}

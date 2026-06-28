@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { TrendingUp, TrendingDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { TrendingUp, TrendingDown } from "lucide-react";
 import { C } from "@/config/colors";
 import { continuousFiMonth, type TrajectoryPoint, type FinancialSnapshot, type SimulationConfiguration } from "@/engine/calculator";
 import { monthOfISO, dayOfISO, ageFromISO } from "@/config/sharedConfig";
@@ -110,57 +110,6 @@ export function TodaysDelta({ trajectory, snapshot, symbol = "", price }: {
   );
 }
 
-// ── 2. Momentum turnstile ─────────────────────────────────────────────────────
-export function MomentumTurnstile({ point, config, trajectory, birthDate }: { point: TrajectoryPoint; config: SimulationConfiguration; trajectory?: TrajectoryPoint[]; birthDate?: string }) {
-  const [idx, setIdx] = useState(0);
-  const cards = useMemo(() => buildMomentumCards(point, config, trajectory, birthDate), [point, config, trajectory, birthDate]);
-
-  useEffect(() => {
-    const id = setInterval(() => setIdx(i => (i + 1) % cards.length), 6000);
-    return () => clearInterval(id);
-  }, [cards.length]);
-
-  const card = cards[idx];
-
-  return (
-    <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 14, padding: "16px 18px", minHeight: 192, display: "flex", flexDirection: "column" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-        <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: C.inkSoft }}>{card.tag}</span>
-        <div style={{ display: "flex", gap: 6 }}>
-          <button onClick={() => setIdx(i => (i - 1 + cards.length) % cards.length)} style={navBtn}><ChevronLeft size={14} color={C.inkSoft} /></button>
-          <button onClick={() => setIdx(i => (i + 1) % cards.length)} style={navBtn}><ChevronRight size={14} color={C.inkSoft} /></button>
-        </div>
-      </div>
-
-      <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
-        <span style={{ fontSize: 30, fontWeight: 300, color: card.color, letterSpacing: "-0.02em", fontVariantNumeric: "tabular-nums" }}>{card.value}</span>
-        <span style={{ fontSize: 13, color: C.inkMid }}>{card.unit}</span>
-      </div>
-      <p style={{ fontSize: 13, color: C.inkMid, marginTop: 6, lineHeight: 1.5, minHeight: 58 }}>{card.blurb}</p>
-
-      {card.pct != null && (
-        <div style={{ marginTop: "auto", height: 6, borderRadius: 99, background: C.bg }}>
-          <div style={{ height: "100%", borderRadius: 99, background: card.color, width: `${Math.min(100, card.pct)}%`, transition: "width 0.6s ease" }} />
-        </div>
-      )}
-
-      <div style={{ display: "flex", justifyContent: "center", gap: 6, marginTop: 14 }}>
-        {cards.map((_, i) => (
-          <button key={i} onClick={() => setIdx(i)} style={{
-            width: i === idx ? 18 : 6, height: 6, borderRadius: 99, border: "none", cursor: "pointer",
-            background: i === idx ? C.teal : C.border, transition: "all 0.25s",
-          }} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-const navBtn: React.CSSProperties = {
-  width: 26, height: 26, borderRadius: "50%", border: `1px solid ${C.border}`,
-  background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
-};
-
 // Same momentum metrics, but as separate cards you swipe through horizontally
 // (one-at-a-time scroll snap with a peek of the next). Used on mobile.
 export function MomentumCards({ point, config, trajectory, birthDate }: { point: TrajectoryPoint; config: SimulationConfiguration; trajectory?: TrajectoryPoint[]; birthDate?: string }) {
@@ -181,6 +130,34 @@ export function MomentumCards({ point, config, trajectory, birthDate }: { point:
           <p style={{ fontSize: 13, color: C.inkMid, marginTop: 6, lineHeight: 1.5 }}>{card.blurb}</p>
           {card.pct != null && (
             <div style={{ marginTop: "auto", height: 6, borderRadius: 99, background: C.bg }}>
+              <div style={{ height: "100%", borderRadius: 99, background: card.color, width: `${Math.min(100, card.pct)}%`, transition: "width 0.6s ease" }} />
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Same momentum metrics laid out as a responsive grid of individual cards that
+// reflow with the screen width (no carousel) — the desktop "Today" view.
+export function MomentumGrid({ point, config, trajectory, birthDate }: { point: TrajectoryPoint; config: SimulationConfiguration; trajectory?: TrajectoryPoint[]; birthDate?: string }) {
+  const cards = useMemo(() => buildMomentumCards(point, config, trajectory, birthDate), [point, config, trajectory, birthDate]);
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12, width: "100%" }}>
+      {cards.map(card => (
+        <div key={card.tag} style={{
+          background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 14, padding: "15px 16px",
+          display: "flex", flexDirection: "column",
+        }}>
+          <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: C.inkSoft }}>{card.tag}</span>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 8 }}>
+            <span style={{ fontSize: 28, fontWeight: 300, color: card.color, letterSpacing: "-0.02em", fontVariantNumeric: "tabular-nums" }}>{card.value}</span>
+            <span style={{ fontSize: 12, color: C.inkMid }}>{card.unit}</span>
+          </div>
+          <p style={{ fontSize: 12.5, color: C.inkMid, marginTop: 6, lineHeight: 1.5, flex: 1 }}>{card.blurb}</p>
+          {card.pct != null && (
+            <div style={{ marginTop: 12, height: 6, borderRadius: 99, background: C.bg }}>
               <div style={{ height: "100%", borderRadius: 99, background: card.color, width: `${Math.min(100, card.pct)}%`, transition: "width 0.6s ease" }} />
             </div>
           )}

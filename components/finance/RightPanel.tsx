@@ -389,15 +389,6 @@ export default function RightPanel({ livePrices }: Props) {
 
       <FireMoments netWorth={currentNW} swrTarget={swrTarget} isIndependent={todayPoint?.isIndependent ?? false} savingsRate={savingsRate} coastFI={coastFI} />
 
-      {/* ── Scenario levers — the headline interaction. The retirement window now
-          rides on the Exit Year slider, and "Branch this scenario" is embedded
-          at the bottom of this card. ── */}
-      <ScenarioLevers
-        onOpenEditor={planPanelOpen ? undefined : () => setPlanPanelOpen(true)}
-        livePrices={livePrices}
-        retireWindow={retireWindow}
-      />
-
       {/* ── Summary cards: Financial Independence · Progress to FI · Alerts ── */}
       <SummaryCards
         indepDate={indepPoint ? indepPoint.date : null}
@@ -565,6 +556,15 @@ export default function RightPanel({ livePrices }: Props) {
           ))}
         </div>
       )}
+
+      {/* ── Scenario levers — sit directly under the chart so tuning a slider and
+          watching the trajectory react stays one tight feedback loop. "What if…"
+          is embedded at the bottom of this card. ── */}
+      <ScenarioLevers
+        onOpenEditor={planPanelOpen ? undefined : () => setPlanPanelOpen(true)}
+        livePrices={livePrices}
+        retireWindow={retireWindow}
+      />
 
       {/* ── Insights — progressive disclosure below the hero chart ── */}
       <div style={{ display: "flex", gap: 6, background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 10, padding: 4, alignSelf: "flex-start" }}>

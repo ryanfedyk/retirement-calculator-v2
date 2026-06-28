@@ -1,56 +1,168 @@
 "use client";
-import { useMemo, useState } from "react";
-import { Plus, X, Sparkles, RotateCcw, Check, Loader2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Plus, X, Sparkles, RotateCcw, Check, Loader2, Pencil, CalendarRange, ArrowRight } from "lucide-react";
 import { C } from "@/config/colors";
 import { useUIStore } from "@/store/useUIStore";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { usePerfectDayStore } from "@/store/usePerfectDayStore";
+import { usePerfectYearStore } from "@/store/usePerfectYearStore";
+import { ADVENTURE_SEEDS } from "@/data/adventureSeeds";
 import {
   ACTIVITIES, ACTIVITY_BY_ID, BLOCKS, CATEGORY_COLOR, THOUGHT_STARTERS, analyzeDay,
-  type ActivityCategory, type DayBlock,
+  type ActivityCategory, type DayBlock, type PerfectDayItem,
 } from "@/lib/perfectDay";
 
 const money = (n: number) => `$${Math.round(n).toLocaleString()}`;
 const CATEGORIES = Object.keys(CATEGORY_COLOR) as ActivityCategory[];
+const SEED_BY_ID = Object.fromEntries(ADVENTURE_SEEDS.map((s) => [s.id, s]));
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-/** Build your ideal day in retirement: assemble activities into morning /
- * afternoon / evening, and get rule-based insights on what it costs and what to
- * start preparing now. Lives in the Reclaim view on desktop and mobile. */
-export default function PerfectDay() {
-  const { blocks, add, remove, clear } = usePerfectDayStore();
+const allIdsOf = (d: PerfectDayItem) => [...d.blocks.morning, ...d.blocks.afternoon, ...d.blocks.evening];
+const uniqueCount = (d: PerfectDayItem) => new Set(allIdsOf(d)).size;
+
+type AiInsight = { headline: string; reflection: string; prepare: string[]; tryAdding: string[] };
+type YearSeed = { seedId: string; month: number; why?: string };
+type Culmination = { title: string; essence: string; themes: string[]; passions: string[]; yearSeeds: YearSeed[] };
+
+/** Build your ideal days in retirement: sketch several named days, get a warm
+ * per-day read, and an AI "culmination" that names what your retirement is
+ * really about — then seeds your Perfect Year. Lives in the Reclaim view on
+ * desktop and mobile. The AI is proactive: reads surface on their own. */
+export default function PerfectDay({ onGoToYear }: { onGoToYear?: () => void } = {}) {
+  const { days, activeId, add, remove, clear, addDay, removeDay, renameDay, setActive } = usePerfectDayStore();
   const setFinancesOpen = useUIStore((s) => s.setFinancesOpen);
   const exitYear = useFinancialStore((s) => s.config.career_path.exit_year);
-  const [picker, setPicker] = useState<DayBlock | null>(null);
+  const yearsToRetirement = exitYear ? Math.max(0, exitYear - new Date().getFullYear()) : null;
 
-  const allIds = useMemo(() => [...blocks.morning, ...blocks.afternoon, ...blocks.evening], [blocks]);
+  const activeDay = useMemo(() => days.find((d) => d.id === activeId) ?? days[0], [days, activeId]);
+  const allIds = useMemo(() => allIdsOf(activeDay), [activeDay]);
   const insights = useMemo(() => analyzeDay(allIds), [allIds]);
   const hasAny = allIds.length > 0;
 
-  // ── AI personalization (Gemini) — layered on top of the rule-based insights ──
-  type AiInsight = { headline: string; reflection: string; prepare: string[]; tryAdding: string[] };
-  const [ai, setAi] = useState<AiInsight | null>(null);
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiError, setAiError] = useState<string | null>(null);
+  const [picker, setPicker] = useState<DayBlock | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [nameBuf, setNameBuf] = useState("");
 
-  const generateAI = async () => {
-    setAiLoading(true); setAiError(null);
+  // ── Proactive per-day AI reflection (auto-surfaces; degrades to rules) ──────
+  const [aiByDay, setAiByDay] = useState<Record<string, AiInsight>>({});
+  const [aiLoadingId, setAiLoadingId] = useState<string | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+  // Once Gemini reports it isn't configured, stop auto-firing (manual still works).
+  const aiDisabled = useRef(false);
+  const lastDaySig = useRef<Record<string, string>>({});
+  const dayTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const dayPayload = (d: PerfectDayItem) => {
+    const ins = analyzeDay(allIdsOf(d));
+    return {
+      blocks: BLOCKS.map((b) => ({ label: b.label, activities: d.blocks[b.id].map((id) => ACTIVITY_BY_ID[id]?.label).filter(Boolean) })),
+      categories: ins.categories.map((c) => c.category),
+      monthlyCost: ins.monthlyCost,
+      exitYear, yearsToRetirement,
+    };
+  };
+
+  const generateDayAI = async (d: PerfectDayItem, opts?: { auto?: boolean }) => {
+    if (opts?.auto && (aiDisabled.current || aiLoadingId)) return;
+    if (!opts?.auto) aiDisabled.current = false; // manual press re-enables a fresh try
+    lastDaySig.current[d.id] = JSON.stringify(d.blocks);
+    setAiLoadingId(d.id); setAiError(null);
+    try {
+      const res = await fetch("/api/perfect-day", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(dayPayload(d)) });
+      const data = await res.json();
+      if (!res.ok) {
+        if (res.status === 503 || res.status === 401) aiDisabled.current = true; // not configured / bad key
+        throw new Error(data.detail || data.error || "Something went wrong.");
+      }
+      setAiByDay((m) => ({ ...m, [d.id]: data.insight as AiInsight }));
+    } catch (e: any) {
+      if (!opts?.auto) setAiError(e.message || "Couldn't generate insights.");
+    } finally {
+      setAiLoadingId((cur) => (cur === d.id ? null : cur));
+    }
+  };
+
+  // Auto-fire a reflection when a day first becomes rich (≥3 activities) or its
+  // content meaningfully changes — no button required.
+  useEffect(() => {
+    if (dayTimer.current) clearTimeout(dayTimer.current);
+    if (uniqueCount(activeDay) < 3) return;
+    const sig = JSON.stringify(activeDay.blocks);
+    if (lastDaySig.current[activeDay.id] === sig) return;
+    dayTimer.current = setTimeout(() => generateDayAI(activeDay, { auto: true }), 1300);
+    return () => { if (dayTimer.current) clearTimeout(dayTimer.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeId, JSON.stringify(activeDay.blocks)]);
+
+  const ai = aiByDay[activeDay.id] ?? null;
+
+  // ── Proactive culmination across all rich days ──────────────────────────────
+  const richDays = useMemo(() => days.filter((d) => uniqueCount(d) >= 3), [days]);
+  const culmSig = useMemo(() => JSON.stringify(richDays.map((d) => ({ n: d.name, b: d.blocks }))), [richDays]);
+  const [culm, setCulm] = useState<Culmination | null>(null);
+  const [culmLoading, setCulmLoading] = useState(false);
+  const [culmError, setCulmError] = useState<string | null>(null);
+  const [seededCount, setSeededCount] = useState<number | null>(null);
+  const lastCulmSig = useRef<string>("");
+  const culmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const generateCulmination = async (opts?: { auto?: boolean }) => {
+    if (opts?.auto && (aiDisabled.current || culmLoading)) return;
+    if (!opts?.auto) aiDisabled.current = false;
+    lastCulmSig.current = culmSig;
+    setCulmLoading(true); setCulmError(null); setSeededCount(null);
     try {
       const payload = {
-        blocks: BLOCKS.map((b) => ({ label: b.label, activities: blocks[b.id].map((id) => ACTIVITY_BY_ID[id]?.label).filter(Boolean) })),
-        categories: insights.categories.map((c) => c.category),
-        monthlyCost: insights.monthlyCost,
-        exitYear,
-        yearsToRetirement: exitYear ? Math.max(0, exitYear - new Date().getFullYear()) : null,
+        mode: "culmination" as const,
+        days: richDays.map((d) => {
+          const ins = analyzeDay(allIdsOf(d));
+          return {
+            name: d.name,
+            blocks: BLOCKS.map((b) => ({ label: b.label, activities: d.blocks[b.id].map((id) => ACTIVITY_BY_ID[id]?.label).filter(Boolean) })),
+            categories: ins.categories.map((c) => c.category),
+          };
+        }),
+        catalog: ADVENTURE_SEEDS.map((s) => ({ id: s.id, concept: s.concept, category: s.category })),
+        exitYear, yearsToRetirement,
       };
       const res = await fetch("/api/perfect-day", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || data.error || "Something went wrong.");
-      setAi(data.insight as AiInsight);
+      if (!res.ok) {
+        if (res.status === 503 || res.status === 401) aiDisabled.current = true;
+        throw new Error(data.detail || data.error || "Something went wrong.");
+      }
+      const c = data.culmination as Culmination;
+      // Keep only seeds that map to real catalog entries, with sane months.
+      c.yearSeeds = (c.yearSeeds ?? []).filter((s) => SEED_BY_ID[s.seedId]).map((s) => ({ ...s, month: Math.min(11, Math.max(0, Math.round(s.month) || 0)) }));
+      setCulm(c);
     } catch (e: any) {
-      setAiError(e.message || "Couldn't generate insights.");
+      setCulmError(e.message || "Couldn't synthesize your days.");
     } finally {
-      setAiLoading(false);
+      setCulmLoading(false);
     }
+  };
+
+  useEffect(() => {
+    if (culmTimer.current) clearTimeout(culmTimer.current);
+    if (richDays.length < 2) return;
+    if (lastCulmSig.current === culmSig) return;
+    culmTimer.current = setTimeout(() => generateCulmination({ auto: true }), 1900);
+    return () => { if (culmTimer.current) clearTimeout(culmTimer.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [culmSig, richDays.length]);
+
+  const buildYear = () => {
+    if (!culm) return;
+    const yr = usePerfectYearStore.getState();
+    let n = 0;
+    for (const s of culm.yearSeeds) { if (SEED_BY_ID[s.seedId]) { yr.add(s.month, s.seedId); n++; } }
+    setSeededCount(n);
+  };
+
+  const startRename = (d: PerfectDayItem) => { setEditingId(d.id); setNameBuf(d.name); };
+  const commitRename = () => {
+    if (editingId) { const n = nameBuf.trim(); if (n) renameDay(editingId, n); }
+    setEditingId(null);
   };
 
   return (
@@ -59,17 +171,58 @@ export default function PerfectDay() {
       <div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
           <Sparkles size={18} color={C.teal} />
-          <h2 style={{ fontSize: 18, fontWeight: 800, color: C.ink, letterSpacing: "-0.01em" }}>Your perfect day</h2>
-          {hasAny && (
-            <button onClick={clear} title="Start over"
-              style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 5, background: "none", border: "none", cursor: "pointer", color: C.inkFaint, fontSize: 11, fontWeight: 600 }}>
-              <RotateCcw size={13} /> Reset
-            </button>
-          )}
+          <h2 style={{ fontSize: 18, fontWeight: 800, color: C.ink, letterSpacing: "-0.01em" }}>Your perfect days</h2>
         </div>
-        <p style={{ fontSize: 13, color: C.inkSoft, maxWidth: 620, lineHeight: 1.5 }}>
-          This is headspace work, not a budget. Retirement isn't an absence of work — it's a day you actually want to live, on repeat. Build one below and notice how it feels: where your energy, connection, and meaning come from. (The money is a quiet footnote.)
+        <p style={{ fontSize: 13, color: C.inkSoft, maxWidth: 640, lineHeight: 1.5 }}>
+          This is headspace work, not a budget. Sketch a few different days you'd actually want to live — a slow one, an adventurous one, a creative one. The more you add, the more clearly the throughline shows: what your retirement is really about.
         </p>
+      </div>
+
+      {/* Day switcher */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+        {days.map((d) => {
+          const isActive = d.id === activeDay.id;
+          if (editingId === d.id) {
+            return (
+              <input key={d.id} autoFocus value={nameBuf}
+                onChange={(e) => setNameBuf(e.target.value)}
+                onBlur={commitRename}
+                onKeyDown={(e) => { if (e.key === "Enter") commitRename(); if (e.key === "Escape") setEditingId(null); }}
+                style={{ fontSize: 13, fontWeight: 700, color: C.ink, padding: "7px 11px", borderRadius: 99, border: `1px solid ${C.teal}`, background: C.bgCard, outline: "none", maxWidth: 200 }}
+              />
+            );
+          }
+          return (
+            <div key={d.id} style={{
+              display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 11px", borderRadius: 99,
+              border: `1px solid ${isActive ? C.teal : C.border}`, background: isActive ? C.tealWash : C.bgCard,
+            }}>
+              <button onClick={() => setActive(d.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: 13, fontWeight: 700, color: isActive ? C.tealDark : C.inkMid }}>
+                {d.name}
+                <span style={{ fontWeight: 500, color: C.inkFaint, marginLeft: 6 }}>{uniqueCount(d) || ""}</span>
+              </button>
+              {isActive && (
+                <button onClick={() => startRename(d)} aria-label="Rename day" style={{ display: "flex", background: "none", border: "none", cursor: "pointer", color: C.inkFaint, padding: 0 }}>
+                  <Pencil size={12} />
+                </button>
+              )}
+              {days.length > 1 && (
+                <button onClick={() => removeDay(d.id)} aria-label={`Delete ${d.name}`} style={{ display: "flex", background: "none", border: "none", cursor: "pointer", color: C.inkFaint, padding: 0 }}>
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+          );
+        })}
+        <button onClick={addDay} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "7px 12px", borderRadius: 99, border: `1px dashed ${C.border}`, background: "transparent", cursor: "pointer", color: C.tealDark, fontSize: 12.5, fontWeight: 700 }}>
+          <Plus size={14} /> Add a day
+        </button>
+        {hasAny && (
+          <button onClick={clear} title="Clear this day"
+            style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 5, background: "none", border: "none", cursor: "pointer", color: C.inkFaint, fontSize: 11, fontWeight: 600 }}>
+            <RotateCcw size={13} /> Clear
+          </button>
+        )}
       </div>
 
       {/* Thought starters */}
@@ -81,7 +234,7 @@ export default function PerfectDay() {
         ))}
       </div>
 
-      {/* The three blocks */}
+      {/* The three blocks (for the active day) */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12 }}>
         {BLOCKS.map((b) => (
           <div key={b.id} style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10, minHeight: 150 }}>
@@ -90,10 +243,10 @@ export default function PerfectDay() {
               <div style={{ fontSize: 11, color: C.inkFaint, marginTop: 1 }}>{b.hint}</div>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 7, flex: 1 }}>
-              {blocks[b.id].length === 0 && (
+              {activeDay.blocks[b.id].length === 0 && (
                 <div style={{ fontSize: 12, color: C.inkFaint, fontStyle: "italic", padding: "6px 0" }}>Nothing here yet.</div>
               )}
-              {blocks[b.id].map((id) => {
+              {activeDay.blocks[b.id].map((id) => {
                 const a = ACTIVITY_BY_ID[id];
                 if (!a) return null;
                 return (
@@ -119,12 +272,12 @@ export default function PerfectDay() {
         ))}
       </div>
 
-      {/* Insights */}
+      {/* Insights for the active day */}
       {hasAny && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.inkFaint }}>What your day is telling you</div>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.inkFaint }}>What this day is telling you</div>
 
-          {/* Balance coaching — the emotional read leads now */}
+          {/* Balance coaching — the emotional read leads */}
           <div style={{ display: "flex", gap: 10, background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 12, padding: "14px 16px" }}>
             <span style={{ fontSize: 18, lineHeight: 1, flexShrink: 0 }}>{insights.gap ? "💡" : "✨"}</span>
             <div>
@@ -141,53 +294,36 @@ export default function PerfectDay() {
             </div>
           </div>
 
-          {/* Readiness checklist */}
-          {insights.prep.length > 0 && (
-            <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 12, padding: "14px 16px" }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: C.ink, marginBottom: 10 }}>Start preparing now</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {insights.prep.map((p, i) => (
-                  <div key={i} style={{ display: "flex", gap: 9 }}>
-                    <span style={{ flexShrink: 0, marginTop: 1, width: 18, height: 18, borderRadius: 5, background: C.tealWash, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <Check size={11} color={C.teal} />
-                    </span>
-                    <span style={{ fontSize: 12.5, color: C.inkMid, lineHeight: 1.5 }}>{p}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* AI personalization */}
+          {/* AI personalization — proactive; auto-surfaces for a rich day */}
           <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 12, padding: "14px 16px" }}>
-            {!ai && !aiLoading && (
+            {!ai && aiLoadingId !== activeDay.id && !aiError && (
               <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10 }}>
                 <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>Want a personal read on your day?</div>
-                  <div style={{ fontSize: 11.5, color: C.inkSoft, marginTop: 2 }}>A warm, tailored reflection on what your day reveals — and what to grow into.</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>A personal read on this day</div>
+                  <div style={{ fontSize: 11.5, color: C.inkSoft, marginTop: 2 }}>{uniqueCount(activeDay) >= 3 ? "Reflecting automatically as you build…" : "Add a few more activities and a warm, tailored reflection appears on its own."}</div>
                 </div>
-                <button onClick={generateAI} style={{
+                <button onClick={() => generateDayAI(activeDay)} style={{
                   display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 8,
                   border: "none", background: C.teal, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", flexShrink: 0,
                 }}>
-                  <Sparkles size={15} /> Personalize with AI
+                  <Sparkles size={15} /> Reflect now
                 </button>
               </div>
             )}
-            {aiLoading && (
+            {aiLoadingId === activeDay.id && (
               <div style={{ display: "flex", alignItems: "center", gap: 9, color: C.inkSoft, fontSize: 13 }}>
-                <Loader2 size={16} color={C.teal} style={{ animation: "spin 1s linear infinite" }} /> Reflecting on your perfect day…
+                <Loader2 size={16} color={C.teal} style={{ animation: "spin 1s linear infinite" }} /> Reflecting on this day…
               </div>
             )}
-            {aiError && !aiLoading && (
+            {aiError && aiLoadingId !== activeDay.id && !ai && (
               <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10 }}>
                 <span style={{ fontSize: 12.5, color: C.warm, flex: 1, minWidth: 0 }}>Couldn’t generate insights — {aiError}</span>
-                <button onClick={generateAI} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "none", border: `1px solid ${C.border}`, borderRadius: 8, padding: "7px 12px", fontSize: 12, fontWeight: 700, color: C.inkMid, cursor: "pointer" }}>
+                <button onClick={() => generateDayAI(activeDay)} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "none", border: `1px solid ${C.border}`, borderRadius: 8, padding: "7px 12px", fontSize: 12, fontWeight: 700, color: C.inkMid, cursor: "pointer" }}>
                   <RotateCcw size={13} /> Try again
                 </button>
               </div>
             )}
-            {ai && !aiLoading && (
+            {ai && aiLoadingId !== activeDay.id && (
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8 }}>
                   <Sparkles size={15} color={C.teal} />
@@ -215,7 +351,7 @@ export default function PerfectDay() {
                     </div>
                   </div>
                 )}
-                <button onClick={generateAI} style={{ marginTop: 12, display: "inline-flex", alignItems: "center", gap: 5, background: "none", border: "none", cursor: "pointer", color: C.inkFaint, fontSize: 11, fontWeight: 600 }}>
+                <button onClick={() => generateDayAI(activeDay)} style={{ marginTop: 12, display: "inline-flex", alignItems: "center", gap: 5, background: "none", border: "none", cursor: "pointer", color: C.inkFaint, fontSize: 11, fontWeight: 600 }}>
                   <RotateCcw size={12} /> Regenerate
                 </button>
               </div>
@@ -229,6 +365,112 @@ export default function PerfectDay() {
               See it against your plan
             </button>
           </div>
+        </div>
+      )}
+
+      {/* ── The culmination: what your retirement is really about ── */}
+      {(richDays.length >= 2 || culm || culmLoading) && (
+        <div style={{ borderRadius: 16, padding: "18px 20px", background: `linear-gradient(135deg, ${C.tealWash}, ${C.bgCard})`, border: `1px solid ${C.tealLight}` }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+            <Sparkles size={16} color={C.teal} />
+            <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.tealDark }}>The bigger picture</span>
+            {richDays.length >= 2 && !culmLoading && (
+              <button onClick={() => generateCulmination()} title="Re-synthesize" style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 5, background: "none", border: "none", cursor: "pointer", color: C.inkFaint, fontSize: 11, fontWeight: 600 }}>
+                <RotateCcw size={12} /> {culm ? "Refresh" : "Synthesize"}
+              </button>
+            )}
+          </div>
+
+          {culmLoading && (
+            <div style={{ display: "flex", alignItems: "center", gap: 9, color: C.inkSoft, fontSize: 13, padding: "6px 0" }}>
+              <Loader2 size={16} color={C.teal} style={{ animation: "spin 1s linear infinite" }} /> Finding the throughline across your days…
+            </div>
+          )}
+
+          {culmError && !culmLoading && (
+            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10, paddingTop: 4 }}>
+              <span style={{ fontSize: 12.5, color: C.warm, flex: 1, minWidth: 0 }}>Couldn’t synthesize — {culmError}</span>
+              <button onClick={() => generateCulmination()} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "none", border: `1px solid ${C.border}`, borderRadius: 8, padding: "7px 12px", fontSize: 12, fontWeight: 700, color: C.inkMid, cursor: "pointer" }}>
+                <RotateCcw size={13} /> Try again
+              </button>
+            </div>
+          )}
+
+          {!culm && !culmLoading && !culmError && (
+            <p style={{ fontSize: 13, color: C.inkSoft, lineHeight: 1.55, margin: "4px 0 0" }}>
+              You've sketched {richDays.length} days. A synthesis of what they have in common — your passions and what your retirement is really about — will appear here.
+            </p>
+          )}
+
+          {culm && !culmLoading && (
+            <div>
+              <h3 style={{ fontSize: 20, fontWeight: 300, color: C.ink, margin: "6px 0 0", letterSpacing: "-0.01em" }}>{culm.title}</h3>
+              <p style={{ fontSize: 13.5, color: C.inkMid, lineHeight: 1.6, margin: "8px 0 0" }}>{culm.essence}</p>
+
+              {culm.passions?.length > 0 && (
+                <div style={{ marginTop: 14 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: C.inkFaint, marginBottom: 7 }}>Passions we see</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    {culm.passions.map((p, i) => (
+                      <span key={i} style={{ fontSize: 12.5, fontWeight: 600, color: C.tealDark, background: "#ffffffcc", border: `1px solid ${C.tealLight}`, borderRadius: 99, padding: "5px 12px" }}>{p}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {culm.themes?.length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+                  {culm.themes.map((t, i) => (
+                    <span key={i} style={{ fontSize: 11, color: C.inkSoft, background: C.bg, borderRadius: 6, padding: "3px 9px" }}>#{t.replace(/\s+/g, "")}</span>
+                  ))}
+                </div>
+              )}
+
+              {/* Feed the Perfect Year */}
+              {culm.yearSeeds?.length > 0 && (
+                <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.tealLight}` }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8 }}>
+                    <CalendarRange size={14} color={C.teal} />
+                    <span style={{ fontSize: 12.5, fontWeight: 700, color: C.ink }}>Experiences to build your year around</span>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                    {culm.yearSeeds.map((s, i) => {
+                      const seed = SEED_BY_ID[s.seedId];
+                      if (!seed) return null;
+                      return (
+                        <div key={i} style={{ display: "flex", gap: 9, background: "#ffffffcc", borderRadius: 10, padding: "9px 11px" }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: C.tealDark, flexShrink: 0, width: 30 }}>{MONTHS[s.month]}</span>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: 12.5, fontWeight: 600, color: C.inkMid }}>{seed.concept}</div>
+                            {s.why && <div style={{ fontSize: 11, color: C.inkFaint, marginTop: 1, lineHeight: 1.45 }}>{s.why}</div>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {seededCount === null ? (
+                    <button onClick={buildYear} style={{
+                      marginTop: 12, display: "inline-flex", alignItems: "center", gap: 7, padding: "10px 16px", borderRadius: 10,
+                      border: "none", background: C.teal, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", boxShadow: `0 4px 14px ${C.teal}44`,
+                    }}>
+                      <Sparkles size={15} /> Build my Perfect Year from this
+                    </button>
+                  ) : (
+                    <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10 }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 700, color: C.tealDark }}>
+                        <Check size={15} /> Added {seededCount} {seededCount === 1 ? "experience" : "experiences"} to your year
+                      </span>
+                      {onGoToYear && (
+                        <button onClick={onGoToYear} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "none", border: `1px solid ${C.tealLight}`, borderRadius: 8, padding: "7px 12px", fontSize: 12, fontWeight: 700, color: C.tealDark, cursor: "pointer" }}>
+                          See my Perfect Year <ArrowRight size={13} />
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -249,7 +491,7 @@ export default function PerfectDay() {
                   <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: CATEGORY_COLOR[cat], marginBottom: 7 }}>{cat}</div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
                     {items.map((a) => {
-                      const inBlock = blocks[picker].includes(a.id);
+                      const inBlock = activeDay.blocks[picker].includes(a.id);
                       return (
                         <button key={a.id} onClick={() => (inBlock ? remove(picker, a.id) : add(picker, a.id))}
                           style={{

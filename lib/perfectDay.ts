@@ -7,6 +7,30 @@
 
 export type DayBlock = "morning" | "afternoon" | "evening";
 
+/** A day's activities, keyed by time block. */
+export type Blocks = Record<DayBlock, string[]>;
+
+/** A single named "perfect day" — people build several (a slow day, an
+ * adventurous day, a creative day) and an AI culmination finds the throughline. */
+export interface PerfectDayItem {
+  id: string;
+  name: string;
+  blocks: Blocks;
+}
+
+export const emptyBlocks = (): Blocks => ({ morning: [], afternoon: [], evening: [] });
+
+/** Suggested names for new days, so the canvas starts evocative, not blank. */
+export const DAY_NAME_SUGGESTIONS = [
+  "A slow day",
+  "An adventurous day",
+  "A creative day",
+  "A social day",
+  "A day of purpose",
+  "A restful day",
+  "A day outdoors",
+];
+
 export const BLOCKS: { id: DayBlock; label: string; hint: string; emoji: string }[] = [
   { id: "morning",   label: "Morning",   hint: "How you wake up & start", emoji: "🌅" },
   { id: "afternoon", label: "Afternoon", hint: "The heart of your day",    emoji: "☀️" },

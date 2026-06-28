@@ -102,7 +102,7 @@ export default function MobileForecasting() {
       {/* Selected feature */}
       <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 20, padding: "18px 16px", overflowX: "hidden" }}>
         {sub === "seasons"    && <MacroSeasonsTimeline />}
-        {sub === "perfectday" && <PerfectDay />}
+        {sub === "perfectday" && <PerfectDay onGoToYear={() => setSub("year")} />}
         {sub === "reclaim"    && <ReclaimedTimeCalculator />}
         {sub === "year" && <PerfectYear />}
       </div>

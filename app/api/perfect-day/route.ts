@@ -23,29 +23,24 @@ interface DayPayload {
   exitYear?: number | null;
 }
 
-export async function POST(req: Request) {
-  try {
-    if (!process.env.GEMINI_API_KEY) {
-      return NextResponse.json(
-        {
-          error: "Gemini API key not configured",
-          detail: "GEMINI_API_KEY is missing. Locally: set it in .env.local. In production (Firebase App Hosting): create the secret with `firebase apphosting:secrets:set GEMINI_API_KEY`, grant the backend access, and redeploy.",
-        },
-        { status: 503 }
-      );
-    }
+interface CulminationPayload {
+  mode: "culmination";
+  days: { name: string; blocks: { label: string; activities: string[] }[]; categories: string[] }[];
+  /** The Perfect Year adventure catalog the AI may draw from to seed the year. */
+  catalog: { id: string; concept: string; category: string }[];
+  yearsToRetirement?: number | null;
+  exitYear?: number | null;
+}
 
-    const day = (await req.json()) as DayPayload;
-
-    const dayText = day.blocks
-      .map((b) => `- ${b.label}: ${b.activities.length ? b.activities.join(", ") : "(nothing planned)"}`)
-      .join("\n");
-
-    const horizon = day.yearsToRetirement != null
-      ? `They are about ${day.yearsToRetirement} year(s) from retiring${day.exitYear ? ` (target exit ${day.exitYear})` : ""}.`
-      : "";
-
-    const prompt = `
+/** Build the prompt for a single-day reflection. */
+function singleDayPrompt(day: DayPayload): string {
+  const dayText = day.blocks
+    .map((b) => `- ${b.label}: ${b.activities.length ? b.activities.join(", ") : "(nothing planned)"}`)
+    .join("\n");
+  const horizon = day.yearsToRetirement != null
+    ? `They are about ${day.yearsToRetirement} year(s) from retiring${day.exitYear ? ` (target exit ${day.exitYear})` : ""}.`
+    : "";
+  return `
 You are a warm, perceptive retirement-life coach — NOT a financial advisor. You help people design a retirement that feels meaningful, not just affordable. You are reflecting on the "perfect day" someone has sketched for their retirement.
 
 Their ideal day:
@@ -65,6 +60,65 @@ Return ONLY raw JSON in this exact shape (no markdown, no code fences):
   "tryAdding": ["one thoughtful activity or moment they didn't include that would round out the day", "optionally a second"]
 }
 `;
+}
+
+/** Build the prompt for the culmination — the throughline across several days,
+ * plus picks from the adventure catalog to seed the Perfect Year. */
+function culminationPrompt(p: CulminationPayload): string {
+  const daysText = p.days
+    .map((d, i) => {
+      const inner = d.blocks
+        .map((b) => `    ${b.label}: ${b.activities.length ? b.activities.join(", ") : "(nothing)"}`)
+        .join("\n");
+      return `Day ${i + 1} — "${d.name}":\n${inner}`;
+    })
+    .join("\n\n");
+  const catalogText = p.catalog.map((c) => `- ${c.id} · [${c.category}] ${c.concept}`).join("\n");
+  const horizon = p.yearsToRetirement != null
+    ? `They are about ${p.yearsToRetirement} year(s) from retiring${p.exitYear ? ` (target exit ${p.exitYear})` : ""}.`
+    : "";
+  return `
+You are a warm, perceptive retirement-life coach — NOT a financial advisor. Someone has sketched several different "perfect days" for their retirement. Your job is to find the THROUGHLINE — what their retirement is fundamentally about — and to name the passions and values that recur across these days.
+
+Their perfect days:
+${daysText}
+${horizon}
+
+Then, from the adventure catalog below, choose 3–6 experiences that best fit the passions you see and would make a meaningful year. Each must use an EXACT id from this catalog, and assign each a month (0 = January … 11 = December) that fits its nature (e.g. warm-weather trips in summer). Pick a diverse, inspiring set — not all from one category.
+
+Adventure catalog:
+${catalogText}
+
+Be specific and human — reference the actual activities they chose across days. Avoid platitudes and avoid financial-planning advice.
+
+Return ONLY raw JSON in this exact shape (no markdown, no code fences):
+{
+  "title": "what their retirement is fundamentally about (max ~8 words)",
+  "essence": "2-3 warm sentences naming the throughline across their days — the passions and values that recur, referencing their actual choices",
+  "themes": ["3-5 short theme tags, 1-3 words each"],
+  "passions": ["2-4 inferred passions as short phrases"],
+  "yearSeeds": [{ "seedId": "<exact id from the catalog>", "month": 0, "why": "one short sentence tying this to their days" }]
+}
+`;
+}
+
+export async function POST(req: Request) {
+  try {
+    if (!process.env.GEMINI_API_KEY) {
+      return NextResponse.json(
+        {
+          error: "Gemini API key not configured",
+          detail: "GEMINI_API_KEY is missing. Locally: set it in .env.local. In production (Firebase App Hosting): create the secret with `firebase apphosting:secrets:set GEMINI_API_KEY`, grant the backend access, and redeploy.",
+        },
+        { status: 503 }
+      );
+    }
+
+    const body = (await req.json()) as DayPayload | CulminationPayload;
+    const isCulmination = (body as CulminationPayload).mode === "culmination";
+    const prompt = isCulmination
+      ? culminationPrompt(body as CulminationPayload)
+      : singleDayPrompt(body as DayPayload);
 
     let responseText = "";
     let lastErr: any = null;
@@ -94,14 +148,16 @@ Return ONLY raw JSON in this exact shape (no markdown, no code fences):
       );
     }
 
-    let insight;
+    let parsed;
     try {
-      insight = JSON.parse(responseText.replace(/```json|```/g, "").trim());
+      parsed = JSON.parse(responseText.replace(/```json|```/g, "").trim());
     } catch {
       return NextResponse.json({ error: "Insight generation failed", detail: "Unexpected response format." }, { status: 502 });
     }
 
-    return NextResponse.json({ insight });
+    return isCulmination
+      ? NextResponse.json({ culmination: parsed })
+      : NextResponse.json({ insight: parsed });
   } catch (err: any) {
     console.error("Perfect Day insight error:", err.message);
     return NextResponse.json({ error: "Insight generation failed", detail: err.message }, { status: 500 });

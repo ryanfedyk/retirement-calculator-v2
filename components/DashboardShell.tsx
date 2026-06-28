@@ -152,7 +152,7 @@ export default function DashboardShell() {
           <main className="flex-1 px-8 py-12">
             <div className="max-w-7xl mx-auto">
               {tab === "seasons"    && <MacroSeasonsTimeline />}
-              {tab === "perfectday" && <PerfectDay />}
+              {tab === "perfectday" && <PerfectDay onGoToYear={() => setTab("year")} />}
               {tab === "reclaim"    && <ReclaimedTimeCalculator />}
               {tab === "year" && <PerfectYear />}
             </div>

@@ -89,7 +89,7 @@ function Slider({ label, value, display, min, max, step, accent, onChange, badge
  * to surface a "click in" affordance into the full, more robust editor (mobile
  * uses this to open the config sheet); detailed inputs all live there.
  */
-export default function ScenarioLevers({ onOpenEditor, livePrices, retireWindow }: { onOpenEditor?: () => void; livePrices?: LivePrices; retireWindow?: RetirementWindow } = {}) {
+export default function ScenarioLevers({ onOpenEditor, livePrices, retireWindow, bare }: { onOpenEditor?: () => void; livePrices?: LivePrices; retireWindow?: RetirementWindow; bare?: boolean } = {}) {
   const { config, updateNestedConfig } = useFinancialStore();
   const cp = config.career_path;
   const sp = config.spending;
@@ -107,8 +107,13 @@ export default function ScenarioLevers({ onOpenEditor, livePrices, retireWindow 
     }
   };
 
+  // `bare` drops the card chrome so the section lives directly on the canvas
+  // (mobile uses this to cut visual complexity).
+  const shell: React.CSSProperties = bare
+    ? { flexShrink: 0, padding: "2px 2px 4px" }
+    : { background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 18px", boxShadow: `0 1px 3px ${C.border}`, flexShrink: 0 };
   return (
-    <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 18px", boxShadow: `0 1px 3px ${C.border}`, flexShrink: 0 }}>
+    <div style={shell}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
         <span style={{ width: 3, height: 15, borderRadius: 2, background: C.teal }} />
         <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: C.ink }}>Tune this scenario</span>

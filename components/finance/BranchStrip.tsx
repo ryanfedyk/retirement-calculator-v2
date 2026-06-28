@@ -1,5 +1,5 @@
 "use client";
-import { Sparkles, Check, CopyPlus } from "lucide-react";
+import { Sparkles, Check, CopyPlus, ChevronRight } from "lucide-react";
 import { C } from "@/config/colors";
 import { useScenarioSuggestions, type Suggestion } from "@/hooks/useScenarioSuggestions";
 import type { LivePrices } from "./FinancialDashboard";
@@ -12,6 +12,11 @@ import type { LivePrices } from "./FinancialDashboard";
 export function BranchStrip({ livePrices, title = "What if…", subtitle = "· tap to apply · ⧉ opens a copy" }: { livePrices: LivePrices; title?: string; subtitle?: string }) {
   const suggestions = useScenarioSuggestions(livePrices);
   if (!suggestions.length) return null;
+  // With more cards than comfortably fit, hint that the row scrolls sideways.
+  const scrolls = suggestions.length > 2;
+  const fade = scrolls
+    ? { WebkitMaskImage: "linear-gradient(to right, #000 86%, transparent)", maskImage: "linear-gradient(to right, #000 86%, transparent)" }
+    : {};
 
   return (
     <div style={{ flexShrink: 0 }}>
@@ -19,9 +24,14 @@ export function BranchStrip({ livePrices, title = "What if…", subtitle = "· t
         <Sparkles size={13} color={C.inkFaint} style={{ flexShrink: 0 }} />
         <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.inkFaint }}>{title}</span>
         <span style={{ flex: 1, minWidth: 0, fontSize: 10, color: C.inkFaint, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{subtitle}</span>
+        {scrolls && (
+          <span style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: C.teal }}>
+            Swipe <ChevronRight size={12} />
+          </span>
+        )}
       </div>
 
-      <div className="no-scrollbar" style={{ display: "flex", flexWrap: "nowrap", gap: 10, overflowX: "auto", paddingBottom: 4, marginTop: 10, scrollSnapType: "x proximity", WebkitOverflowScrolling: "touch" }}>
+      <div className="no-scrollbar" style={{ display: "flex", flexWrap: "nowrap", gap: 10, overflowX: "auto", paddingBottom: 4, marginTop: 10, scrollSnapType: "x proximity", WebkitOverflowScrolling: "touch", ...fade }}>
         {suggestions.map((s, j) => <Card key={j} s={s} />)}
       </div>
     </div>

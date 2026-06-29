@@ -1175,11 +1175,14 @@ export const runSimulation = (
       + currentJumpStockValue + totalOtherInvestmentsValue;
 
     // ── FI target — the classic "Rule of 25" (4% Safe Withdrawal Rate) ────────
-    // FI Number = (Annual Expenses − Guaranteed/Passive Income) ÷ SWR.
-    // Expenses use normalized retirement spending (lifestyle + healthcare; the
-    // mortgage is finite and excluded). Passive income (rental + Social Security,
-    // net of tax) is subtracted because it permanently offsets expenses, lowering
-    // the nest egg you need.
+    // FI Number = (Annual Expenses − Guaranteed/Passive Income) ÷ SWR + mortgage payoff.
+    // Recurring expenses use normalized retirement spending (lifestyle + healthcare).
+    // The mortgage is finite, so rather than capitalizing the payment at 25× we add
+    // the *remaining balance* — the lump you'd need to clear the house — to the
+    // target. As the balance amortizes to $0 the add-on shrinks to nothing, and the
+    // monthly payment correctly drops out of expenses once it's paid off. Passive
+    // income (rental + Social Security, net of tax) is subtracted because it
+    // permanently offsets expenses, lowering the nest egg you need.
     const SWR = 0.04; // 4% safe withdrawal rate (Rule of 25 → ×25); inherently a
                       // REAL rule, so applying it to the real need below is exact.
     // Everything is already in today's dollars. Use SELF-PAID healthcare (not the
@@ -1188,7 +1191,8 @@ export const runSimulation = (
     const annualExpenses      = (baseMonthlySpend + selfPaidHealthcare) * 12;
     const annualPassiveIncome = (monthlyRentalNet + socialSecurityIncome) * 12; // rental + SS, net
     const netAnnualNeed       = Math.max(0, annualExpenses - annualPassiveIncome);
-    const swrTargetValue      = netAnnualNeed / SWR; // the FI Number (25× the net need)
+    const mortgagePayoff      = hasMortgage ? currentMortgage / inflationMultiplier : 0; // today's $
+    const swrTargetValue      = netAnnualNeed / SWR + mortgagePayoff; // FI Number incl. clearing the mortgage
 
     // ── After-tax "spendable" assets ─────────────────────────────────────────
     // $1 in a pre-tax 401k/IRA, or sitting on a large unrealized capital gain,

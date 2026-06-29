@@ -72,7 +72,7 @@ export default function SummaryCards({ indepDate, currentNW, swrTarget, progress
   );
   const numExplain = (
     <>
-      <p style={{ margin: 0 }}>Your <strong>FI number</strong> is 25× your annual expenses (net of rental income &amp; Social Security) — the nest egg that sustains a 4% withdrawal rate.</p>
+      <p style={{ margin: 0 }}>Your <strong>FI number</strong> is 25× your annual living expenses — lifestyle + healthcare, net of rental income &amp; Social Security — <strong>plus enough to pay off any remaining mortgage</strong>. The 25× part sustains a 4% withdrawal rate; the monthly mortgage payment isn’t capitalized, since it ends once the balance is cleared.</p>
       <p style={{ margin: "10px 0 0" }}>You have <strong>{fmtMM(currentNW)}</strong> of a <strong>{fmtMM(swrTarget)}</strong> target ({progress.toFixed(0)}%). Tap the card to open your finances.</p>
     </>
   );

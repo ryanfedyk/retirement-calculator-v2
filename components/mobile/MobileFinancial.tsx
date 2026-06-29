@@ -197,6 +197,7 @@ export default function MobileFinancial({ livePrices, onOpenConfig }: Props) {
         holdings={snapshot.other_investments}
         livePrices={livePrices}
         concentratedSymbol={config.use_equity_comp ? config.concentrated_symbol : ""}
+        housingType={config.spending.housing_type}
       />
 
       {/* Chart lives directly on the canvas (no card) to cut visual complexity.
@@ -283,7 +284,7 @@ export default function MobileFinancial({ livePrices, onOpenConfig }: Props) {
               <>
                 <Area type="monotone" dataKey="lifestyle"  stackId="1" stroke={C.teal}    fill={C.teal}    fillOpacity={0.7} name="Lifestyle" />
                 <Area type="monotone" dataKey="healthcare" stackId="1" stroke="#c4784e"   fill="#c4784e"   fillOpacity={0.7} name="Healthcare" />
-                <Area type="monotone" dataKey="mortgage"   stackId="1" stroke="#9bbdb4"   fill="#9bbdb4"   fillOpacity={0.7} name="Mortgage" />
+                <Area type="monotone" dataKey="mortgage"   stackId="1" stroke="#9bbdb4"   fill="#9bbdb4"   fillOpacity={0.7} name={config.spending.housing_type === "rent" ? "Rent" : "Mortgage"} />
               </>
             )}
           </AreaChart>

@@ -118,7 +118,7 @@ export default function MobileFinancesSections() {
 
       {/* ── Spending (baseline cash flow) ── */}
       <Section title="Spending" accent={C.warm} {...sec("spending")}>
-        <Field label="Monthly Lifestyle (excl. mortgage & healthcare)"><Num prefix="$" step={250} value={sp.monthly_lifestyle} onChange={v => updateBaseline("spending", { monthly_lifestyle: v })} /></Field>
+        <Field label="Monthly Lifestyle (excl. housing & healthcare)"><Num prefix="$" step={250} value={sp.monthly_lifestyle} onChange={v => updateBaseline("spending", { monthly_lifestyle: v })} /></Field>
         <div>
           <span style={labelStyle}>Housing</span>
           <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
@@ -187,10 +187,14 @@ export default function MobileFinancesSections() {
           <Field label="Roth IRA"><Num prefix="$" step={1000} value={snapshot.retirement_assets.roth_ira} onChange={v => updateNestedSnapshot("retirement_assets", { roth_ira: v })} /></Field>
         </Two>
         <Field label="Traditional IRA"><Num prefix="$" step={1000} value={snapshot.retirement_assets.traditional_ira} onChange={v => updateNestedSnapshot("retirement_assets", { traditional_ira: v })} /></Field>
-        <Two>
-          <Field label="Mortgage Balance"><Num prefix="$" step={1000} value={snapshot.liabilities.mortgage_balance} onChange={v => updateNestedSnapshot("liabilities", { mortgage_balance: v })} /></Field>
+        {(sp.housing_type ?? "mortgage") !== "rent" ? (
+          <Two>
+            <Field label="Mortgage Balance"><Num prefix="$" step={1000} value={snapshot.liabilities.mortgage_balance} onChange={v => updateNestedSnapshot("liabilities", { mortgage_balance: v })} /></Field>
+            <Field label="Consumer Debt"><Num prefix="$" step={500} value={snapshot.liabilities.consumer_debt} onChange={v => updateNestedSnapshot("liabilities", { consumer_debt: v })} /></Field>
+          </Two>
+        ) : (
           <Field label="Consumer Debt"><Num prefix="$" step={500} value={snapshot.liabilities.consumer_debt} onChange={v => updateNestedSnapshot("liabilities", { consumer_debt: v })} /></Field>
-        </Two>
+        )}
       </Section>
 
       {/* ── Portfolio Holdings ── */}

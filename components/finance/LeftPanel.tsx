@@ -349,7 +349,7 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
         {/* ── Spending (baseline cash flow) ── */}
         <AccCard {...acc("fin_spending")} hidden={!showFacts} title="Spending" color={C.warm}>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <div><FieldLabel>Monthly Lifestyle (excl. mortgage &amp; healthcare)</FieldLabel>
+            <div><FieldLabel>Monthly Lifestyle (excl. housing &amp; healthcare)</FieldLabel>
               <Input type="number" step={250} value={bsp.monthly_lifestyle}
                 onChange={e => updateBaseline("spending", { monthly_lifestyle: +e.target.value || 0 })} /></div>
             <div>
@@ -445,11 +445,13 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
               <Input type="number" value={snapshot.retirement_assets.roth_ira}
                 onChange={e => updateNestedSnapshot("retirement_assets", { roth_ira: +e.target.value || 0 })} />
             </div>
-            <div>
-              <FieldLabel>Mortgage Balance</FieldLabel>
-              <Input type="number" value={snapshot.liabilities.mortgage_balance}
-                onChange={e => updateNestedSnapshot("liabilities", { mortgage_balance: +e.target.value || 0 })} />
-            </div>
+            {(bsp.housing_type ?? "mortgage") !== "rent" && (
+              <div>
+                <FieldLabel>Mortgage Balance</FieldLabel>
+                <Input type="number" value={snapshot.liabilities.mortgage_balance}
+                  onChange={e => updateNestedSnapshot("liabilities", { mortgage_balance: +e.target.value || 0 })} />
+              </div>
+            )}
           </div>
         </AccCard>
 

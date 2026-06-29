@@ -553,18 +553,28 @@ export const runSimulation = (
     // ── RSU vesting ────────────────────────────────────────────────────────
     let monthlyEquityVestUnits = 0;
     if (phase === 'GOOGLE' && equityEnabled) {
-      // Initial grant — linear over vesting_years
-      if (yearsPassed < (ip.vesting_years || 4)) {
-        monthlyEquityVestUnits += (ip.initial_unvested_shares || 0) / ((ip.vesting_years || 4) * 12);
+      const vy = ip.vesting_years || 4;
+      // Initial (already-held) unvested grant — vests linearly from today.
+      if (yearsPassed < vy) {
+        monthlyEquityVestUnits += (ip.initial_unvested_shares || 0) / (vy * 12);
       }
-      // Refresher grants — 4 stacking cohorts (allow pre-sim grants via negative grantYear)
+      // Refresher grants land each MARCH and vest linearly over `vy` years. Sum
+      // every March cohort still inside its vesting window; because vesting is
+      // gated on the working phase, the accrued total is accurate right up to the
+      // month you leave (no further vesting after exit).
       const grantValue = ip.annual_equity_grant || 0;
-      for (let i = 0; i < 4; i++) {
-        const grantYear      = Math.floor(yearsPassed) - i;
-        const grantTimeYears = Math.max(0, grantYear);
-        const priceAtGrant   = Math.max(0.1, live_price * Math.pow(1 + toReal(config.market_assumptions.goog_growth_rate) / 100, grantTimeYears));
-        const grantValueAtTime = grantValue * Math.pow(1 + realIncomeGrowth, grantTimeYears);
-        monthlyEquityVestUnits += (grantValueAtTime / priceAtGrant) / 48;
+      if (grantValue > 0) {
+        const MARCH = 2; // 0-indexed (monthOfYear === 2)
+        for (let gy = currentYear; gy >= currentYear - vy; gy--) {
+          const monthsSinceGrant = (currentYear - gy) * 12 + (monthOfYear - MARCH);
+          if (monthsSinceGrant < 0 || monthsSinceGrant >= vy * 12) continue; // outside its vest window
+          // Years from the sim start to this March grant (negative = granted before
+          // the projection began — those cohorts are still mid-vest).
+          const grantTimeYears   = yearsPassed - monthsSinceGrant / 12;
+          const priceAtGrant     = Math.max(0.1, live_price * Math.pow(1 + toReal(config.market_assumptions.goog_growth_rate) / 100, grantTimeYears));
+          const grantValueAtTime = grantValue * Math.pow(1 + realIncomeGrowth, grantTimeYears);
+          monthlyEquityVestUnits += (grantValueAtTime / priceAtGrant) / (vy * 12);
+        }
       }
     }
     const annualRSUValue = monthlyEquityVestUnits * 12 * currentGoogPrice;

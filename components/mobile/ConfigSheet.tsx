@@ -149,20 +149,6 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
               <Field label="Annual Raise (%)"><Num step={0.1} value={ip.income_growth_rate ?? 0} onChange={v => updateNestedConfig("income_profile", { income_growth_rate: v })} /></Field>
               <Field label="Target Bonus (%)"><Num value={ip.target_bonus_rate ?? 0} onChange={v => updateNestedConfig("income_profile", { target_bonus_rate: v })} /></Field>
             </Two>
-            <Toggle label="Company Equity / RSUs" on={config.use_equity_comp === true} onChange={v => updateConfig({ use_equity_comp: v })} />
-            {config.use_equity_comp === true && (
-              <>
-                <Field label="Company Ticker"><TickerAutocomplete placeholder="e.g. AAPL" inputStyle={inputStyle} value={config.concentrated_symbol ?? ""} onChange={v => updateConfig({ concentrated_symbol: v })} onSelect={r => updateConfig({ concentrated_symbol: r.symbol })} /></Field>
-                <Two>
-                  <Field label="Expected Return (%)"><Num step={0.5} value={ma.goog_growth_rate} onChange={v => updateNestedConfig("market_assumptions", { goog_growth_rate: v })} /></Field>
-                  <Field label="Annual Equity Refresher"><Num prefix="$" step={1000} value={ip.annual_equity_grant ?? 0} onChange={v => updateNestedConfig("income_profile", { annual_equity_grant: v })} /></Field>
-                </Two>
-                <Two>
-                  <Field label="Unvested Shares"><Num value={ip.initial_unvested_shares ?? 0} onChange={v => updateNestedConfig("income_profile", { initial_unvested_shares: v })} /></Field>
-                  <Field label="Vesting (yrs)"><Num value={ip.vesting_years ?? 4} onChange={v => updateNestedConfig("income_profile", { vesting_years: v })} /></Field>
-                </Two>
-              </>
-            )}
             <Two>
               <Field label="401(k) Contribution / yr"><Num prefix="$" step={500} value={ip.annual_401k_contribution ?? 0} onChange={v => updateNestedConfig("income_profile", { annual_401k_contribution: v })} /></Field>
               <Field label="Backdoor Roth / yr"><Num prefix="$" step={500} value={ip.annual_backdoor_roth ?? 0} onChange={v => updateNestedConfig("income_profile", { annual_backdoor_roth: v })} /></Field>

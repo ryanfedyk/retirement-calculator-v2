@@ -86,6 +86,9 @@ interface FinancialStore extends HorizonState {
     section: K,
     updates: Partial<Baseline[K]> | Baseline[K]
   ) => void;
+  /** Equity-comp setup (whether you hold company equity + the ticker) is a shared
+   *  fact, not a per-scenario lever, so it's written uniformly to every scenario. */
+  setEquityComp: (updates: { use_equity_comp?: boolean; concentrated_symbol?: string }) => void;
   /** Re-link a forked field/section on the active scenario back to the baseline. */
   resetToBaseline: (path: string) => void;
   /** Adopt the shared sections of `config` as the baseline (used at onboarding). */
@@ -316,6 +319,13 @@ export const useFinancialStore = create<FinancialStore>()(
           return { baseline, scenarios, config: active.config };
         }),
 
+      setEquityComp: (updates) =>
+        set((s) => {
+          const scenarios = s.scenarios.map((sc) => ({ ...sc, config: { ...sc.config, ...updates } }));
+          const active = scenarios.find((x) => x.id === s.activeScenarioId) ?? scenarios[0];
+          return { scenarios, config: active.config };
+        }),
+
       seedBaseline: (config) =>
         set((s) => {
           const baseline = pickShared(config);
@@ -371,6 +381,9 @@ export const useFinancialStore = create<FinancialStore>()(
         set((s) => {
           const id = newId();
           const config = configFromBaseline(s.baseline, s.profile);
+          // Equity-comp setup is a shared fact — carry it into every new scenario.
+          config.use_equity_comp = s.config.use_equity_comp;
+          config.concentrated_symbol = s.config.concentrated_symbol;
           const sc: Scenario = { id, name: name || `Scenario ${s.scenarios.length + 1}`, config, unlinked: [] };
           return { scenarios: [...s.scenarios, sc], activeScenarioId: id, config };
         }),
@@ -389,6 +402,8 @@ export const useFinancialStore = create<FinancialStore>()(
         set((s) => {
           const id = newId();
           const config = configFromBaseline(s.baseline, s.profile);
+          config.use_equity_comp = s.config.use_equity_comp;
+          config.concentrated_symbol = s.config.concentrated_symbol;
           const merged = mergeSection(config[section], patch as Partial<SimulationConfiguration[typeof section]>);
           (config[section] as unknown) = merged;
           // A tweak to a shared section forks just those fields in the new scenario.

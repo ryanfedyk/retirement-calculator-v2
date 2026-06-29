@@ -5,7 +5,7 @@ import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import TickerAutocomplete from "@/components/finance/TickerAutocomplete";
 import LinkedNumberField from "@/components/finance/LinkedNumberField";
-import { Field, Num, Two, Section, TextInput, money, inputStyle, labelStyle } from "./sheetUI";
+import { Field, Num, Two, Section, Toggle, TextInput, money, inputStyle, labelStyle } from "./sheetUI";
 
 type Holding = { id?: string; name: string; symbol: string; shares: number; expected_return?: number; [k: string]: unknown };
 
@@ -66,10 +66,11 @@ function HoldingRow({ inv, onUpdate, onRemove }: { inv: Holding; onUpdate: (v: H
 // balance sheet edits the global snapshot (identical across scenarios). Touch-
 // friendly twin of LeftPanel's `variant="finances"`.
 export default function MobileFinancesSections() {
-  const { snapshot, profile, baseline, updateNestedSnapshot, updateBaseline } = useFinancialStore();
+  const { snapshot, config, profile, baseline, updateNestedSnapshot, updateBaseline, setEquityComp } = useFinancialStore();
   const kids = profile.children;
   const ip = baseline.income_profile;
   const sp = baseline.spending;
+  const ma = baseline.market_assumptions;
   const events = baseline.life_events ?? [];
   const setEvents = (next: typeof events) => updateBaseline("life_events", next);
   const thisYear = new Date().getFullYear();
@@ -94,6 +95,25 @@ export default function MobileFinancesSections() {
         </Two>
         <Field label="Monthly Rental Income"><Num prefix="$" step={100} value={ip.monthly_rental_income ?? 0} onChange={v => updateBaseline("income_profile", { monthly_rental_income: v })} /></Field>
         <div style={{ fontSize: 11, color: C.inkFaint, marginTop: 2, lineHeight: 1.5 }}>Your baseline cash flow — flows to every scenario unless a scenario overrides it.</div>
+      </Section>
+
+      {/* ── Company Equity / RSUs (shared fact) ── */}
+      <Section title="Company Equity / RSUs" accent="#2a7a68" {...sec("equity")}>
+        <Toggle label="I receive company equity (RSUs)" on={config.use_equity_comp === true} onChange={v => setEquityComp({ use_equity_comp: v })} />
+        {config.use_equity_comp === true && (
+          <>
+            <Field label="Company Ticker"><TickerAutocomplete placeholder="e.g. AAPL" inputStyle={inputStyle} value={config.concentrated_symbol ?? ""} onChange={v => setEquityComp({ concentrated_symbol: v })} onSelect={r => setEquityComp({ concentrated_symbol: r.symbol })} /></Field>
+            <Two>
+              <Field label="Expected Return (%)"><Num step={0.5} value={ma.goog_growth_rate} onChange={v => updateBaseline("market_assumptions", { goog_growth_rate: v })} /></Field>
+              <Field label="Annual Equity Refresher"><Num prefix="$" step={1000} value={ip.annual_equity_grant ?? 0} onChange={v => updateBaseline("income_profile", { annual_equity_grant: v })} /></Field>
+            </Two>
+            <Two>
+              <Field label="Unvested Shares"><Num value={ip.initial_unvested_shares ?? 0} onChange={v => updateBaseline("income_profile", { initial_unvested_shares: v })} /></Field>
+              <Field label="Vesting (yrs)"><Num value={ip.vesting_years ?? 4} onChange={v => updateBaseline("income_profile", { vesting_years: v })} /></Field>
+            </Two>
+            <div style={{ fontSize: 11, color: C.inkFaint, lineHeight: 1.5 }}>Shared across every scenario. How you sell this position down is a per-scenario lever, in each scenario’s plan.</div>
+          </>
+        )}
       </Section>
 
       {/* ── Spending (baseline cash flow) ── */}

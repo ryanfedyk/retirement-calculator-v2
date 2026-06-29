@@ -203,6 +203,20 @@ describe("FI test uses after-tax spendable assets, not gross balances", () => {
     expect(roth[0].isIndependent).toBe(true);
     expect(trad[0].isIndependent).toBe(false);
   });
+
+  it("adds the remaining mortgage balance to the FI number (payoff, not a capitalized payment)", () => {
+    const cfg = retireeConfig();
+    cfg.market_assumptions.inflation_rate = 0; // today's-$ balance ≈ nominal at t0
+    cfg.spending.mortgage_payment = 2_000;     // a real payment → finite payoff
+    const snap = snapWith("roth", 930_000);
+    snap.liabilities.mortgage_balance = 150_000;
+    snap.liabilities.mortgage_interest_rate = 5;
+    const traj = runSimulation(snap, cfg, 200);
+    // 36k/yr ÷ 4% = 900k, PLUS the ~150k still owed (less the first month's
+    // principal). The $2k/mo payment is NOT capitalized at 25× (that'd be +600k).
+    expect(traj[0].swrTarget).toBeGreaterThan(900_000 + 145_000);
+    expect(traj[0].swrTarget).toBeLessThan(900_000 + 150_000);
+  });
 });
 
 describe("real-dollar model (today's purchasing power)", () => {

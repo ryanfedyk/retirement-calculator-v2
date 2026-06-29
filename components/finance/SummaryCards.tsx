@@ -29,7 +29,7 @@ function tickerSymbols(holdings: FinancialSnapshot["other_investments"] | undefi
  * differentiation; a small "?" opens an explanation; tapping the FI Number card
  * opens finances; the Alerts card opens the full list in a popover.
  */
-export default function SummaryCards({ indepDate, currentNW, swrTarget, progress, notices, onOpenFinances, holdings, livePrices, concentratedSymbol }: {
+export default function SummaryCards({ indepDate, currentNW, swrTarget, progress, notices, onOpenFinances, holdings, livePrices, concentratedSymbol, housingType }: {
   indepDate: string | null;
   currentNW: number;
   swrTarget: number;
@@ -39,6 +39,7 @@ export default function SummaryCards({ indepDate, currentNW, swrTarget, progress
   holdings?: FinancialSnapshot["other_investments"];
   livePrices?: LivePrices;
   concentratedSymbol?: string;
+  housingType?: "mortgage" | "rent";
 }) {
   const tickers = livePrices ? tickerSymbols(holdings, livePrices, concentratedSymbol) : [];
   const [modal, setModal] = useState<{ title: string; node: React.ReactNode } | null>(null);
@@ -72,7 +73,9 @@ export default function SummaryCards({ indepDate, currentNW, swrTarget, progress
   );
   const numExplain = (
     <>
-      <p style={{ margin: 0 }}>Your <strong>FI number</strong> is 25× your annual living expenses — lifestyle + healthcare, net of rental income &amp; Social Security — <strong>plus enough to pay off any remaining mortgage</strong>. The 25× part sustains a 4% withdrawal rate; the monthly mortgage payment isn’t capitalized, since it ends once the balance is cleared.</p>
+      <p style={{ margin: 0 }}>Your <strong>FI number</strong> is 25× your annual living expenses — lifestyle + healthcare{housingType === "rent" ? " + rent" : ""}, net of rental income &amp; Social Security — sustaining a 4% withdrawal rate.{housingType === "rent"
+        ? " Rent is a permanent expense, so it’s capitalized into the target (×25)."
+        : " It also adds enough to pay off any remaining mortgage; the mortgage payment itself isn’t capitalized, since it ends once the balance is cleared."}</p>
       <p style={{ margin: "10px 0 0" }}>You have <strong>{fmtMM(currentNW)}</strong> of a <strong>{fmtMM(swrTarget)}</strong> target ({progress.toFixed(0)}%). Tap the card to open your finances.</p>
     </>
   );

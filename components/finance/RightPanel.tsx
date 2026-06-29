@@ -331,7 +331,7 @@ export default function RightPanel({ livePrices }: Props) {
     // Primary — the headline financial milestones
     if (retireDateStr)   m.push({ x: retireDateStr,   stroke: "#2a7a68", label: hasPostPhases ? "Career Exit" : "Retire", primary: true  });
     if (indepPoint)      m.push({ x: indepPoint.date, stroke: "#80c4ae", label: "FI",         primary: true  });
-    if (mortgageDateStr) m.push({ x: mortgageDateStr, stroke: "#9bbdb4", label: "Paid Off",   primary: true  });
+    if (mortgageDateStr && config.spending.housing_type !== "rent") m.push({ x: mortgageDateStr, stroke: "#9bbdb4", label: "Paid Off",   primary: true  });
     if (enDateStr)       m.push({ x: enDateStr,       stroke: C.warm,    label: "Empty Nest", primary: true  });
     // Career-phase transitions — prominent (always visible), since they're the
     // core levers of the retirement model.
@@ -397,6 +397,7 @@ export default function RightPanel({ livePrices }: Props) {
         progress={progress}
         notices={notices}
         onOpenFinances={() => useUIStore.getState().setFinancesOpen(true)}
+        housingType={config.spending.housing_type}
         /* Live prices ride on the desktop countdown strip (PriceTicker), so the
            summary card stays text-only here; the card-ticker is mobile-only. */
       />
@@ -529,7 +530,7 @@ export default function RightPanel({ livePrices }: Props) {
                   <>
                     <Area type="monotone" dataKey="lifestyleExpense" stackId="1" stroke={C.teal}    fill={C.teal}    fillOpacity={0.7} name="Lifestyle" />
                     <Area type="monotone" dataKey="healthcareCost"   stackId="1" stroke="#c4784e"   fill="#c4784e"   fillOpacity={0.7} name="Healthcare" />
-                    <Area type="monotone" dataKey="mortgagePayment"  stackId="1" stroke="#9bbdb4"   fill="#9bbdb4"   fillOpacity={0.7} name="Mortgage" />
+                    <Area type="monotone" dataKey="mortgagePayment"  stackId="1" stroke="#9bbdb4"   fill="#9bbdb4"   fillOpacity={0.7} name={config.spending.housing_type === "rent" ? "Rent" : "Mortgage"} />
                   </>
                 )}
               </AreaChart>
@@ -548,7 +549,7 @@ export default function RightPanel({ livePrices }: Props) {
             { label: hasPostPhases ? "Career Exit" : "Retire", color: "#2a7a68", dash: true  },
             ...(hasPostPhases ? [{ label: "Full Retirement", color: "#7a6da8", dash: true }] : []),
             { label: "FI",              color: "#80c4ae", dash: true  },
-            { label: "Mortgage Free",    color: C.inkFaint, dash: true },
+            ...(config.spending.housing_type === "rent" ? [] : [{ label: "Mortgage Free", color: C.inkFaint, dash: true }]),
           ].map(({ label, color, dash }) => (
             <div key={label} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, color: C.inkSoft }}>
               <div style={{ width: 20, height: 2, background: color, opacity: dash ? 0.8 : 1, borderRadius: 1,

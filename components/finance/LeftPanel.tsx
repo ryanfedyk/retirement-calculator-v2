@@ -215,7 +215,7 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
   // same across every scenario — they live in the finances variant only.
   const showFacts  = variant === "finances";
   const showLevers = variant === "sidebar";
-  const { config, snapshot, profile, baseline, updateNestedConfig, updateNestedSnapshot, updateConfig, updateBaseline, setChildren } = useFinancialStore();
+  const { config, snapshot, profile, baseline, updateNestedConfig, updateNestedSnapshot, updateConfig, updateBaseline, setEquityComp, setChildren } = useFinancialStore();
   const kids = profile.children;
   const thisYear = new Date().getFullYear();
   const age = thisYear - (config.birth_year || 1985);
@@ -230,9 +230,11 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
   const ip = config.income_profile;
   const ma = config.market_assumptions;
   const sp = config.spending;
-  // Finances variant edits the shared baseline cash flow (income & spending).
+  // Finances variant edits the shared baseline cash flow (income & spending) and
+  // the shared equity-comp assumptions.
   const bip = baseline.income_profile;
   const bsp = baseline.spending;
+  const bma = baseline.market_assumptions;
 
   // Accordion: essentials open by default; everything else collapsed.
   const [openIds, setOpenIds] = useState<Set<string>>(new Set(variant === "finances" ? ["fin_income", "assets"] : ["career", "market"]));
@@ -289,9 +291,6 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
                 <Input type="number" step={1} value={bip.target_bonus_rate ?? 0}
                   onChange={e => updateBaseline("income_profile", { target_bonus_rate: +e.target.value || 0 })} /></div>
             </Row>
-            <div><FieldLabel>Annual Equity Grant ($)</FieldLabel>
-              <Input type="number" step={1000} value={bip.annual_equity_grant ?? 0}
-                onChange={e => updateBaseline("income_profile", { annual_equity_grant: +e.target.value || 0 })} /></div>
             <Row>
               <div><FieldLabel>401(k) / yr ($)</FieldLabel>
                 <Input type="number" step={500} value={bip.annual_401k_contribution ?? 0}
@@ -304,6 +303,46 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
               <Input type="number" step={100} value={bip.monthly_rental_income ?? 0}
                 onChange={e => updateBaseline("income_profile", { monthly_rental_income: +e.target.value || 0 })} /></div>
             <div style={{ fontSize: 9, color: C.inkFaint, lineHeight: 1.5 }}>Your baseline cash flow — flows to every scenario unless a scenario overrides it.</div>
+          </div>
+        </AccCard>
+
+        {/* ── Company Equity / RSUs (shared fact) ── */}
+        <AccCard {...acc("fin_equity")} hidden={!showFacts} title="Company Equity / RSUs" color="#2a7a68">
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: 11, color: C.inkMid }}>I receive company equity (RSUs)</span>
+              <input type="checkbox" checked={config.use_equity_comp === true}
+                onChange={e => setEquityComp({ use_equity_comp: e.target.checked })}
+                style={{ accentColor: C.teal }} />
+            </div>
+            {config.use_equity_comp === true && (
+              <>
+                <Row>
+                  <div><FieldLabel>Company Ticker</FieldLabel>
+                    <TickerAutocomplete placeholder="e.g. AAPL" value={config.concentrated_symbol ?? ""}
+                      onChange={v => setEquityComp({ concentrated_symbol: v })}
+                      onSelect={r => setEquityComp({ concentrated_symbol: r.symbol })} /></div>
+                  <div><FieldLabel>Expected Return (%)</FieldLabel>
+                    <Input type="number" step={0.5} value={bma.goog_growth_rate}
+                      onChange={e => updateBaseline("market_assumptions", { goog_growth_rate: +e.target.value || 0 })} /></div>
+                </Row>
+                <div>
+                  <FieldLabel>Unvested Shares (count · vesting yrs)</FieldLabel>
+                  <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 6 }}>
+                    <Input type="number" placeholder="Total shares" value={bip.initial_unvested_shares ?? 0}
+                      onChange={e => updateBaseline("income_profile", { initial_unvested_shares: +e.target.value || 0 })} />
+                    <Input type="number" placeholder="Yrs" value={bip.vesting_years ?? 4}
+                      onChange={e => updateBaseline("income_profile", { vesting_years: +e.target.value || 0 })} />
+                  </div>
+                </div>
+                <div><FieldLabel>Annual Equity Refresher ($)</FieldLabel>
+                  <Input type="number" step={1000} value={bip.annual_equity_grant ?? 0}
+                    onChange={e => updateBaseline("income_profile", { annual_equity_grant: +e.target.value || 0 })} /></div>
+                <div style={{ fontSize: 9, color: C.inkFaint, lineHeight: 1.5 }}>
+                  Shared across every scenario. How you sell this position down over time is a per-scenario lever, in each scenario’s plan.
+                </div>
+              </>
+            )}
           </div>
         </AccCard>
 
@@ -505,38 +544,9 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
                 <Input type="number" step={1} value={ip.target_bonus_rate ?? 0}
                   onChange={e => updateNestedConfig("income_profile", { target_bonus_rate: +e.target.value })} /></div>
             </Row>
-            <SectionDivider />
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: C.inkFaint }}>Company Equity / RSUs</span>
-              <input type="checkbox" checked={config.use_equity_comp === true}
-                onChange={e => updateConfig({ use_equity_comp: e.target.checked })}
-                style={{ accentColor: C.teal }} />
+            <div style={{ fontSize: 9, color: C.inkFaint, lineHeight: 1.5 }}>
+              Company equity / RSUs now live in <strong>Your finances</strong> (they’re shared across every scenario). The sell-down plan stays here, below.
             </div>
-            {config.use_equity_comp === true && (
-              <>
-                <Row>
-                  <div><FieldLabel>Company Ticker</FieldLabel>
-                    <TickerAutocomplete placeholder="e.g. AAPL" value={config.concentrated_symbol ?? ""}
-                      onChange={v => updateConfig({ concentrated_symbol: v })}
-                      onSelect={r => updateConfig({ concentrated_symbol: r.symbol })} /></div>
-                  <div><FieldLabel>Return (%)</FieldLabel>
-                    <Input type="number" step={0.5} value={ma.goog_growth_rate}
-                      onChange={e => updateNestedConfig("market_assumptions", { goog_growth_rate: +e.target.value })} /></div>
-                </Row>
-                <div>
-                  <FieldLabel>Unvested Shares (count · vesting yrs)</FieldLabel>
-                  <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 6 }}>
-                    <Input type="number" placeholder="Total shares" value={ip.initial_unvested_shares ?? 0}
-                      onChange={e => updateNestedConfig("income_profile", { initial_unvested_shares: +e.target.value })} />
-                    <Input type="number" placeholder="Yrs" value={ip.vesting_years ?? 4}
-                      onChange={e => updateNestedConfig("income_profile", { vesting_years: +e.target.value })} />
-                  </div>
-                </div>
-                <div><FieldLabel>Annual Equity Refresher ($)</FieldLabel>
-                  <Input type="number" step={1000} value={ip.annual_equity_grant ?? 0}
-                    onChange={e => updateNestedConfig("income_profile", { annual_equity_grant: +e.target.value })} /></div>
-              </>
-            )}
           </div>
         </AccCard>
 

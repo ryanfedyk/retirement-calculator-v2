@@ -173,6 +173,7 @@ export const DEFAULT_SIM_CONFIG: SimulationConfiguration = {
     empty_nest_monthly_spend: 4_500,
     healthcare_premium:       1_000,
     mortgage_payment:         0,
+    housing_type:             "mortgage",
     ltc_annual_cost:          0,    // long-term care off by default; opt in with a cost
     ltc_start_age:            80,
     ltc_years:                3,

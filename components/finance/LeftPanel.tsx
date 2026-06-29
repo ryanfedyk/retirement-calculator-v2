@@ -352,14 +352,33 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
             <div><FieldLabel>Monthly Lifestyle (excl. mortgage &amp; healthcare)</FieldLabel>
               <Input type="number" step={250} value={bsp.monthly_lifestyle}
                 onChange={e => updateBaseline("spending", { monthly_lifestyle: +e.target.value || 0 })} /></div>
+            <div>
+              <FieldLabel>Housing</FieldLabel>
+              <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+                {(["mortgage", "rent"] as const).map(t => {
+                  const on = (bsp.housing_type ?? "mortgage") === t;
+                  return (
+                    <button key={t} onClick={() => updateBaseline("spending", { housing_type: t })}
+                      style={{ flex: 1, padding: "6px 0", borderRadius: 6, cursor: "pointer", textTransform: "capitalize",
+                        border: `1px solid ${on ? C.teal : C.border}`, background: on ? C.tealWash : C.bgCard,
+                        color: on ? C.tealDark : C.inkMid, fontSize: 12, fontWeight: 700 }}>{t}</button>
+                  );
+                })}
+              </div>
+            </div>
             <Row>
-              <div><FieldLabel>Mortgage / Rent ($/mo)</FieldLabel>
+              <div><FieldLabel>{(bsp.housing_type ?? "mortgage") === "rent" ? "Rent ($/mo)" : "Mortgage ($/mo)"}</FieldLabel>
                 <Input type="number" step={100} value={bsp.mortgage_payment}
                   onChange={e => updateBaseline("spending", { mortgage_payment: +e.target.value || 0 })} /></div>
               <div><FieldLabel>Healthcare ($/mo, pre-65)</FieldLabel>
                 <Input type="number" step={100} value={bsp.healthcare_premium}
                   onChange={e => updateBaseline("spending", { healthcare_premium: +e.target.value || 0 })} /></div>
             </Row>
+            <div style={{ fontSize: 9, color: C.inkFaint, lineHeight: 1.5 }}>
+              {(bsp.housing_type ?? "mortgage") === "rent"
+                ? "Rent is treated as a permanent expense — it’s included in your FI number (×25) and never ends."
+                : "A mortgage is finite: the payment ends at payoff, and your remaining balance (in Assets & Liabilities) is added to your FI number."}
+            </div>
             <div><FieldLabel>Long-Term Care ($/yr, today&apos;s $; 0 = off)</FieldLabel>
               <Input type="number" step={5000} value={bsp.ltc_annual_cost ?? 0}
                 onChange={e => updateBaseline("spending", { ltc_annual_cost: +e.target.value || 0 })} /></div>

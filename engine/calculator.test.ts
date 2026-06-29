@@ -217,6 +217,15 @@ describe("FI test uses after-tax spendable assets, not gross balances", () => {
     expect(traj[0].swrTarget).toBeGreaterThan(900_000 + 145_000);
     expect(traj[0].swrTarget).toBeLessThan(900_000 + 150_000);
   });
+
+  it("treats rent as a perpetual expense capitalized into the FI number (no payoff)", () => {
+    const cfg = retireeConfig();
+    cfg.spending.housing_type = "rent";
+    cfg.spending.mortgage_payment = 2_000; // rent, not a mortgage
+    const traj = runSimulation(snapWith("roth", 930_000), cfg, 200);
+    // (3k lifestyle + 2k rent) × 12 ÷ 4% = 1.5M; rent is capitalized, nothing to pay off.
+    expect(traj[0].swrTarget).toBeCloseTo(1_500_000, -3);
+  });
 });
 
 describe("real-dollar model (today's purchasing power)", () => {

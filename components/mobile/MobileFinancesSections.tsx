@@ -119,8 +119,27 @@ export default function MobileFinancesSections() {
       {/* ── Spending (baseline cash flow) ── */}
       <Section title="Spending" accent={C.warm} {...sec("spending")}>
         <Field label="Monthly Lifestyle (excl. mortgage & healthcare)"><Num prefix="$" step={250} value={sp.monthly_lifestyle} onChange={v => updateBaseline("spending", { monthly_lifestyle: v })} /></Field>
+        <div>
+          <span style={labelStyle}>Housing</span>
+          <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+            {(["mortgage", "rent"] as const).map(t => {
+              const on = (sp.housing_type ?? "mortgage") === t;
+              return (
+                <button key={t} onClick={() => updateBaseline("spending", { housing_type: t })}
+                  style={{ flex: 1, padding: "10px 0", borderRadius: 10, cursor: "pointer", textTransform: "capitalize",
+                    border: `1px solid ${on ? C.teal : C.border}`, background: on ? C.tealWash : C.bgCard,
+                    color: on ? C.tealDark : C.inkMid, fontSize: 13, fontWeight: 700 }}>{t}</button>
+              );
+            })}
+          </div>
+          <div style={{ fontSize: 11, color: C.inkFaint, lineHeight: 1.5, marginTop: 6 }}>
+            {(sp.housing_type ?? "mortgage") === "rent"
+              ? "Rent is permanent — included in your FI number (×25) and never ends."
+              : "A mortgage ends at payoff; your remaining balance is added to your FI number."}
+          </div>
+        </div>
         <Two>
-          <Field label="Mortgage / Rent ($/mo)"><Num prefix="$" step={100} value={sp.mortgage_payment} onChange={v => updateBaseline("spending", { mortgage_payment: v })} /></Field>
+          <Field label={(sp.housing_type ?? "mortgage") === "rent" ? "Rent ($/mo)" : "Mortgage ($/mo)"}><Num prefix="$" step={100} value={sp.mortgage_payment} onChange={v => updateBaseline("spending", { mortgage_payment: v })} /></Field>
           <Field label="Healthcare ($/mo, pre-65)"><Num prefix="$" step={100} value={sp.healthcare_premium} onChange={v => updateBaseline("spending", { healthcare_premium: v })} /></Field>
         </Two>
         <Field label="Long-Term Care ($/yr, today's $; 0 = off)"><Num prefix="$" step={5000} value={sp.ltc_annual_cost ?? 0} onChange={v => updateBaseline("spending", { ltc_annual_cost: v })} /></Field>

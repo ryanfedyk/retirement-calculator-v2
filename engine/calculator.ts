@@ -112,6 +112,12 @@ export interface SimulationConfiguration {
     empty_nest_monthly_spend?: number;
     healthcare_premium: number;
     mortgage_payment: number;
+    // How the monthly housing payment behaves. 'mortgage' (default): a finite,
+    // nominal-fixed debt that amortizes and ends at payoff; its remaining balance
+    // is added to the FI number. 'rent': a perpetual real expense — it never ends,
+    // so it's part of recurring expenses and capitalized into the FI number (×25),
+    // with no balance to amortize or pay off.
+    housing_type?: 'mortgage' | 'rent';
     ltc_annual_cost?: number;  // Long-term care: annual cost in today's $ (0 = not modeled)
     ltc_start_age?: number;    // Age the LTC episode begins (default 80)
     ltc_years?: number;        // Duration of the LTC episode in years (default 3)
@@ -596,7 +602,8 @@ export const runSimulation = (
     // Federal: mortgage interest capped at $750k acquisition debt (post-2017 loans).
     // NY state: follows federal mortgage interest deduction.
     // SALT: capped at $10k federally (NY state: no cap for state deduction itself).
-    const hasMortgageNow = currentDate < mortgagePayoffDate && currentMortgage > 0;
+    const isRent = config.spending.housing_type === 'rent';
+    const hasMortgageNow = !isRent && currentDate < mortgagePayoffDate && currentMortgage > 0;
     const deductibleMortgagePct = hasMortgageNow
       ? Math.min(1, FED_MORTGAGE_CAP / Math.max(1, currentMortgage))
       : 0;
@@ -932,14 +939,16 @@ export const runSimulation = (
       }
     }
 
-    // Mortgage — the payment is due only while a balance actually remains (and
-    // before the nominal payoff date). Once amortization clears the loan early,
-    // the payment stops rather than running on until the payoff date.
-    const hasMortgage = currentDate < mortgagePayoffDate && currentMortgage > 0;
-    if (hasMortgage) {
-      // The fixed nominal payment shrinks in real terms as inflation erodes it —
-      // a genuine benefit of fixed-rate debt — so deflate the cash outflow. The
-      // balance/interest amortize in their own (nominal) terms.
+    // Housing — rent vs. mortgage behave very differently.
+    //  • Rent is a PERPETUAL real expense (it rises with inflation), so it's added
+    //    in today's-dollar terms every month, forever, with no balance to amortize.
+    //  • A mortgage is a finite, nominal-fixed debt: the payment is due only while a
+    //    balance remains (and before the payoff date), shrinks in real terms as
+    //    inflation erodes it, and stops once amortization clears the loan.
+    const hasMortgage = !isRent && currentDate < mortgagePayoffDate && currentMortgage > 0;
+    if (isRent) {
+      expense += config.spending.mortgage_payment; // real, never ends
+    } else if (hasMortgage) {
       expense += config.spending.mortgage_payment / inflationMultiplier;
       if (currentMortgage > 0) {
         const mRate = (mortgageRate / 100) / 12;
@@ -1198,11 +1207,15 @@ export const runSimulation = (
     // Everything is already in today's dollars. Use SELF-PAID healthcare (not the
     // employer-covered $0) so the target reflects what retirement actually costs —
     // otherwise FI triggers years early.
-    const annualExpenses      = (baseMonthlySpend + selfPaidHealthcare) * 12;
+    // Rent is perpetual, so it's a recurring expense (capitalized at 25× via the
+    // SWR below). A mortgage is finite, so its payment stays OUT of recurring
+    // expenses and instead its remaining balance is added as a lump to pay off.
+    const monthlyRentExpense  = isRent ? config.spending.mortgage_payment : 0;
+    const annualExpenses      = (baseMonthlySpend + selfPaidHealthcare + monthlyRentExpense) * 12;
     const annualPassiveIncome = (monthlyRentalNet + socialSecurityIncome) * 12; // rental + SS, net
     const netAnnualNeed       = Math.max(0, annualExpenses - annualPassiveIncome);
     const mortgagePayoff      = hasMortgage ? currentMortgage / inflationMultiplier : 0; // today's $
-    const swrTargetValue      = netAnnualNeed / SWR + mortgagePayoff; // FI Number incl. clearing the mortgage
+    const swrTargetValue      = netAnnualNeed / SWR + mortgagePayoff; // FI Number incl. rent (×25) or mortgage payoff
 
     // ── After-tax "spendable" assets ─────────────────────────────────────────
     // $1 in a pre-tax 401k/IRA, or sitting on a large unrealized capital gain,
@@ -1270,7 +1283,7 @@ export const runSimulation = (
       rentalIncome:       Math.round(rentalIncome * 12),
       healthcareCost:     Math.round(currentHealthcareCost * 12),
       accumulatedReturns: 0,
-      mortgagePayment:    Math.round((hasMortgage ? config.spending.mortgage_payment / inflationMultiplier : 0) * 12),
+      mortgagePayment:    Math.round((isRent ? config.spending.mortgage_payment : (hasMortgage ? config.spending.mortgage_payment / inflationMultiplier : 0)) * 12),
       lifestyleExpense:   Math.round(baseMonthlySpend * 12),
       socialSecurityIncome: Math.round(socialSecurityIncome * 12),
       educationAssets:    Math.round(current529),

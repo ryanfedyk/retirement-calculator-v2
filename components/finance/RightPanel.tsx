@@ -397,9 +397,8 @@ export default function RightPanel({ livePrices }: Props) {
         progress={progress}
         notices={notices}
         onOpenFinances={() => useUIStore.getState().setFinancesOpen(true)}
-        holdings={snapshot.other_investments}
-        livePrices={livePrices}
-        concentratedSymbol={config.use_equity_comp ? config.concentrated_symbol : ""}
+        /* Live prices ride on the desktop countdown strip (PriceTicker), so the
+           summary card stays text-only here; the card-ticker is mobile-only. */
       />
 
       {/* ── Main chart (the hero) ── */}

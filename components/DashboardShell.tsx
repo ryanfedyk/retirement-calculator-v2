@@ -5,6 +5,7 @@ import { useHorizonProfile } from "@/config/horizonConfig";
 import { C } from "@/config/colors";
 import Header, { type AppView } from "@/components/Header";
 import CountdownStrip        from "@/components/CountdownStrip";
+import PriceTicker           from "@/components/finance/PriceTicker";
 import ScenariosHub          from "@/components/ScenariosHub";
 import FinancesOverlay       from "@/components/finance/FinancesOverlay";
 import { useIsMobile }       from "@/hooks/useIsMobile";
@@ -116,8 +117,21 @@ export default function DashboardShell() {
       ) : (
       <>
       {/* Countdown — reflects the open scenario, across both deep-dive tabs.
-          (Live prices now ride on the Progress-to-FI summary card.) */}
-      <CountdownStrip />
+          The portfolio price ticker rides on the same line (desktop only; on
+          mobile it lives on the Progress-to-FI summary card instead). */}
+      <CountdownStrip
+        right={
+          <PriceTicker
+            holdings={snapshot.other_investments}
+            livePrices={prices.livePrices}
+            concentratedSymbol={config.use_equity_comp ? config.concentrated_symbol : ""}
+            pricesUpdatedAt={prices.pricesUpdatedAt}
+            pricesFetching={prices.pricesFetching}
+            onRefreshPrices={prices.refresh}
+            align="end"
+          />
+        }
+      />
 
       {/* ── Financial View ── */}
       {appView === "financial" && (

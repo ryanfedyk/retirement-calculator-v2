@@ -1,11 +1,64 @@
 "use client";
 import { useState } from "react";
-import { Trash2, Plus } from "lucide-react";
+import { Trash2, Plus, Pencil, Check, X } from "lucide-react";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import TickerAutocomplete from "@/components/finance/TickerAutocomplete";
 import LinkedNumberField from "@/components/finance/LinkedNumberField";
 import { Field, Num, Two, Section, TextInput, money, inputStyle, labelStyle } from "./sheetUI";
+
+type Holding = { id?: string; name: string; symbol: string; shares: number; expected_return?: number; [k: string]: unknown };
+
+/** A single saved holding — tap the pencil to edit shares / expected return
+ * inline (mobile previously only allowed delete + re-add). */
+function HoldingRow({ inv, onUpdate, onRemove }: { inv: Holding; onUpdate: (v: Holding) => void; onRemove: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [shares, setShares] = useState(String(inv.shares));
+  const [ret, setRet] = useState(inv.expected_return != null ? String(inv.expected_return) : "");
+
+  if (editing) {
+    return (
+      <div style={{ padding: "12px", borderRadius: 10, background: C.warmWash, border: `1px solid ${C.warmLight}`, marginBottom: 8 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: C.ink, marginBottom: 8 }}>{inv.symbol}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          <div><span style={labelStyle}>Shares</span>
+            <input type="number" inputMode="decimal" value={shares} onChange={e => setShares(e.target.value)} style={inputStyle} /></div>
+          <div><span style={labelStyle}>Expected Return %</span>
+            <input type="number" inputMode="decimal" placeholder="7" value={ret} onChange={e => setRet(e.target.value)} style={inputStyle} /></div>
+        </div>
+        <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+          <button onClick={() => {
+            const sh = parseFloat(shares);
+            if (!sh) return;
+            onUpdate({ ...inv, shares: sh, expected_return: ret ? parseFloat(ret) : undefined });
+            setEditing(false);
+          }} style={{ flex: 1, padding: "10px", borderRadius: 9, border: "none", background: C.teal, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+            <Check size={15} /> Save
+          </button>
+          <button onClick={() => { setShares(String(inv.shares)); setRet(inv.expected_return != null ? String(inv.expected_return) : ""); setEditing(false); }}
+            style={{ flex: 1, padding: "10px", borderRadius: 9, border: `1px solid ${C.border}`, background: C.bgCard, color: C.inkMid, fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+            <X size={15} /> Cancel
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", borderRadius: 10, background: C.bgCard, border: `1px solid ${C.borderSoft}`, marginBottom: 8 }}>
+      <div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{inv.symbol}</div>
+        <div style={{ fontSize: 11, color: C.inkSoft }}>
+          {inv.shares.toLocaleString(undefined, { maximumFractionDigits: 3 })} sh{inv.expected_return != null ? ` · ${inv.expected_return}% return` : ""}
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 4 }}>
+        <button onClick={() => setEditing(true)} aria-label={`Edit ${inv.symbol}`} style={{ background: "none", border: "none", cursor: "pointer", color: C.teal, padding: 6 }}><Pencil size={16} /></button>
+        <button onClick={onRemove} aria-label={`Remove ${inv.symbol}`} style={{ background: "none", border: "none", cursor: "pointer", color: C.inkFaint, padding: 6 }}><Trash2 size={16} /></button>
+      </div>
+    </div>
+  );
+}
 
 // The shared "Your finances" picture — cash flow (income & spending) plus the
 // balance sheet (assets/liabilities, holdings, 529s). Income & spending edit the
@@ -104,11 +157,9 @@ export default function MobileFinancesSections() {
       {/* ── Portfolio Holdings ── */}
       <Section title="Portfolio Holdings" accent="#c4784e" {...sec("holdings")}>
         {(snapshot.other_investments || []).map((inv, idx) => (
-          <div key={inv.id || idx} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", borderRadius: 10, background: C.bgCard, border: `1px solid ${C.borderSoft}`, marginBottom: 8 }}>
-            <div><div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{inv.symbol}</div><div style={{ fontSize: 11, color: C.inkSoft }}>{inv.shares.toLocaleString(undefined, { maximumFractionDigits: 3 })} sh</div></div>
-            <button onClick={() => { const a = [...(snapshot.other_investments || [])]; a.splice(idx, 1); updateNestedSnapshot("other_investments", a as any); }}
-              style={{ background: "none", border: "none", cursor: "pointer", color: C.inkFaint }}><Trash2 size={16} /></button>
-          </div>
+          <HoldingRow key={inv.id || idx} inv={inv as Holding}
+            onUpdate={updated => { const a = [...(snapshot.other_investments || [])]; a[idx] = updated as any; updateNestedSnapshot("other_investments", a as any); }}
+            onRemove={() => { const a = [...(snapshot.other_investments || [])]; a.splice(idx, 1); updateNestedSnapshot("other_investments", a as any); }} />
         ))}
         <div style={{ marginTop: 4 }}>
           <TickerAutocomplete placeholder="Search ticker or company" value={newInv.symbol} inputStyle={inputStyle}

@@ -306,11 +306,19 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
                 <Input type="number" step={500} value={bip.annual_backdoor_roth ?? 0}
                   onChange={e => updateBaseline("income_profile", { annual_backdoor_roth: +e.target.value || 0 })} /></div>
             </Row>
-            <div><FieldLabel>Employer 401(k) Match (% of salary)</FieldLabel>
-              <Input type="number" step={0.5} value={bip.employer_401k_match_pct ?? 0}
-                onChange={e => updateBaseline("income_profile", { employer_401k_match_pct: +e.target.value || 0 })} /></div>
+            <Row>
+              <div><FieldLabel>Employer Match Rate (%)</FieldLabel>
+                <Input type="number" step={5} value={bip.employer_match_rate_pct ?? 0}
+                  onChange={e => updateBaseline("income_profile", { employer_match_rate_pct: +e.target.value || 0 })} /></div>
+              <div><FieldLabel>…of first % of salary (0 = all)</FieldLabel>
+                <Input type="number" step={1} value={bip.employer_match_limit_pct ?? 0}
+                  onChange={e => updateBaseline("income_profile", { employer_match_limit_pct: +e.target.value || 0 })} /></div>
+            </Row>
             <div style={{ fontSize: 9, color: C.inkFaint, lineHeight: 1.5 }}>
-              These are contributions you (and your employer) save into retirement accounts — not income. IRS 2025 deferral cap is ${IRS_401K.employeeLimit.toLocaleString()}/yr (+${IRS_401K.catchup.toLocaleString()} at {IRS_401K.catchupAge}+); the match is added on top, up to a ${IRS_401K.totalAdditions.toLocaleString()} combined limit.
+              {(bip.employer_match_rate_pct ?? 0) > 0
+                ? <>Your employer adds <strong>{bip.employer_match_rate_pct}%</strong> of {(bip.employer_match_limit_pct ?? 0) > 0 ? <>the first <strong>{bip.employer_match_limit_pct}%</strong> of salary you contribute</> : <>all your contributions</>} (e.g. Google is 50% of all). </>
+                : <>Set a rate to model an employer match. </>}
+              These are contributions you (and your employer) save — not income. IRS 2025 deferral cap ${IRS_401K.employeeLimit.toLocaleString()}/yr (+${IRS_401K.catchup.toLocaleString()} at {IRS_401K.catchupAge}+); the match adds on top, to a ${IRS_401K.totalAdditions.toLocaleString()} combined limit.
             </div>
             <div style={{ fontSize: 9, color: C.inkFaint, lineHeight: 1.5 }}>Your baseline cash flow — flows to every scenario unless a scenario overrides it.</div>
           </div>

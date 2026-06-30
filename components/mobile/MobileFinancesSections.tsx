@@ -97,9 +97,15 @@ export default function MobileFinancesSections() {
           <Field label="Your 401(k) / yr"><Num prefix="$" step={500} value={ip.annual_401k_contribution ?? 0} onChange={v => updateBaseline("income_profile", { annual_401k_contribution: v })} /></Field>
           <Field label="Your Backdoor Roth / yr"><Num prefix="$" step={500} value={ip.annual_backdoor_roth ?? 0} onChange={v => updateBaseline("income_profile", { annual_backdoor_roth: v })} /></Field>
         </Two>
-        <Field label="Employer 401(k) Match (% of salary)"><Num suffix="%" step={0.5} value={ip.employer_401k_match_pct ?? 0} onChange={v => updateBaseline("income_profile", { employer_401k_match_pct: v })} /></Field>
+        <Two>
+          <Field label="Employer Match Rate (%)"><Num suffix="%" step={5} value={ip.employer_match_rate_pct ?? 0} onChange={v => updateBaseline("income_profile", { employer_match_rate_pct: v })} /></Field>
+          <Field label="…of first % of salary (0 = all)"><Num suffix="%" step={1} value={ip.employer_match_limit_pct ?? 0} onChange={v => updateBaseline("income_profile", { employer_match_limit_pct: v })} /></Field>
+        </Two>
         <div style={{ fontSize: 11, color: C.inkFaint, lineHeight: 1.5 }}>
-          Contributions you (and your employer) save into retirement accounts — not income. IRS 2025 deferral cap ${IRS_401K.employeeLimit.toLocaleString()}/yr (+${IRS_401K.catchup.toLocaleString()} at {IRS_401K.catchupAge}+); employer match adds on top to a ${IRS_401K.totalAdditions.toLocaleString()} combined limit.
+          {(ip.employer_match_rate_pct ?? 0) > 0
+            ? `Your employer adds ${ip.employer_match_rate_pct}% of ${(ip.employer_match_limit_pct ?? 0) > 0 ? `the first ${ip.employer_match_limit_pct}% of salary you contribute` : "all your contributions"} (e.g. Google is 50% of all). `
+            : "Set a rate to model an employer match. "}
+          These are contributions you (and your employer) save — not income. IRS 2025 deferral cap ${IRS_401K.employeeLimit.toLocaleString()}/yr (+${IRS_401K.catchup.toLocaleString()} at {IRS_401K.catchupAge}+); the match adds on top to a ${IRS_401K.totalAdditions.toLocaleString()} combined limit.
         </div>
         <div style={{ fontSize: 11, color: C.inkFaint, marginTop: 2, lineHeight: 1.5 }}>Your baseline cash flow — flows to every scenario unless a scenario overrides it.</div>
       </Section>

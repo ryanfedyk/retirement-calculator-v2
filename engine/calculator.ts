@@ -69,7 +69,11 @@ export interface SimulationConfiguration {
     monthly_parttime_income?: number;   // Supplemental earned income (part-time work)
     annual_401k_contribution?: number;  // Your pre-tax 401k deferral (default IRS max)
     annual_backdoor_roth?: number;      // Your backdoor Roth IRA per year (default $7k)
-    employer_401k_match_pct?: number;   // Employer 401k match as % of gross salary (0 = none)
+    // Employer 401k match, expressed the way employers describe it: "match
+    // {rate}% of {the first {limit}% of salary you contribute}". A 0 rate = no
+    // match; a 0 limit = match ALL your contributions (e.g. Google's 50%-of-all).
+    employer_match_rate_pct?: number;
+    employer_match_limit_pct?: number;
     use_partner_income?: boolean;
     partner_gross_annual_salary?: number;
     partner_employment_start_year?: number;
@@ -610,12 +614,21 @@ export const runSimulation = (
     const annualK401 = working
       ? Math.min(ip.annual_401k_contribution ?? K401_LIMIT, k401MaxAllowed, annualBaseSalary * 0.9)
       : 0;
-    // Employer match — a % of gross salary added to the 401k on TOP of your
-    // deferral. It isn't your money pre-tax, so it never reduces taxable income;
-    // it's capped by the IRS combined (415(c)) limit: deferral + employer ≤ cap.
+    // Employer match — "{rate}% of {the first {limit}% of salary you contribute}",
+    // added to the 401k on TOP of your deferral. A 0 limit means match ALL your
+    // contributions (e.g. Google's 50%-of-everything). It isn't your money pre-tax,
+    // so it never reduces taxable income; it's capped by the IRS combined (415(c))
+    // limit: deferral + employer ≤ cap.
+    const matchRate = Math.max(0, ip.employer_match_rate_pct ?? 0) / 100;
+    const matchLimitPct = Math.max(0, ip.employer_match_limit_pct ?? 0);
+    // The slice of your own deferral the match applies to (capped to `limit`% of
+    // salary, or all of it when limit is 0).
+    const matchedContribution = matchLimitPct > 0
+      ? Math.min(annualK401, annualBaseSalary * matchLimitPct / 100)
+      : annualK401;
     const totalAdditionsCap = (currentAge >= CATCHUP_AGE ? IRS_401K.totalAdditions + CATCHUP_LIMIT : IRS_401K.totalAdditions);
     const annualEmployerMatch = working
-      ? Math.min(annualBaseSalary * Math.max(0, ip.employer_401k_match_pct ?? 0) / 100, Math.max(0, totalAdditionsCap - annualK401))
+      ? Math.min(matchedContribution * matchRate, Math.max(0, totalAdditionsCap - annualK401))
       : 0;
 
     // ── OPT #2: Itemized deductions for mortgage interest ─────────────────

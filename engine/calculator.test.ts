@@ -226,6 +226,17 @@ describe("FI test uses after-tax spendable assets, not gross balances", () => {
     // (3k lifestyle + 2k rent) × 12 ÷ 4% = 1.5M; rent is capitalized, nothing to pay off.
     expect(traj[0].swrTarget).toBeCloseTo(1_500_000, -3);
   });
+
+  it("floors pre-65 self-paid healthcare so a low-MAGI retiree isn't modeled at $0", () => {
+    const cfg = retireeConfig();
+    cfg.birth_year = YEAR - 60;              // pre-65, buying own coverage
+    cfg.spending.healthcare_premium = 1_000; // ~$12k/yr unsubsidized (single)
+    // Living off Roth → MAGI ≈ 0 → ACA would otherwise drive the premium to ~$0.
+    const traj = runSimulation(snapWith("roth", 2_000_000), cfg, 0);
+    const hc = traj[12].healthcareCost; // ~1 year in
+    expect(hc).toBeGreaterThan(4_000);   // floored, not collapsed to ~$0
+    expect(hc).toBeLessThan(12_000);     // still below the full unsubsidized premium
+  });
 });
 
 describe("employer 401k match", () => {

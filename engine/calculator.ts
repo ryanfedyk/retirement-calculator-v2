@@ -281,6 +281,11 @@ function acaApplicablePct(fplRatio: number): number | null {
 // this only adds it to the MAGI tally for subsidy/surcharge tests.)
 const TAXABLE_DIVIDEND_YIELD = 0.02;
 
+// Even with a generous ACA premium subsidy, real pre-65 health spending doesn't
+// hit $0 — premium share + deductibles/copays/dental persist. Floor the modeled
+// self-paid cost at this fraction of the full unsubsidized premium.
+const ACA_OUT_OF_POCKET_FLOOR = 0.5;
+
 // IRS 401(k) limits (2026). Exported so the UI shows the same numbers it enforces.
 //  • employeeLimit — your elective deferral cap (402(g))
 //  • catchup       — extra deferral allowed at 50+
@@ -954,6 +959,12 @@ export const runSimulation = (
           const maxMonthly = (magiForACA * pct) / 12;
           currentHealthcareCost = Math.min(currentHealthcareCost, maxMonthly);
         }
+        // Realistic out-of-pocket floor. A big premium subsidy can drive the
+        // *premium* toward zero in low-MAGI years, but real health spending never
+        // vanishes — you still pay deductibles, copays, dental/vision, and your
+        // share of the premium. Floor the pre-65 cost at a fraction of the full
+        // unsubsidized premium so the band doesn't collapse to ~$0.
+        currentHealthcareCost = Math.max(currentHealthcareCost, selfPaidHealthcare * ACA_OUT_OF_POCKET_FLOOR);
       }
 
       expense += currentHealthcareCost;

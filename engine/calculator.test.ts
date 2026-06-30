@@ -228,6 +228,45 @@ describe("FI test uses after-tax spendable assets, not gross balances", () => {
   });
 });
 
+describe("employer 401k match", () => {
+  it("adds the employer match to retirement savings on top of the deferral", () => {
+    const cfg = baseConfig();
+    cfg.birth_year = YEAR - 40; // working, under catch-up age
+    cfg.income_profile.gross_annual_salary = 200_000;
+    cfg.income_profile.annual_401k_contribution = 23_500;
+    cfg.income_profile.income_growth_rate = 0; // isolate the match from in-year raises
+    cfg.market_assumptions.market_return_rate = 0;
+    cfg.market_assumptions.volatility_drag = 0;
+    cfg.market_assumptions.inflation_rate = 0;
+    cfg.market_assumptions.taxable_dividend_drag = 0;
+    const none = structuredClone(cfg); none.income_profile.employer_401k_match_pct = 0;
+    const five = structuredClone(cfg); five.income_profile.employer_401k_match_pct = 5; // 5% of 200k = 10k/yr
+    const a = runSimulation(baseSnap(), none, 0);
+    const b = runSimulation(baseSnap(), five, 0);
+    // The runs are identical except the match; after 12 months net worth differs
+    // by exactly one year of match ($10k), added with no growth.
+    expect(b[11].totalNetWorth - a[11].totalNetWorth).toBeCloseTo(10_000, -2);
+  });
+
+  it("caps deferral + employer match at the IRS combined (415c) limit", () => {
+    const cfg = baseConfig();
+    cfg.birth_year = YEAR - 40;
+    cfg.income_profile.gross_annual_salary = 1_000_000;   // huge salary
+    cfg.income_profile.annual_401k_contribution = 23_500; // maxed deferral
+    cfg.income_profile.employer_401k_match_pct = 50;       // 50% of 1M = 500k, way over the cap
+    cfg.income_profile.income_growth_rate = 0;
+    cfg.market_assumptions.market_return_rate = 0;
+    cfg.market_assumptions.volatility_drag = 0;
+    cfg.market_assumptions.inflation_rate = 0;
+    cfg.market_assumptions.taxable_dividend_drag = 0;
+    const none = structuredClone(cfg); none.income_profile.employer_401k_match_pct = 0;
+    const a = runSimulation(baseSnap(), none, 0);
+    const b = runSimulation(baseSnap(), cfg, 0);
+    // Match is capped at 70k - 23.5k = 46.5k, so the 12-month net-worth delta is ~46.5k, not 500k.
+    expect(b[11].totalNetWorth - a[11].totalNetWorth).toBeCloseTo(46_500, -2);
+  });
+});
+
 describe("real-dollar model (today's purchasing power)", () => {
   it("grows assets at the REAL return (nominal minus inflation)", () => {
     const cfg = idleRetiree();

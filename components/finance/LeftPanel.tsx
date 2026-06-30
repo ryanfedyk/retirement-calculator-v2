@@ -4,6 +4,7 @@ import { Sliders, Wallet, Trash2, PlusCircle, ChevronDown, Pencil, ChevronLeft }
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { C } from "@/config/colors";
 import { DEFAULT_SNAPSHOT, DEFAULT_SIM_CONFIG } from "@/config/sharedConfig";
+import { IRS_401K } from "@/engine/calculator";
 import TickerAutocomplete from "./TickerAutocomplete";
 import LinkedNumberField from "./LinkedNumberField";
 import BaselineLinkBadge from "./BaselineLinkBadge";
@@ -291,17 +292,26 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
                 <Input type="number" step={1} value={bip.target_bonus_rate ?? 0}
                   onChange={e => updateBaseline("income_profile", { target_bonus_rate: +e.target.value || 0 })} /></div>
             </Row>
-            <Row>
-              <div><FieldLabel>401(k) / yr ($)</FieldLabel>
-                <Input type="number" step={500} value={bip.annual_401k_contribution ?? 0}
-                  onChange={e => updateBaseline("income_profile", { annual_401k_contribution: +e.target.value || 0 })} /></div>
-              <div><FieldLabel>Backdoor Roth / yr ($)</FieldLabel>
-                <Input type="number" step={500} value={bip.annual_backdoor_roth ?? 0}
-                  onChange={e => updateBaseline("income_profile", { annual_backdoor_roth: +e.target.value || 0 })} /></div>
-            </Row>
             <div><FieldLabel>Monthly Rental Income ($)</FieldLabel>
               <Input type="number" step={100} value={bip.monthly_rental_income ?? 0}
                 onChange={e => updateBaseline("income_profile", { monthly_rental_income: +e.target.value || 0 })} /></div>
+
+            {/* Pre-tax savings — your own contributions, not income. */}
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: C.inkFaint, marginTop: 4 }}>Pre-tax retirement savings</div>
+            <Row>
+              <div><FieldLabel>Your 401(k) / yr ($)</FieldLabel>
+                <Input type="number" step={500} value={bip.annual_401k_contribution ?? 0}
+                  onChange={e => updateBaseline("income_profile", { annual_401k_contribution: +e.target.value || 0 })} /></div>
+              <div><FieldLabel>Your Backdoor Roth / yr ($)</FieldLabel>
+                <Input type="number" step={500} value={bip.annual_backdoor_roth ?? 0}
+                  onChange={e => updateBaseline("income_profile", { annual_backdoor_roth: +e.target.value || 0 })} /></div>
+            </Row>
+            <div><FieldLabel>Employer 401(k) Match (% of salary)</FieldLabel>
+              <Input type="number" step={0.5} value={bip.employer_401k_match_pct ?? 0}
+                onChange={e => updateBaseline("income_profile", { employer_401k_match_pct: +e.target.value || 0 })} /></div>
+            <div style={{ fontSize: 9, color: C.inkFaint, lineHeight: 1.5 }}>
+              These are contributions you (and your employer) save into retirement accounts — not income. IRS 2025 deferral cap is ${IRS_401K.employeeLimit.toLocaleString()}/yr (+${IRS_401K.catchup.toLocaleString()} at {IRS_401K.catchupAge}+); the match is added on top, up to a ${IRS_401K.totalAdditions.toLocaleString()} combined limit.
+            </div>
             <div style={{ fontSize: 9, color: C.inkFaint, lineHeight: 1.5 }}>Your baseline cash flow — flows to every scenario unless a scenario overrides it.</div>
           </div>
         </AccCard>

@@ -47,7 +47,9 @@ export const MILESTONES: Milestone[] = [
   { id: "nw25",   title: "Fat stacks",      sub: "Net worth crossed $2.5M",        emoji: "💰", active: (m) => m.netWorth >= 2_500_000, confetti: true },
   { id: "nw5",    title: "Cruising altitude",sub: "Net worth crossed $5M",         emoji: "🚀", active: (m) => m.netWorth >= 5_000_000, confetti: true },
   { id: "coast",  title: "Coast FIRE",      sub: "Stop investing today and you’d still hit FI by 65 — you’re coasting 🌴", emoji: "🌴", active: (m) => m.coastFI && !m.isIndependent, confetti: true },
-  { id: "lean",   title: "Lean-FIRE pace",  sub: "Your savings rate is 50%+ — serious tailwind", emoji: "🌬️", active: (m) => m.savingsRate >= 0.5 },
+  // Pace tiers are mutually exclusive — Fat-FIRE (70%+) supersedes Lean-FIRE
+  // (50–70%), so a high saver sees only the higher tier, not both.
+  { id: "lean",   title: "Lean-FIRE pace",  sub: "Your savings rate is 50%+ — serious tailwind", emoji: "🌬️", active: (m) => m.savingsRate >= 0.5 && m.savingsRate < 0.7 },
   { id: "fat",    title: "Fat-FIRE pace",   sub: "Saving 70%+ — you're flying",     emoji: "🔥", active: (m) => m.savingsRate >= 0.7, confetti: true },
   { id: "fi",     title: "Financially Independent", sub: "You hit your FI number — 25× your spend 🔥", emoji: "🔥", active: (m) => m.swrTarget > 0 && m.isIndependent, confetti: true },
 ];

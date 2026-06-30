@@ -318,7 +318,7 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
               {(bip.employer_match_rate_pct ?? 0) > 0
                 ? <>Your employer adds <strong>{bip.employer_match_rate_pct}%</strong> of {(bip.employer_match_limit_pct ?? 0) > 0 ? <>the first <strong>{bip.employer_match_limit_pct}%</strong> of salary you contribute</> : <>all your contributions</>} (e.g. Google is 50% of all). </>
                 : <>Set a rate to model an employer match. </>}
-              These are contributions you (and your employer) save — not income. IRS 2025 deferral cap ${IRS_401K.employeeLimit.toLocaleString()}/yr (+${IRS_401K.catchup.toLocaleString()} at {IRS_401K.catchupAge}+); the match adds on top, to a ${IRS_401K.totalAdditions.toLocaleString()} combined limit.
+              These are contributions you (and your employer) save — not income. IRS {IRS_401K.year} deferral cap ${IRS_401K.employeeLimit.toLocaleString()}/yr (+${IRS_401K.catchup.toLocaleString()} at {IRS_401K.catchupAge}+); the match adds on top, to a ${IRS_401K.totalAdditions.toLocaleString()} combined limit.
             </div>
             <div style={{ fontSize: 9, color: C.inkFaint, lineHeight: 1.5 }}>Your baseline cash flow — flows to every scenario unless a scenario overrides it.</div>
           </div>

@@ -281,15 +281,16 @@ function acaApplicablePct(fplRatio: number): number | null {
 // this only adds it to the MAGI tally for subsidy/surcharge tests.)
 const TAXABLE_DIVIDEND_YIELD = 0.02;
 
-// IRS 401(k) limits (2025). Exported so the UI shows the same numbers it enforces.
+// IRS 401(k) limits (2026). Exported so the UI shows the same numbers it enforces.
 //  • employeeLimit — your elective deferral cap (402(g))
 //  • catchup       — extra deferral allowed at 50+
 //  • totalAdditions — combined employee + employer cap (415(c))
 export const IRS_401K = {
-  employeeLimit: 23_500,
-  catchup: 7_500,
+  year: 2026,
+  employeeLimit: 24_500,
+  catchup: 8_000,
   catchupAge: 50,
-  totalAdditions: 70_000,
+  totalAdditions: 72_000,
 } as const;
 
 // ── IRS Uniform Lifetime Table (2022+) ───────────────────────────────────────
@@ -436,7 +437,7 @@ export const runSimulation = (
       expectedReturn: i.expected_return ?? config.market_assumptions.market_return_rate,
     }));
 
-  // IRS 401k limits 2025 (single source — see IRS_401K)
+  // IRS 401k limits (single source — see IRS_401K)
   const K401_LIMIT      = IRS_401K.employeeLimit;
   const CATCHUP_LIMIT   = IRS_401K.catchup;  // Age 50+
   const CATCHUP_AGE     = IRS_401K.catchupAge;
@@ -702,7 +703,7 @@ export const runSimulation = (
 
     // OPT #1 (Backdoor Roth IRA) — $7k/yr ($8k if 50+), funded from liquid cash in April
     // Non-deductible contribution → immediate conversion → no current-year tax
-    const rothIRALimit    = currentAge >= CATCHUP_AGE ? 8_000 : 7_000;
+    const rothIRALimit    = currentAge >= CATCHUP_AGE ? 8_600 : 7_500; // IRA limit 2026 ($7.5k + $1.1k catch-up)
     const backdoorRothAmt = ip.annual_backdoor_roth ?? rothIRALimit;
     if (monthOfYear === 3 && (phase === 'GOOGLE' || phase === 'JUMP' || phase === 'BRIDGE')
         && liquidCash > backdoorRothAmt + 10_000) {

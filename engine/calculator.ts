@@ -67,8 +67,9 @@ export interface SimulationConfiguration {
     monthly_rental_income: number;
     rental_income_growth_rate?: number; // Annual rental growth % (market-specific; default 3%)
     monthly_parttime_income?: number;   // Supplemental earned income (part-time work)
-    annual_401k_contribution?: number;  // Pre-tax 401k (default IRS max)
-    annual_backdoor_roth?: number;      // Backdoor Roth IRA per year (default $7k)
+    annual_401k_contribution?: number;  // Your pre-tax 401k deferral (default IRS max)
+    annual_backdoor_roth?: number;      // Your backdoor Roth IRA per year (default $7k)
+    employer_401k_match_pct?: number;   // Employer 401k match as % of gross salary (0 = none)
     use_partner_income?: boolean;
     partner_gross_annual_salary?: number;
     partner_employment_start_year?: number;
@@ -276,6 +277,17 @@ function acaApplicablePct(fplRatio: number): number | null {
 // this only adds it to the MAGI tally for subsidy/surcharge tests.)
 const TAXABLE_DIVIDEND_YIELD = 0.02;
 
+// IRS 401(k) limits (2025). Exported so the UI shows the same numbers it enforces.
+//  • employeeLimit — your elective deferral cap (402(g))
+//  • catchup       — extra deferral allowed at 50+
+//  • totalAdditions — combined employee + employer cap (415(c))
+export const IRS_401K = {
+  employeeLimit: 23_500,
+  catchup: 7_500,
+  catchupAge: 50,
+  totalAdditions: 70_000,
+} as const;
+
 // ── IRS Uniform Lifetime Table (2022+) ───────────────────────────────────────
 // RMD divisor by age: the required minimum distribution is the prior year-end
 // pre-tax balance divided by this factor. Table covers the RMD ages through the
@@ -420,10 +432,10 @@ export const runSimulation = (
       expectedReturn: i.expected_return ?? config.market_assumptions.market_return_rate,
     }));
 
-  // IRS 401k limits 2025
-  const K401_LIMIT      = 23_500;
-  const CATCHUP_LIMIT   = 7_500;  // Age 50+
-  const CATCHUP_AGE     = 50;
+  // IRS 401k limits 2025 (single source — see IRS_401K)
+  const K401_LIMIT      = IRS_401K.employeeLimit;
+  const CATCHUP_LIMIT   = IRS_401K.catchup;  // Age 50+
+  const CATCHUP_AGE     = IRS_401K.catchupAge;
   // Federal mortgage acquisition debt deductibility cap (post-12/16/2017 loans)
   const FED_MORTGAGE_CAP = 750_000;
   // RMD start age (SECURE 2.0): 73 for those born 1951–1959, 75 for 1960+.
@@ -593,9 +605,17 @@ export const runSimulation = (
     // ── OPT #1: 401k pre-tax contributions ────────────────────────────────
     // Reduces income tax; does NOT reduce FICA base.
     // Catch-up contribution available at age 50.
+    const working = phase === 'GOOGLE' || phase === 'JUMP' || phase === 'BRIDGE';
     const k401MaxAllowed = currentAge >= CATCHUP_AGE ? K401_LIMIT + CATCHUP_LIMIT : K401_LIMIT;
-    const annualK401 = (phase === 'GOOGLE' || phase === 'JUMP' || phase === 'BRIDGE')
+    const annualK401 = working
       ? Math.min(ip.annual_401k_contribution ?? K401_LIMIT, k401MaxAllowed, annualBaseSalary * 0.9)
+      : 0;
+    // Employer match — a % of gross salary added to the 401k on TOP of your
+    // deferral. It isn't your money pre-tax, so it never reduces taxable income;
+    // it's capped by the IRS combined (415(c)) limit: deferral + employer ≤ cap.
+    const totalAdditionsCap = (currentAge >= CATCHUP_AGE ? IRS_401K.totalAdditions + CATCHUP_LIMIT : IRS_401K.totalAdditions);
+    const annualEmployerMatch = working
+      ? Math.min(annualBaseSalary * Math.max(0, ip.employer_401k_match_pct ?? 0) / 100, Math.max(0, totalAdditionsCap - annualK401))
       : 0;
 
     // ── OPT #2: Itemized deductions for mortgage interest ─────────────────
@@ -663,8 +683,9 @@ export const runSimulation = (
     const monthlyRentalNet  = (annualRentalGross  / 12) * (1 - ordinaryEffRate);
     const monthlyParttimeNet = (annualParttimeGross / 12) * (1 - ordinaryEffRate);
 
-    // 401k contribution goes directly to traditional retirement each month
-    tradBalance += annualK401 / 12;
+    // Your deferral + the employer match both land in the traditional 401k each
+    // month (only the deferral reduced taxable income, in the tax pass above).
+    tradBalance += (annualK401 + annualEmployerMatch) / 12;
 
     // OPT #1 (Backdoor Roth IRA) — $7k/yr ($8k if 50+), funded from liquid cash in April
     // Non-deductible contribution → immediate conversion → no current-year tax

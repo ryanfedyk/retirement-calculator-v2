@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Trash2, Plus, Pencil, Check, X } from "lucide-react";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
+import { IRS_401K } from "@/engine/calculator";
 import TickerAutocomplete from "@/components/finance/TickerAutocomplete";
 import LinkedNumberField from "@/components/finance/LinkedNumberField";
 import { Field, Num, Two, Section, Toggle, TextInput, money, inputStyle, labelStyle } from "./sheetUI";
@@ -88,12 +89,18 @@ export default function MobileFinancesSections() {
           <Field label="Annual Raise (%)"><Num step={0.1} value={ip.income_growth_rate ?? 0} onChange={v => updateBaseline("income_profile", { income_growth_rate: v })} /></Field>
           <Field label="Target Bonus (%)"><Num value={ip.target_bonus_rate ?? 0} onChange={v => updateBaseline("income_profile", { target_bonus_rate: v })} /></Field>
         </Two>
-        <Field label="Annual Equity Grant"><Num prefix="$" step={1000} value={ip.annual_equity_grant ?? 0} onChange={v => updateBaseline("income_profile", { annual_equity_grant: v })} /></Field>
-        <Two>
-          <Field label="401(k) / yr"><Num prefix="$" step={500} value={ip.annual_401k_contribution ?? 0} onChange={v => updateBaseline("income_profile", { annual_401k_contribution: v })} /></Field>
-          <Field label="Backdoor Roth / yr"><Num prefix="$" step={500} value={ip.annual_backdoor_roth ?? 0} onChange={v => updateBaseline("income_profile", { annual_backdoor_roth: v })} /></Field>
-        </Two>
         <Field label="Monthly Rental Income"><Num prefix="$" step={100} value={ip.monthly_rental_income ?? 0} onChange={v => updateBaseline("income_profile", { monthly_rental_income: v })} /></Field>
+
+        {/* Pre-tax savings — your own contributions, not income (equity is in its own section). */}
+        <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.inkFaint, marginTop: 2 }}>Pre-tax retirement savings</div>
+        <Two>
+          <Field label="Your 401(k) / yr"><Num prefix="$" step={500} value={ip.annual_401k_contribution ?? 0} onChange={v => updateBaseline("income_profile", { annual_401k_contribution: v })} /></Field>
+          <Field label="Your Backdoor Roth / yr"><Num prefix="$" step={500} value={ip.annual_backdoor_roth ?? 0} onChange={v => updateBaseline("income_profile", { annual_backdoor_roth: v })} /></Field>
+        </Two>
+        <Field label="Employer 401(k) Match (% of salary)"><Num suffix="%" step={0.5} value={ip.employer_401k_match_pct ?? 0} onChange={v => updateBaseline("income_profile", { employer_401k_match_pct: v })} /></Field>
+        <div style={{ fontSize: 11, color: C.inkFaint, lineHeight: 1.5 }}>
+          Contributions you (and your employer) save into retirement accounts — not income. IRS 2025 deferral cap ${IRS_401K.employeeLimit.toLocaleString()}/yr (+${IRS_401K.catchup.toLocaleString()} at {IRS_401K.catchupAge}+); employer match adds on top to a ${IRS_401K.totalAdditions.toLocaleString()} combined limit.
+        </div>
         <div style={{ fontSize: 11, color: C.inkFaint, marginTop: 2, lineHeight: 1.5 }}>Your baseline cash flow — flows to every scenario unless a scenario overrides it.</div>
       </Section>
 

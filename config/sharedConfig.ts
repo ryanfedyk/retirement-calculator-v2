@@ -139,7 +139,8 @@ export const DEFAULT_SIM_CONFIG: SimulationConfiguration = {
     monthly_parttime_income: 0,
     annual_401k_contribution: 23_500,   // IRS 2025 max; auto-bumped at age 50+
     annual_backdoor_roth:     7_000,
-    employer_401k_match_pct:  0,         // employer match as % of salary (0 = none)
+    employer_match_rate_pct:  0,         // employer matches this % of your contributions (0 = no match)
+    employer_match_limit_pct: 0,         // …up to this % of salary you contribute (0 = all contributions)
     use_partner_income:      false,
     partner_gross_annual_salary:   0,
     partner_employment_start_year: CURRENT_YEAR,

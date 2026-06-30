@@ -270,8 +270,8 @@ describe("employer 401k match", () => {
     const cfg = matchCfg();
     cfg.income_profile.employer_match_rate_pct = 300; // absurd rate to blow past the cap
     cfg.income_profile.employer_match_limit_pct = 0;
-    // 300% × $23.5k = $70.5k, clamped to $70k − $23.5k = $46.5k.
-    expect(deltaAt12(cfg)).toBeCloseTo(46_500, -2);
+    // 300% × $23.5k = $70.5k, clamped to the 2026 415(c) limit: $72k − $23.5k = $48.5k.
+    expect(deltaAt12(cfg)).toBeCloseTo(48_500, -2);
   });
 });
 

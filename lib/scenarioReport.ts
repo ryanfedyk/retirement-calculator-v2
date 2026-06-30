@@ -10,6 +10,7 @@
 import {
   runSimulation,
   findIndependencePoint,
+  IRS_401K,
   type FinancialSnapshot,
   type SimulationConfiguration,
   type TrajectoryPoint,
@@ -139,7 +140,12 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
       );
     }
   }
-  p(`| Mortgage balance | ${usd(-liab.mortgage_balance)} | ${pct(liab.mortgage_interest_rate ?? 3.5)} fixed |`);
+  const isRent = sp.housing_type === "rent";
+  if (isRent) {
+    p(`| Housing | Renter | rent is a perpetual expense (no mortgage balance) |`);
+  } else {
+    p(`| Mortgage balance | ${usd(-liab.mortgage_balance)} | ${pct(liab.mortgage_interest_rate ?? 3.5)} fixed |`);
+  }
   if (liab.consumer_debt) p(`| Consumer debt | ${usd(-liab.consumer_debt)} | paid down when cash > $50k |`);
   p();
   p(
@@ -207,7 +213,24 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
   if (ip.use_partner_income && ip.partner_gross_annual_salary)
     p(`- Partner salary: ${usd(ip.partner_gross_annual_salary)}/yr until ${ip.partner_retirement_year ?? "—"}.`);
   p();
-  p(`Salary in year *t* = base × (1 + real_raise)^t, where real_raise = Fisher(${pct(ip.income_growth_rate || 0)}). Contributions: up to ${usd(ip.annual_401k_contribution ?? 23500)} to the 401(k) (pre-tax, reduces income tax but not FICA), plus a ${usd(ip.annual_backdoor_roth ?? 7000)}/yr backdoor Roth while working.`);
+  // Company equity / RSUs (opt-in; a shared fact across scenarios).
+  if (config.use_equity_comp) {
+    const sym = config.concentrated_symbol || "company stock";
+    const vy = ip.vesting_years ?? 4;
+    p(`- **Company equity / RSUs (${sym}):**`);
+    if (ip.initial_unvested_shares) p(`  - Currently-unvested grant: ${ip.initial_unvested_shares.toLocaleString()} shares, vesting linearly over ${vy} years.`);
+    if (ip.annual_equity_grant) p(`  - Annual refresher: ${usd(ip.annual_equity_grant)} granted each **March**, vesting over ${vy} years (cohorts stack); vested shares are taxed at the marginal rate (sell-to-cover) and added to the ${sym} position.`);
+    p(`  - ${sym} grows at its own ${pct(ma.goog_growth_rate)} nominal rate (separate from the diversified portfolio).`);
+    const dv = config.divestment_strategy;
+    if (dv?.type === "progressive") p(`  - Divestment: progressive sell-down ${dv.start_year}–${dv.end_year}, realizing long-term gains into cash.`);
+    else if (dv?.type === "immediate") p(`  - Divestment: sell the entire position at exit (${cp.exit_year}).`);
+    else p(`  - Divestment: none (hold the concentrated position).`);
+  }
+  const matchRate = ip.employer_match_rate_pct ?? 0;
+  const matchLine = matchRate > 0
+    ? ` Employer 401(k) match: ${matchRate}% of ${(ip.employer_match_limit_pct ?? 0) > 0 ? `the first ${ip.employer_match_limit_pct}% of salary you contribute` : "all your contributions"}, added on top (not taxable income) and capped so deferral + match ≤ ${usd(IRS_401K.totalAdditions)} (IRS 415(c) combined limit).`
+    : "";
+  p(`Salary in year *t* = base × (1 + real_raise)^t, where real_raise = Fisher(${pct(ip.income_growth_rate || 0)}). Your contributions while working: up to ${usd(ip.annual_401k_contribution ?? IRS_401K.employeeLimit)} pre-tax to the 401(k) (reduces income tax, not FICA; IRS ${IRS_401K.year} cap ${usd(IRS_401K.employeeLimit)} + ${usd(IRS_401K.catchup)} at ${IRS_401K.catchupAge}+), plus a ${usd(ip.annual_backdoor_roth ?? 7500)}/yr backdoor Roth.${matchLine}`);
   p();
 
   // ── 5. Spending ───────────────────────────────────────────────────────────────
@@ -218,8 +241,12 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
     const enSpend = sp.empty_nest_linked !== false ? sp.monthly_lifestyle * 0.85 : (sp.empty_nest_monthly_spend ?? sp.monthly_lifestyle * 0.85);
     p(`- Empty-nest spend from ${sp.empty_nest_year ?? "—"}: ${usd(enSpend)}/mo (${sp.empty_nest_linked !== false ? "−15% of lifestyle" : "custom"}).`);
   }
-  p(`- Self-paid healthcare premium basis: ${usd(sp.healthcare_premium)}/mo for the household, escalating at CPI + ${pct(ma.healthcare_inflation_premium ?? 2)} real per year. Out-of-pocket is $0 while employer-covered.`);
-  p(`- Mortgage payment: ${usd(sp.mortgage_payment)}/mo (nominal; deflated to real over time since it's a fixed contract).`);
+  p(`- Self-paid healthcare premium basis: ${usd(sp.healthcare_premium)}/mo for the household, escalating at CPI + ${pct(ma.healthcare_inflation_premium ?? 2)} real per year. Out-of-pocket is $0 while employer-covered; pre-65 self-paid cost is floored at 50% of the full unsubsidized premium (a generous ACA subsidy can lower the premium but never zeroes out real health spending).`);
+  if (isRent) {
+    p(`- Rent: ${usd(sp.mortgage_payment)}/mo — a **perpetual** real expense (rises with inflation, never ends, no balance to amortize).`);
+  } else {
+    p(`- Mortgage payment: ${usd(sp.mortgage_payment)}/mo (nominal; deflated to real over time since it's a fixed contract). It ends at payoff, and the **remaining balance is added to the FI number** (see §9).`);
+  }
   if (sp.ltc_annual_cost) p(`- Long-term care: ${usd(sp.ltc_annual_cost)}/yr for ${sp.ltc_years ?? 3} years starting age ${sp.ltc_start_age ?? 80}.`);
   if (config.life_events?.length) {
     p(`- One-off life events:`);
@@ -276,7 +303,7 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
   p(`- **RMDs:** from age ${rmdStart} (SECURE 2.0), each year withdraws \`traditional_balance ÷ IRS_Uniform_Lifetime_divisor(age)\`, taxed as ordinary income; net proceeds move to cash.`);
   p(`- **Medicare/IRMAA:** at age ${config.medicare?.start_age ?? 65}, premiums of ${usd(config.medicare?.monthly_premium ?? 185)}/mo per adult apply, plus an IRMAA surcharge driven by MAGI from two years prior.`);
   if (config.tax_optimization?.enable_aca_optimization ?? true)
-    p(`- **ACA subsidies:** during pre-Medicare retirement/sabbatical, the self-paid premium is capped at an ARPA-style % of MAGI. Household size for the Federal-Poverty-Line test is derived from the actual household — ${ta.filing_status === "married_joint" ? 2 : 1} adult(s) + ${kids.filter((k) => thisYear - k.birthYear < 22).length} child(ren) on the plan today (it tapers as kids age out) — so keeping taxable income low yields larger subsidies.`);
+    p(`- **ACA subsidies:** during pre-Medicare retirement/sabbatical, the self-paid premium is capped at an ARPA-style % of MAGI. Household size for the Federal-Poverty-Line test is derived from the actual household — ${ta.filing_status === "married_joint" ? 2 : 1} adult(s) + ${kids.filter((k) => thisYear - k.birthYear < 22).length} child(ren) on the plan today (it tapers as kids age out) — so keeping taxable income low yields larger subsidies. The modeled cost is then **floored at 50% of the full unsubsidized premium** so a large subsidy can't drive real health spending to $0.`);
   if (config.tax_optimization?.enable_roth_conversion ?? true)
     p(`- **Roth conversions:** during a low-income sabbatical, traditional balances are converted up to the ${usd(config.tax_optimization?.roth_conversion_target_bracket ?? 206700)} taxable-income ceiling, paying tax now from cash.`);
   if (ta.filing_status === "married_joint" && (config.mortality?.first_death_age ?? 0) > 0) {
@@ -289,13 +316,18 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
   p();
   p(`Each month the model computes a target and compares spendable assets against it.`);
   p();
-  p(`**FI Number (Rule of 25 / 4% safe withdrawal rate):**`);
+  p(`**FI Number (Rule of 25 / 4% safe withdrawal rate), plus housing:**`);
   p("```");
-  p(`annual_need   = (lifestyle_monthly + self_paid_healthcare_monthly) × 12`);
+  p(`annual_need   = (lifestyle_monthly + self_paid_healthcare_monthly${isRent ? " + rent_monthly" : ""}) × 12`);
   p(`passive_net   = (rental_net + social_security_net) × 12`);
   p(`net_need      = max(0, annual_need − passive_net)`);
-  p(`FI_number     = net_need / 0.04        (i.e. 25 × net_need)`);
+  p(`FI_number     = net_need / 0.04 ${isRent ? "" : "+ remaining_mortgage_balance"}   (25 × net_need${isRent ? "" : ", plus the lump to clear the mortgage"})`);
   p("```");
+  if (isRent) {
+    p(`Because this is a **renter**, rent is treated as a permanent expense and is *capitalized into* the FI number at 25× (it's inside \`annual_need\`); there is no mortgage balance to add.`);
+  } else {
+    p(`The recurring mortgage **payment** is deliberately **not** capitalized at 25× (it's finite). Instead the **remaining balance** is added as the lump needed to clear the house; as it amortizes to $0 that add-on shrinks to nothing, and once paid off the payment also drops out of expenses.`);
+  }
   p();
   p(`**Spendable ("after-tax") assets** — what's compared against the FI number:`);
   p("```");
@@ -310,7 +342,9 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
   p(`## 10. Results (computed by this engine)`);
   p();
   if (today) {
-    p(`- **FI Number today:** ${usd(today.swrTarget)}  (= 25 × net annual need of ${usd(today.annualExpenseNeed - today.annualPassiveIncome)})`);
+    const netNeedToday = Math.max(0, today.annualExpenseNeed - today.annualPassiveIncome);
+    const housingAdd = Math.round(today.swrTarget - netNeedToday / 0.04); // ≈ remaining mortgage (0 for renters)
+    p(`- **FI Number today:** ${usd(today.swrTarget)}  (= 25 × net annual need of ${usd(netNeedToday)}${housingAdd > 1 ? ` + ${usd(housingAdd)} to clear the mortgage` : ""})`);
     p(`  - annual expense need: ${usd(today.annualExpenseNeed)}; passive income (net): ${usd(today.annualPassiveIncome)}`);
     p(`- **Spendable assets today:** ${usd(today.investableAfterTax)} (gross investable ${usd(today.investableAssets)})`);
     p(`- **Net worth today:** ${usd(today.totalNetWorth)}`);
@@ -365,7 +399,7 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
   p();
   p(`- Runs entirely in today's dollars; nominal display just re-inflates the output.`);
   p(`- Social Security is estimated from current salary as a proxy for the 35-year indexed average (override available).`);
-  p(`- Tax brackets/limits are fixed at 2025 values (valid because the model is real-dollar).`);
+  p(`- Tax brackets are fixed at 2025 values; retirement-contribution limits at ${IRS_401K.year} (both held flat thereafter — valid because the model is real-dollar).`);
   p(`- The home asset behind the mortgage isn't tracked, so the mortgage is excluded from net worth.`);
   p(`- Effective vs. marginal tax rates are computed per-year, not per-transaction lot.`);
   p(`- The survivor transition (if enabled) continues on the primary's age/claim clock rather than each spouse's own mortality.`);

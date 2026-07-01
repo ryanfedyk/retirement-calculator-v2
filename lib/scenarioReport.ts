@@ -203,7 +203,9 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
   p(`## 4. Career path & income`);
   p();
   p(`- Primary gross salary today: ${usd(ip.gross_annual_salary)}/yr, target bonus ${pct(ip.target_bonus_rate || 0)}.`);
-  p(`- Exit from primary job: **${cp.exit_year}** (age ${cp.exit_year - birthYear}).`);
+  const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  const exitWhen = (cp.exit_month ?? 0) > 0 ? `${MONTHS[cp.exit_month!]} ${cp.exit_year}` : `${cp.exit_year}`;
+  p(`- Exit from primary job: **${exitWhen}** (age ${cp.exit_year - birthYear}). Salary, bonus (paid March), and RSU vesting accrue through the exit month, so timing the exit just after a March bonus/vest captures it.`);
   if (cp.use_sabbatical) p(`- Sabbatical: ${cp.exit_year}–${sabbEnd} (no earned income).`);
   if (cp.use_jump) p(`- "Jump" job: ${sabbEnd}–${jumpEnd} at ${usd(ip.jump_gross_annual)}/yr, bonus ${pct(ip.jump_bonus_rate || 0)}.`);
   if (cp.use_bridge) p(`- Bridge job: ${jumpEnd}–${bridgeEnd} at ${usd(ip.bridge_gross_annual)}/yr.`);

@@ -15,7 +15,9 @@ import { useFinancialStore } from "@/store/useFinancialStore";
 
 export function useRetirementDate() {
   const cp = useFinancialStore(s => s.config.career_path);
-  const retirementMonth = useFinancialStore(s => s.profile.retirementMonth);
+  const profileMonth = useFinancialStore(s => s.profile.retirementMonth);
+  // The scenario's own exit month is the source of truth; fall back to the profile.
+  const retirementMonth = cp.exit_month ?? profileMonth ?? 0;
 
   // True full-retirement year = exit + any post-Google phases
   let trueYear = cp.exit_year;

@@ -113,6 +113,7 @@ export function buildLifeEvents(
 export const DEFAULT_SIM_CONFIG: SimulationConfiguration = {
   career_path: {
     exit_year:           DEFAULT_PROFILE.retirementYear,
+    exit_month:          0,   // 0-indexed (0 = January)
     use_jump:            false,
     jump_duration:       2,
     use_sabbatical:      false,

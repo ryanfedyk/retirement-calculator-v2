@@ -13,12 +13,15 @@ const money = (n: number) => `$${Math.round(n).toLocaleString()}`;
 /** A concise, plain-language summary of what this scenario is about — exit year,
  * spending, and any career phases in play. Shown atop "Tune this scenario" in
  * place of the old phase chips (phases now live in the "What if…" cards). */
-function describeScenario(cp: { exit_year: number; use_sabbatical?: boolean; sabbatical_duration?: number; use_jump?: boolean; use_bridge?: boolean }, monthlySpend: number): string {
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+function describeScenario(cp: { exit_year: number; exit_month?: number; use_sabbatical?: boolean; sabbatical_duration?: number; use_jump?: boolean; use_bridge?: boolean }, monthlySpend: number): string {
   const phases: string[] = [];
   if (cp.use_sabbatical) phases.push(cp.sabbatical_duration === 1 ? "a year-long sabbatical" : `a ${cp.sabbatical_duration ?? 1}-year sabbatical`);
   if (cp.use_jump) phases.push("a career jump");
   if (cp.use_bridge) phases.push("a bridge job");
-  let s = `Leave work in ${cp.exit_year} and live on ${money(monthlySpend)}/mo`;
+  const when = (cp.exit_month ?? 0) > 0 ? `${MONTHS[cp.exit_month!]} ${cp.exit_year}` : String(cp.exit_year);
+  let s = `Leave work in ${when} and live on ${money(monthlySpend)}/mo`;
   if (phases.length) {
     const list = phases.length === 1 ? phases[0]
       : phases.length === 2 ? `${phases[0]} and ${phases[1]}`
@@ -129,6 +132,15 @@ export default function ScenarioLevers({ onOpenEditor, livePrices, retireWindow,
         <Slider label="Exit Year" value={cp.exit_year} display={String(cp.exit_year)}
           min={currentYear} max={maxExit} step={1} accent={C.teal} onChange={setExit}
           caption={earliestExit ? `Earliest ${earliestExit}` : undefined} />
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 130 }}>
+          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.inkFaint }}>Exit Month</span>
+          <select value={cp.exit_month ?? 0}
+            onChange={e => updateNestedConfig("career_path", { exit_month: +e.target.value })}
+            style={{ padding: "7px 8px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bgCard, color: C.ink, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+            {MONTHS.map((m, i) => <option key={m} value={i}>{m}</option>)}
+          </select>
+          <span style={{ fontSize: 10, color: C.inkFaint }}>Time it to a bonus/vest</span>
+        </div>
         <Slider label="Monthly Spend" value={sp.monthly_lifestyle} display={money(sp.monthly_lifestyle)}
           min={3000} max={20000} step={250} accent={C.warm}
           badge={(() => { const t = colTier(sp.monthly_lifestyle); return (

@@ -1266,7 +1266,21 @@ export const runSimulation = (
     // expenses and instead its remaining balance is added as a lump to pay off.
     const monthlyRentExpense  = isRent ? config.spending.mortgage_payment : 0;
     const annualExpenses      = (baseMonthlySpend + selfPaidHealthcare + monthlyRentExpense) * 12;
-    const annualPassiveIncome = (monthlyRentalNet + socialSecurityIncome) * 12; // rental + SS, net
+    // Passive income is netted at a RETIREMENT tax rate for the target — rental
+    // taxed as the household's own ordinary income (no salary stacked on top).
+    // Using the current-year rate would tax rental at a high working marginal rate
+    // while employed, inflating the FI number by hundreds of thousands and making
+    // it impossible to register FI until the moment you actually quit (so the FI
+    // date would just snap to your exit). The FI number should describe retirement.
+    const retirementRentalTax = annualRentalGross > 0
+      ? calculateTaxRaw({
+          filingStatus: effectiveFiling, state: config.tax_assumptions.state_of_residence,
+          grossIncome: 0, preTaxDeductions: 0, ficaExemptIncome: annualRentalGross,
+          itemizedDeductions: 0, nyItemizedDeductions: 0, longTermCapitalGains: 0, shortTermCapitalGains: 0,
+        }).totalTax
+      : 0;
+    const retirementRentalNet = (annualRentalGross - retirementRentalTax) / 12;
+    const annualPassiveIncome = (retirementRentalNet + socialSecurityIncome) * 12; // rental (retirement-rate) + SS, net
     const netAnnualNeed       = Math.max(0, annualExpenses - annualPassiveIncome);
     const mortgagePayoff      = hasMortgage ? currentMortgage / inflationMultiplier : 0; // today's $
     const swrTargetValue      = netAnnualNeed / SWR + mortgagePayoff; // FI Number incl. rent (×25) or mortgage payoff

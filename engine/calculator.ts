@@ -43,6 +43,7 @@ export interface FinancialSnapshot {
 export interface SimulationConfiguration {
   career_path: {
     exit_year: number;
+    exit_month?: number; // 0-indexed month of exit within exit_year (0 = January; default 0)
     use_jump: boolean;
     jump_duration: number;
     use_sabbatical: boolean;
@@ -430,9 +431,15 @@ export const runSimulation = (
     ? new Date(snapshot.liabilities.mortgage_payoff_date)
     : new Date(2051, 5, 1);
 
-  const sabbaticalEndYear = config.career_path.exit_year + (config.career_path.use_sabbatical ? config.career_path.sabbatical_duration : 0);
-  const jumpEndYear       = sabbaticalEndYear + (config.career_path.use_jump   ? config.career_path.jump_duration   : 0);
-  const bridgeEndYear     = jumpEndYear       + (config.career_path.use_bridge ? config.career_path.bridge_duration : 0);
+  // Phase boundaries as calendar-month indices (year*12 + month0), so the exit —
+  // and every downstream phase — is precise to the month, not just the year. This
+  // lets you time your exit to, e.g., just after a March bonus/vest. exit_month
+  // defaults to 0 (January), preserving the old start-of-year behavior.
+  const exitMonth0 = Math.min(11, Math.max(0, Math.round(config.career_path.exit_month ?? 0)));
+  const exitCal          = config.career_path.exit_year * 12 + exitMonth0;
+  const sabbaticalEndCal = exitCal          + (config.career_path.use_sabbatical ? config.career_path.sabbatical_duration * 12 : 0);
+  const jumpEndCal       = sabbaticalEndCal + (config.career_path.use_jump       ? config.career_path.jump_duration       * 12 : 0);
+  const bridgeEndCal     = jumpEndCal       + (config.career_path.use_bridge     ? config.career_path.bridge_duration     * 12 : 0);
 
   const currentOtherInvestments = (snapshot.other_investments ?? [])
     .filter(i => !isConcentrated(i.symbol))
@@ -542,17 +549,18 @@ export const runSimulation = (
     let annualBaseSalary  = 0;
     let annualTargetBonus = 0;
 
-    if (currentYear < config.career_path.exit_year) {
+    const cal = currentYear * 12 + monthOfYear; // this month's calendar index
+    if (cal < exitCal) {
       phase = 'GOOGLE';
       annualBaseSalary  = (ip.gross_annual_salary || 0) * salaryGrowthMultiplier;
       annualTargetBonus = annualBaseSalary * ((ip.target_bonus_rate || 0) / 100);
-    } else if (currentYear < sabbaticalEndYear) {
+    } else if (cal < sabbaticalEndCal) {
       phase = 'SABBATICAL';
-    } else if (currentYear < jumpEndYear) {
+    } else if (cal < jumpEndCal) {
       phase = 'JUMP';
       annualBaseSalary  = jumpGrossAnnual * salaryGrowthMultiplier;
       annualTargetBonus = annualBaseSalary * ((ip.jump_bonus_rate || 0) / 100);
-    } else if (currentYear < bridgeEndYear) {
+    } else if (cal < bridgeEndCal) {
       phase = 'BRIDGE';
       annualBaseSalary = bridgeGrossAnnual; // flat in real terms
     } else {
@@ -687,7 +695,7 @@ export const runSimulation = (
     // common case and matters under Monte Carlo's hundreds of runs.)
     // Also need the true marginal rate in the bonus month: a bonus is income on
     // TOP of salary, so it's taxed at the margin, not the household effective rate.
-    const isBonusMonth     = (month % 12 === 2);
+    const isBonusMonth     = (monthOfYear === 2); // paid in March (calendar), like RSU refreshers
     const needMarginal = monthlyEquityVestUnits > 0 || jumpGrantMonthlyGross > 0 || (isBonusMonth && annualTargetBonus > 0);
     const marginalRate = needMarginal
       ? (calculateTaxRaw({ ...taxInput, grossIncome: annualW2Gross + 100 }).totalTax - taxResult.totalTax) / 100

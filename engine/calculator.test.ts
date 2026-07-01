@@ -286,6 +286,22 @@ describe("employer 401k match", () => {
   });
 });
 
+describe("exit month (month-precise retirement date)", () => {
+  it("keeps you working and earning later within the exit year", () => {
+    const base = baseConfig();
+    base.birth_year = YEAR - 45;
+    base.career_path.exit_year = YEAR + 3;
+    base.income_profile.gross_annual_salary = 300_000; // clearly net-positive saver
+    base.spending.monthly_lifestyle = 3_000;
+    const jan = structuredClone(base); jan.career_path.exit_month = 0;  // leave Jan 1
+    const dec = structuredClone(base); dec.career_path.exit_month = 11; // work through November
+    const a = runSimulation(baseSnap(), jan, 0);
+    const b = runSimulation(baseSnap(), dec, 0);
+    // ~11 extra working months in the exit year → more accumulated net worth later.
+    expect(b[60].totalNetWorth).toBeGreaterThan(a[60].totalNetWorth);
+  });
+});
+
 describe("real-dollar model (today's purchasing power)", () => {
   it("grows assets at the REAL return (nominal minus inflation)", () => {
     const cfg = idleRetiree();

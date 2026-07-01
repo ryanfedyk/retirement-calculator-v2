@@ -496,6 +496,15 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
             />
           </div>
 
+          <div style={{ marginBottom: 14 }}>
+            <FieldLabel>Exit Month (time it to a bonus/vest)</FieldLabel>
+            <select value={cp.exit_month ?? 0}
+              onChange={e => updateNestedConfig("career_path", { exit_month: +e.target.value })}
+              style={{ width: "100%", padding: "6px 8px", borderRadius: 7, border: `1px solid ${C.border}`, background: C.bgCard, color: C.ink, fontSize: 13, cursor: "pointer" }}>
+              {["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].map((m, i) => <option key={m} value={i}>{m}</option>)}
+            </select>
+          </div>
+
           <SectionDivider />
 
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>

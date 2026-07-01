@@ -103,6 +103,13 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
                   }
                 }} />
             </Field>
+            <Field label="Exit Month (time it to a bonus/vest)">
+              <select value={cp.exit_month ?? 0}
+                onChange={e => updateNestedConfig("career_path", { exit_month: +e.target.value })}
+                style={{ ...inputStyle, cursor: "pointer" }}>
+                {["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].map((m, i) => <option key={m} value={i}>{m}</option>)}
+              </select>
+            </Field>
             <Toggle label="Take a Sabbatical" color="#d98a3d" on={cp.use_sabbatical} onChange={v => {
               updateNestedConfig("career_path", { use_sabbatical: v });
               // A sabbatical returns to work, not straight to retirement — ease back in with a bridge role.

@@ -132,15 +132,6 @@ export default function ScenarioLevers({ onOpenEditor, livePrices, retireWindow,
         <Slider label="Exit Year" value={cp.exit_year} display={String(cp.exit_year)}
           min={currentYear} max={maxExit} step={1} accent={C.teal} onChange={setExit}
           caption={earliestExit ? `Earliest ${earliestExit}` : undefined} />
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 130 }}>
-          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.inkFaint }}>Exit Month</span>
-          <select value={cp.exit_month ?? 0}
-            onChange={e => updateNestedConfig("career_path", { exit_month: +e.target.value })}
-            style={{ padding: "7px 8px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.bgCard, color: C.ink, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-            {MONTHS.map((m, i) => <option key={m} value={i}>{m}</option>)}
-          </select>
-          <span style={{ fontSize: 10, color: C.inkFaint }}>Time it to a bonus/vest</span>
-        </div>
         <Slider label="Monthly Spend" value={sp.monthly_lifestyle} display={money(sp.monthly_lifestyle)}
           min={3000} max={20000} step={250} accent={C.warm}
           badge={(() => { const t = colTier(sp.monthly_lifestyle); return (

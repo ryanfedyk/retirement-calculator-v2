@@ -302,6 +302,23 @@ describe("exit month (month-precise retirement date)", () => {
   });
 });
 
+describe("FI target is retirement-based, not inflated by your current salary", () => {
+  it("nets rental income at a retirement tax rate, so the FI number doesn't balloon while working", () => {
+    const targetFor = (working: boolean) => {
+      const cfg = baseConfig();
+      cfg.birth_year = YEAR - 55;
+      cfg.career_path.exit_year = working ? YEAR + 10 : YEAR; // still working vs already retired
+      cfg.income_profile.gross_annual_salary = working ? 400_000 : 0;
+      cfg.income_profile.monthly_rental_income = 5_000; // taxed high at a salary, low in retirement
+      cfg.spending.monthly_lifestyle = 6_000;
+      return runSimulation(baseSnap(), cfg, 0)[0].swrTarget;
+    };
+    // The FI number should describe retirement — a big current salary must not
+    // inflate it by taxing rental at the working marginal rate.
+    expect(Math.abs(targetFor(true) - targetFor(false))).toBeLessThan(targetFor(false) * 0.02);
+  });
+});
+
 describe("real-dollar model (today's purchasing power)", () => {
   it("grows assets at the REAL return (nominal minus inflation)", () => {
     const cfg = idleRetiree();

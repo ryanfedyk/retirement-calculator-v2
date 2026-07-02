@@ -602,7 +602,6 @@ describe("ACA subsidy in early retirement (#11)", () => {
     cfg.spending.mortgage_payment = 0;
     cfg.market_assumptions.inflation_rate = 0;
     cfg.market_assumptions.healthcare_inflation_premium = 0;
-    cfg.tax_optimization.aca_family_size = 1;
     const snap = baseSnap();
     snap.liquid_assets.cash_savings = cash;
     return { snap, cfg };
@@ -642,7 +641,6 @@ describe("ACA subsidy in early retirement (#11)", () => {
     cfg.market_assumptions.inflation_rate = 0;
     cfg.market_assumptions.healthcare_inflation_premium = 0;
     cfg.tax_optimization.enable_aca_optimization = false; // isolate the per-capita math
-    cfg.tax_optimization.aca_family_size = 1;             // must be ignored now
     cfg.children = [{ birthYear: YEAR - 8 }, { birthYear: YEAR - 10 }];
     const snap = baseSnap();
     snap.liquid_assets.cash_savings = 3_000_000;

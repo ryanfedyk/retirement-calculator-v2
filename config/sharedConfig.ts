@@ -198,8 +198,6 @@ export const DEFAULT_SIM_CONFIG: SimulationConfiguration = {
   },
   tax_optimization: {
     enable_aca_optimization:       true,
-    aca_family_size:               1,
-    aca_benchmark_monthly_premium: 800,
     enable_roth_conversion:        false,
     roth_conversion_target_bracket: 100_525, // Top of 22% bracket, single 2025
   },

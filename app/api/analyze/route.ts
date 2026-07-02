@@ -41,6 +41,15 @@ export async function POST(req: Request) {
     const fiAchieved  = trajectory?.some((p: any) => p.isIndependent) ? "Yes" : "No";
     const indepPoint  = trajectory?.find((p: any) => p.isIndependent);
 
+    // Sanitize the config before showing it to the model. Two ACA fields are
+    // vestigial — the engine derives household size from the ACTUAL household
+    // (adults + kids still on the plan) and ignores these — but they persist in
+    // saved configs and mislead the analysis (e.g. a stale `aca_family_size: 1`
+    // reads as a data inconsistency). Strip them so the model doesn't flag them.
+    const { aca_family_size: _afs, aca_benchmark_monthly_premium: _abp, ...taxOpt } =
+      config.tax_optimization ?? {};
+    const displayConfig = { ...config, tax_optimization: taxOpt };
+
     const prompt = `
 You are a world-class financial planner analyzing a retirement plan for a tech professional.
 
@@ -49,10 +58,12 @@ IMPORTANT CONTEXT:
 - True retirement year (after all career phases): ${trueRetirementYear}
 - All time references must be relative to ${currentYear}
 - Rental income ($${config.income_profile.monthly_rental_income || 0}/mo) is RELIABLE PASSIVE income continuing forever in retirement
+- Healthcare household size (for ACA/FPL subsidies and per-capita premiums) is derived automatically from filing status + children still on the plan; it is NOT a config field, so do not flag any household-size inconsistency.
+- \`partner_has_health_insurance: false\` means the partner's employer does NOT supply the family's coverage, so the model conservatively assumes the household buys its own (ACA/self-paid) coverage. It does NOT mean anyone is uninsured — it is the safer assumption, not a coverage gap. Do not raise it as an uncovered risk.
 
 ### Configuration:
 \`\`\`json
-${JSON.stringify(config, null, 2)}
+${JSON.stringify(displayConfig, null, 2)}
 \`\`\`
 
 ### Financial Snapshot:

@@ -100,8 +100,6 @@ export interface SimulationConfiguration {
   };
   tax_optimization: {
     enable_aca_optimization: boolean;      // Model ACA subsidies during low-income phases
-    aca_family_size: number;               // Household size for FPL calculation
-    aca_benchmark_monthly_premium: number; // Silver plan benchmark for subsidy calc
     enable_roth_conversion: boolean;       // Convert trad 401k to Roth during sabbatical
     roth_conversion_target_bracket: number;// Convert up to this $ taxable income (MFJ)
   };

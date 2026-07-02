@@ -263,6 +263,7 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
   p();
   p(`- **Federal ordinary income:** 2025 brackets for ${ta.filing_status} (10/12/22/24/32/35/37%) on income after the standard deduction (or itemized, if larger). Itemized here = deductible mortgage interest (capped at $750k of acquisition debt) + $10k SALT${ta.itemized_deductions ? ` + ${usd(ta.itemized_deductions)} other` : ""}.`);
   p(`- **FICA:** 6.2% Social Security up to the 2025 wage base ($176,100) + 1.45% Medicare + 0.9% additional Medicare over the threshold. Applies to W-2 wages only (not rental, not 401k-reduced).`);
+  p(`- **State income tax:** resident state is **${ta.state_of_residence}**${ta.state_of_residence === "NY" ? " — modeled with NY State progressive brackets **plus NYC local resident tax** (~3.08–3.88%), both applied to ordinary income and capital gains (NY taxes gains as ordinary)" : ta.state_of_residence === "CA" ? " — modeled with CA progressive brackets (gains taxed as ordinary; includes the 1% >$1M mental-health surcharge)" : " (progressive/flat brackets per that state; gains taxed as ordinary; local/municipal taxes omitted outside NYC and MD counties)"}.`);
   p(`- **NIIT:** 3.8% on net investment income above the MAGI threshold (${ta.filing_status === "married_joint" ? "$250,000" : "$200,000"}).`);
   p(`- **Long-term capital gains:** 0/15/20% federal by income; embedded gains haircut at a 15% midpoint for the FI "spendable assets" test.`);
   p(`- The model distinguishes the **effective rate** (used to net down steady salary/rental) from the **marginal rate** (used for bonuses, RSU vesting, and the emergency-withdrawal rate = min(55%, marginal + 5%)).`);
@@ -300,7 +301,8 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
   // ── 8. Withdrawals, RMDs, healthcare subsidies, survivor ──────────────────────
   p(`## 8. Retirement mechanics`);
   p();
-  p(`- **Withdrawal waterfall** when monthly cash flow is negative: (1) taxable accounts — concentrated stock then diversified brokerage, taxing only the embedded gain; (2) traditional/pre-tax — fully taxed as ordinary income (~30% assumed); (3) Roth **last** (tax-free, RMD-free, left to compound).`);
+  p(`- **Withdrawal waterfall** when monthly cash flow is negative: (1) taxable accounts — concentrated stock then diversified brokerage, taxing only the embedded gain; (2) traditional/pre-tax — fully taxed as ordinary income (a flat **30%** is assumed *for this month-to-month cash-flow drawdown only*); (3) Roth **last** (tax-free, RMD-free, left to compound).`);
+  p(`  - ⚠️ Do **not** confuse this 30% cash-flow rate with the **spendable-assets haircut** in §9. The balance-sheet valuation of pre-tax accounts uses the *effective* tax rate on the year's actual withdrawal need (typically ~8–15%, well below both this 30% and the marginal rate) — because you never liquidate the whole 401(k) in one year. The two rates serve different purposes and are intentionally different.`);
   const rmdStart = birthYear >= 1960 ? 75 : 73;
   p(`- **RMDs:** from age ${rmdStart} (SECURE 2.0), each year withdraws \`traditional_balance ÷ IRS_Uniform_Lifetime_divisor(age)\`, taxed as ordinary income; net proceeds move to cash.`);
   p(`- **Medicare/IRMAA:** at age ${config.medicare?.start_age ?? 65}, premiums of ${usd(config.medicare?.monthly_premium ?? 185)}/mo per adult apply, plus an IRMAA surcharge driven by MAGI from two years prior.`);
@@ -334,9 +336,11 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
   p(`**Spendable ("after-tax") assets** — what's compared against the FI number:`);
   p("```");
   p(`spendable = cash + roth`);
-  p(`          + traditional × (1 − ordinary_withdrawal_rate)`);
+  p(`          + traditional × (1 − effective_withdrawal_rate)`);
   p(`          + taxable_holdings − 0.15 × embedded_unrealized_gains`);
   p("```");
+  p(`- \`effective_withdrawal_rate\` is the **effective** (not marginal, not the §8 cash-flow 30%) tax rate on this year's net withdrawal need — usually ~8–15%. Applying a flat 30% here would materially *understate* spendable assets.`);
+  p(`- \`embedded_unrealized_gains\` is summed **per lot** from each holding's own cost basis: \`Σ max(0, lot_value − lot_shares × lot_basis)\`. A holding with a **$0 basis** is therefore 100% gain and takes the full 15% haircut — the loop runs over every listed position, not a flat discount on the cash balance.`);
   p(`A household is financially independent once \`spendable ≥ FI_number\` and stays there for the rest of the horizon (a durable crossing, not a transient one during a stock windfall).`);
   p();
 

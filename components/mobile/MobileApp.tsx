@@ -5,6 +5,7 @@ import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
 import { useBrowserBackNav } from "@/hooks/useBrowserBackNav";
+import { useMonthlyPlanSnapshot } from "@/hooks/useMonthlyPlanSnapshot";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { useConfirm } from "@/components/ui/DialogProvider";
 import type { LivePrices } from "@/components/finance/FinancialDashboard";
@@ -89,6 +90,10 @@ export default function MobileApp() {
   }, [snapshot.other_investments]);
 
   useEffect(() => { fetchAllPrices(); }, [fetchAllPrices]);
+
+  // Monthly plan-history snapshot — uses mobile's own live prices (the shell's
+  // useLivePrices is disabled on mobile), so vested RSUs are valued correctly.
+  useMonthlyPlanSnapshot(livePrices);
 
   const tabs: { id: View; label: string; icon: typeof LineChart }[] = [
     { id: "financial",   label: "Trajectory", icon: LineChart },

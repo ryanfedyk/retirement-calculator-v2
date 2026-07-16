@@ -494,8 +494,16 @@ export const useFinancialStore = create<FinancialStore>()(
         set((s) => {
           const now = new Date();
           const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-          // One snapshot per calendar month — the first open of the month wins.
-          if (s.planHistory.some((h) => h.ym === ym)) return {};
+          const idx = s.planHistory.findIndex((h) => h.ym === ym);
+          // The current (in-progress) month refreshes to the latest values each
+          // session — so a snapshot taken before prices loaded self-corrects —
+          // while past months stay locked as recorded. Keep the original capture
+          // time for the month.
+          if (idx >= 0) {
+            const next = s.planHistory.slice();
+            next[idx] = { ...pt, ym, recordedAt: s.planHistory[idx].recordedAt };
+            return { planHistory: next };
+          }
           const point: PlanHistoryPoint = { ...pt, ym, recordedAt: now.toISOString() };
           return { planHistory: [...s.planHistory, point].slice(-240) };
         }),

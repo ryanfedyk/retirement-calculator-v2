@@ -42,10 +42,14 @@ export default function PerfectYear() {
   // Auto-draft a starting year from the household (kids vs not) so a new user
   // lands on a filled calendar instead of an empty grid.
   const children = useFinancialStore((s) => s.profile.children);
+  const exitMonth = useFinancialStore((s) => s.config.career_path.exit_month);
+  const lifeEvents = useFinancialStore((s) => s.config.life_events);
   const seedInputs = useMemo(() => ({
     childNames: (children ?? []).map((c) => c.name).filter(Boolean),
     hasPartner: false, // not used by the year seed
-  }), [children]);
+    exitMonth: exitMonth ?? undefined,
+    lifeEventTags: (lifeEvents ?? []).map((e) => (e.name ?? "").toLowerCase()),
+  }), [children, exitMonth, lifeEvents]);
   const rebuildYear = () => applySeed(seedPerfectYear(seedInputs));
   const seedTried = useRef(false);
   useEffect(() => {

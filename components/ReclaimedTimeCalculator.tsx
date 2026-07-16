@@ -24,15 +24,37 @@ const LIFE_USES = [
  * current the moment you step away. Drag anywhere on the river to move your exit
  * and watch the free water grow. A rotating mantra anchors the hero.
  */
+const MON3 = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
 export default function ReclaimedTimeCalculator() {
   const { config, updateNestedConfig } = useFinancialStore();
+  const planHistory = useFinancialStore((s) => s.planHistory);
   const nowYear    = new Date().getFullYear();
+  const nowMonth   = new Date().getMonth(); // 0-based
   const birthYear  = config.birth_year || nowYear - 40;
   const currentAge = Math.max(18, nowYear - birthYear);
   const exitYear   = config.career_path.exit_year;
   const exitAge    = Math.max(currentAge, Math.min(HORIZON_AGE, exitYear - birthYear));
   const span       = Math.max(1, HORIZON_AGE - currentAge);
   const exitFrac   = (exitAge - currentAge) / span;
+
+  // ── Progress toward your exit, since you started planning ──────────────────
+  // Anchored to the first monthly plan-history snapshot (when you began
+  // tracking); fills as the calendar closes on your chosen exit. Recomputes live
+  // as you drag the exit, so pulling it upstream visibly advances your progress.
+  const todayFY    = nowYear + nowMonth / 12;
+  const firstYm    = planHistory[0]?.ym;
+  const planStartFY = useMemo(() => {
+    if (!firstYm) return todayFY;
+    const [y, m] = firstYm.split("-").map(Number);
+    return y + (Math.max(1, m) - 1) / 12;
+  }, [firstYm, todayFY]);
+  const exitFY     = exitYear + Math.min(11, Math.max(0, config.career_path.exit_month ?? 0)) / 12;
+  const exited     = exitFY <= todayFY;
+  const journey    = exitFY - planStartFY;
+  const progress   = exited ? 1 : journey > 0 ? Math.max(0, Math.min(1, (todayFY - planStartFY) / journey)) : 0;
+  const monthsToGo = Math.max(0, Math.round((exitFY - todayFY) * 12));
+  const planStartLabel = firstYm ? `${MON3[(Number(firstYm.split("-")[1]) || 1) - 1]} ${firstYm.split("-")[0]}` : null;
 
   // Rotating mantra in the hero for a living feel.
   const mantras = HORIZON_CONFIG.mantras;
@@ -105,6 +127,38 @@ export default function ReclaimedTimeCalculator() {
             {stats.primeYears === 1 ? "year" : "years"} of your <strong>prime</strong> reclaimed by leaving at {exitYear}, not {BENCHMARK_AGE}
             {stats.primeYears === 0 && " — pull your exit upstream to free some water"}
           </span>
+        </div>
+      </div>
+
+      {/* ── Progress toward your exit — how far you've come since you started
+          planning; the filled portion is time already behind you. ── */}
+      <div className="mb-8">
+        <div className="flex items-baseline justify-between gap-3 mb-2">
+          <p style={{ color: C.inkFaint }} className="text-[10px] uppercase tracking-widest">
+            {exited ? "You've reached your exit" : `Progress to your ${exitYear} exit`}
+          </p>
+          <span style={{ color: C.tealDark }} className="text-sm font-semibold tabular-nums">{Math.round(progress * 100)}%</span>
+        </div>
+        <div style={{ position: "relative", height: 12, borderRadius: 999, background: C.borderSoft, overflow: "visible" }}>
+          <div style={{
+            position: "absolute", inset: 0, width: `${progress * 100}%`, borderRadius: 999,
+            background: `linear-gradient(90deg, ${C.tealLight}, ${C.teal})`,
+            transition: "width 0.25s ease", minWidth: progress > 0 ? 4 : 0,
+          }} />
+          {/* "Today" marker at the leading edge of the filled portion */}
+          {!exited && (
+            <div style={{ position: "absolute", top: -3, bottom: -3, left: `${progress * 100}%`, width: 2, transform: "translateX(-1px)", background: C.tealDark, borderRadius: 2, transition: "left 0.25s ease" }} />
+          )}
+        </div>
+        <div className="flex items-center justify-between gap-3 mt-2">
+          <span style={{ color: C.inkSoft }} className="text-[11px]">
+            {planStartLabel ? <>Since <strong style={{ color: C.inkMid }}>{planStartLabel}</strong>, when you started planning</> : <>Your countdown begins — this fills as you approach {exitYear}</>}
+          </span>
+          {!exited && (
+            <span style={{ color: C.inkSoft }} className="text-[11px] tabular-nums whitespace-nowrap">
+              {monthsToGo === 0 ? "this month" : monthsToGo < 24 ? `${monthsToGo} mo to go` : `${Math.round(monthsToGo / 12)} yr to go`}
+            </span>
+          )}
         </div>
       </div>
 

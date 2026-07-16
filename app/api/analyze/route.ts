@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { estimatePIA, estimateMonthlySocialSecurity, estimateSpousalBenefit } from "@/engine/social_security";
 
 // The LLM call can take longer than the default serverless budget; give it room.
 export const runtime = "nodejs";
@@ -50,6 +51,36 @@ export async function POST(req: Request) {
       config.tax_optimization ?? {};
     const displayConfig = { ...config, tax_optimization: taxOpt };
 
+    // Social Security is normally DERIVED from salary (`social_security_linked` /
+    // `partner_ss_linked` default true), so the stored `monthly_amount` and
+    // `partner_monthly_amount` fields sit at 0 and read as "no benefit" to the
+    // model — which then wrongly claims a spouse has no Social Security. Resolve
+    // the actual monthly benefits the engine uses (partner = greater of her own
+    // record or a spousal benefit) and surface them explicitly.
+    const ssCfg = config.social_security;
+    const ipCfg = config.income_profile ?? {};
+    let ssContext = "";
+    if (ssCfg) {
+      const claimAge = ssCfg.start_age ?? 67;
+      const primaryYears = Math.max(0, (config.career_path?.exit_year ?? currentYear) - ((config.birth_year ?? 1985) + 22));
+      const primaryMonthly = ssCfg.social_security_linked !== false
+        ? estimateMonthlySocialSecurity(ipCfg.gross_annual_salary || 0, claimAge, primaryYears)
+        : (ssCfg.monthly_amount || 0);
+      const primaryPIA = estimatePIA(ipCfg.gross_annual_salary || 0, primaryYears);
+      let partnerMonthly = 0;
+      if (ipCfg.use_partner_income) {
+        partnerMonthly = ssCfg.partner_ss_linked !== false
+          ? Math.max(estimateMonthlySocialSecurity(ipCfg.partner_gross_annual_salary || 0, claimAge), estimateSpousalBenefit(primaryPIA, claimAge))
+          : (ssCfg.partner_monthly_amount || 0);
+      }
+      displayConfig.social_security = {
+        ...ssCfg,
+        resolved_primary_monthly_benefit: primaryMonthly,
+        ...(ipCfg.use_partner_income ? { resolved_partner_monthly_benefit: partnerMonthly } : {}),
+      };
+      ssContext = `\n- Social Security is DERIVED from income when \`*_linked\` is true (the default), so the raw \`monthly_amount\` / \`partner_monthly_amount\` fields may read 0 even though the modeled benefit is not. The engine's RESOLVED monthly benefits (claimed at age ${claimAge}) are: primary ≈ $${primaryMonthly}/mo${ipCfg.use_partner_income ? `, partner ≈ $${partnerMonthly}/mo — the greater of her own record or a spousal benefit (a married partner ALWAYS draws Social Security, even with no earnings record). Do NOT state the partner has no Social Security income.` : "."}`;
+    }
+
     const prompt = `
 You are a world-class financial planner analyzing a retirement plan for a tech professional.
 
@@ -59,7 +90,7 @@ IMPORTANT CONTEXT:
 - All time references must be relative to ${currentYear}
 - Rental income ($${config.income_profile.monthly_rental_income || 0}/mo) is RELIABLE PASSIVE income continuing forever in retirement
 - Healthcare household size (for ACA/FPL subsidies and per-capita premiums) is derived automatically from filing status + children still on the plan; it is NOT a config field, so do not flag any household-size inconsistency.
-- \`partner_has_health_insurance: false\` means the partner's employer does NOT supply the family's coverage, so the model conservatively assumes the household buys its own (ACA/self-paid) coverage. It does NOT mean anyone is uninsured — it is the safer assumption, not a coverage gap. Do not raise it as an uncovered risk.
+- \`partner_has_health_insurance: false\` means the partner's employer does NOT supply the family's coverage, so the model conservatively assumes the household buys its own (ACA/self-paid) coverage. It does NOT mean anyone is uninsured — it is the safer assumption, not a coverage gap. Do not raise it as an uncovered risk.${ssContext}
 
 ### Configuration:
 \`\`\`json

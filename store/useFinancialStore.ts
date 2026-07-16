@@ -547,7 +547,7 @@ export const useFinancialStore = create<FinancialStore>()(
     },
     {
       name:    "horizon-financial-v10",
-      version: 12,
+      version: 13,
       storage: createJSONStorage(() => localStorage),
       partialize: (s) => ({
         profile: s.profile, snapshot: s.snapshot, baseline: s.baseline, config: s.config,
@@ -593,6 +593,11 @@ export const useFinancialStore = create<FinancialStore>()(
             pp.primaryScenarioId = active.id;
           }
         }
+        // v13: reset the plan-history trail recorded before the live-price fix.
+        // Holdings could be snapshotted at $0 before quotes loaded, and past
+        // values aren't reconstructable (only outputs were stored) — so clear it
+        // once; it rebuilds correctly from the next monthly snapshot.
+        (p as Partial<HorizonState>).planHistory = [];
         return p;
       },
     }

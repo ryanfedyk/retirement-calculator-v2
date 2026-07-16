@@ -39,6 +39,8 @@ interface CloudSyncValue {
 const CloudSyncContext = createContext<CloudSyncValue>({ ready: true, status: "idle" });
 
 const SAVE_DEBOUNCE_MS = 1500;
+// One-time flag: reset the pre-live-price-fix plan-history trail (see load()).
+const HISTORY_RESET_FLAG = "taper_planhistory_reset_v1";
 
 export function CloudSyncProvider({ children }: { children: ReactNode }) {
   const { user, configured } = useAuth();
@@ -83,7 +85,19 @@ export function CloudSyncProvider({ children }: { children: ReactNode }) {
         if (snap.exists()) {
           const data = snap.data() as Partial<HorizonState>;
           skipNextSave.current = true;
-          useFinancialStore.getState().hydrate(data);
+          // One-time cleanup: the plan-history trail recorded before the
+          // live-price fix could snapshot holdings at $0 (quotes hadn't loaded).
+          // Those points aren't reconstructable (only outputs were stored), so
+          // drop the trail once here — it rebuilds correctly from the next
+          // monthly snapshot. Guarded by a local flag so it runs a single time.
+          let incoming = data;
+          try {
+            if (typeof localStorage !== "undefined" && !localStorage.getItem(HISTORY_RESET_FLAG)) {
+              incoming = { ...data, planHistory: [] };
+              localStorage.setItem(HISTORY_RESET_FLAG, "1");
+            }
+          } catch { /* localStorage unavailable — skip the reset guard */ }
+          useFinancialStore.getState().hydrate(incoming);
         } else {
           // Brand-new account: start from a clean slate rather than inheriting
           // whatever localStorage holds from a previous user on this browser.

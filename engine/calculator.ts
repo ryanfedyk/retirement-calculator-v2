@@ -371,7 +371,12 @@ export const runSimulation = (
 ): TrajectoryPoint[] => {
   const points: TrajectoryPoint[] = [];
 
-  const live_price = live_price_input > 0 ? live_price_input : 175.00;
+  // Concentrated-position price: the live quote if we have one, else the
+  // last-known cached price on the snapshot, else a neutral default. Never 0 —
+  // a $0 concentrated position would understate net worth and the FI date.
+  const live_price = live_price_input > 0
+    ? live_price_input
+    : (snapshot.share_counts?.live_stock_price || 175.00);
 
   const ip = config.income_profile;
   const jumpGrossAnnual   = ip.jump_gross_annual   || 275_000;

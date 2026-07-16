@@ -85,6 +85,9 @@ export default function MobileApp() {
       const res = await fetch(`/api/quotes?symbols=${symbols.join(",")}`);
       const data = await res.json() as { prices: LivePrices };
       setLivePrices(data.prices ?? {});
+      useFinancialStore.getState().cacheLivePrices(
+        Object.fromEntries(Object.entries(data.prices ?? {}).map(([k, v]) => [k, v.price])),
+      );
       setPricesUpdatedAt(new Date());
     } catch { /* keep stale */ } finally { setPricesFetching(false); }
   }, [snapshot.other_investments]);

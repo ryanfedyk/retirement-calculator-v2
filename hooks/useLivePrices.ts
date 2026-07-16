@@ -26,6 +26,10 @@ export function useLivePrices({ enabled = true }: { enabled?: boolean } = {}) {
       const res = await fetch(`/api/quotes?symbols=${symbols.join(",")}`);
       const data = (await res.json()) as { prices: LivePrices };
       setLivePrices(data.prices ?? {});
+      // Persist last-known prices so a later outage can't zero out holdings.
+      useFinancialStore.getState().cacheLivePrices(
+        Object.fromEntries(Object.entries(data.prices ?? {}).map(([k, v]) => [k, v.price])),
+      );
       setPricesUpdatedAt(new Date());
     } catch {
       // keep stale prices; UI shows "fallback" badges

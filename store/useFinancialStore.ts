@@ -130,6 +130,10 @@ interface FinancialStore extends HorizonState {
   addScenarioFromConfig: (name: string, config: SimulationConfiguration, unlinked?: string[]) => void;
 
   setLivePrice:    (price: number) => void;
+  /** Persist last-known live prices onto the snapshot's holdings (and the
+   *  concentrated position), so a later quote outage doesn't value everything at
+   *  $0 and wreck net worth / the FI date. Only writes changed prices. */
+  cacheLivePrices: (prices: Record<string, number>) => void;
   /** Append a snapshot of the primary plan for the current month (no-op if this
    *  month is already recorded). Powers the plan-history view in Finances. */
   recordHistoryPoint: (pt: Omit<PlanHistoryPoint, "ym" | "recordedAt">) => void;
@@ -489,6 +493,25 @@ export const useFinancialStore = create<FinancialStore>()(
         set((s) => (s.scenarios.some((x) => x.id === id) ? { primaryScenarioId: id } : {})),
 
       setLivePrice: (price) => set({ livePrice: price }),
+
+      cacheLivePrices: (prices) =>
+        set((s) => {
+          let changed = false;
+          const other = (s.snapshot.other_investments ?? []).map((inv) => {
+            const p = prices[(inv.symbol ?? "").toUpperCase()];
+            if (p && p > 0 && p !== inv.current_price) { changed = true; return { ...inv, current_price: p }; }
+            return inv;
+          });
+          const concSym = s.config.use_equity_comp ? (s.config.concentrated_symbol ?? "").toUpperCase() : "";
+          const gp = concSym ? prices[concSym] : undefined;
+          let share_counts = s.snapshot.share_counts;
+          if (gp && gp > 0 && gp !== share_counts.live_stock_price) {
+            share_counts = { ...share_counts, live_stock_price: gp };
+            changed = true;
+          }
+          if (!changed) return {};
+          return { snapshot: { ...s.snapshot, other_investments: other, share_counts } };
+        }),
 
       recordHistoryPoint: (pt) =>
         set((s) => {

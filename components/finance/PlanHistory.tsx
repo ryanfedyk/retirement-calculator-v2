@@ -41,7 +41,7 @@ function monthsBetween(a: string, b: string): number | null {
  * watch your wealth climb and your FI target drift over time. Populated by the
  * monthly auto-snapshot; shows a gentle placeholder until enough points exist.
  */
-export default function PlanHistory() {
+export default function PlanHistory({ hideUntilTrend = false }: { hideUntilTrend?: boolean } = {}) {
   const history = useFinancialStore((s) => s.planHistory);
 
   const data = useMemo(
@@ -88,6 +88,10 @@ export default function PlanHistory() {
   const shell: React.CSSProperties = {
     background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14, marginBottom: 16,
   };
+
+  // On surfaces that only want the chart once a trend exists (e.g. the main
+  // trajectory view), render nothing until there are ≥ 2 points.
+  if (hideUntilTrend && history.length < 2) return null;
 
   // Nothing recorded yet (brand-new user) or exactly one snapshot: show a
   // friendly placeholder rather than an empty chart.

@@ -12,6 +12,7 @@ import { useHorizonProfile } from "@/config/horizonConfig";
 import AiAnalysis from "@/components/finance/AiAnalysis";
 import ScenarioLevers from "@/components/finance/ScenarioLevers";
 import SummaryCards from "@/components/finance/SummaryCards";
+import PlanHistory from "@/components/finance/PlanHistory";
 import FireMoments from "@/components/fx/FireMoments";
 import { isCoastFI } from "@/lib/fire/moments";
 import { buildNotices } from "@/lib/planNotices";
@@ -296,6 +297,9 @@ export default function MobileFinancial({ livePrices, onOpenConfig }: Props) {
       {/* Scenario levers — directly under the chart so tuning and watching the
           trajectory react stays one tight feedback loop. "What if…" lives in here. */}
       <ScenarioLevers onOpenEditor={onOpenConfig} livePrices={livePrices} retireWindow={retireWindow} bare />
+
+      {/* Plan history — monthly net-worth + FI-date trail (only once a trend exists). */}
+      <PlanHistory hideUntilTrend />
 
       {/* AI Coach — insight below the chart */}
       <AiAnalysis config={config} snapshot={snapshot} trajectory={traj} />

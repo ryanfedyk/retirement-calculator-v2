@@ -20,6 +20,7 @@ import { getLifeEvents } from "@/lib/horizonUtils";
 import { useHorizonProfile } from "@/config/horizonConfig";
 import ScenarioLevers from "./ScenarioLevers";
 import SummaryCards from "./SummaryCards";
+import PlanHistory from "./PlanHistory";
 import FireMoments from "@/components/fx/FireMoments";
 import { isCoastFI } from "@/lib/fire/moments";
 import { buildNotices } from "@/lib/planNotices";
@@ -568,6 +569,10 @@ export default function RightPanel({ livePrices }: Props) {
         livePrices={livePrices}
         retireWindow={retireWindow}
       />
+
+      {/* ── Plan history — monthly net-worth + FI-date trail (wealth view only,
+          and only once a trend has accrued so it never shows an empty card). ── */}
+      {chartView === "wealth" && <PlanHistory hideUntilTrend />}
 
       {/* ── Insights — progressive disclosure below the hero chart ── */}
       <div style={{ display: "flex", gap: 6, background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 10, padding: 4, alignSelf: "flex-start" }}>

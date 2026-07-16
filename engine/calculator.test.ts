@@ -204,18 +204,19 @@ describe("FI test uses after-tax spendable assets, not gross balances", () => {
     expect(trad[0].isIndependent).toBe(false);
   });
 
-  it("adds the remaining mortgage balance to the FI number (payoff, not a capitalized payment)", () => {
+  it("does NOT capitalize the mortgage into the FI number (finite obligation, not a perpetual expense)", () => {
     const cfg = retireeConfig();
     cfg.market_assumptions.inflation_rate = 0; // today's-$ balance ≈ nominal at t0
-    cfg.spending.mortgage_payment = 2_000;     // a real payment → finite payoff
+    cfg.spending.mortgage_payment = 2_000;     // a real, finite payment
     const snap = snapWith("roth", 930_000);
     snap.liabilities.mortgage_balance = 150_000;
     snap.liabilities.mortgage_interest_rate = 5;
     const traj = runSimulation(snap, cfg, 200);
-    // 36k/yr ÷ 4% = 900k, PLUS the ~150k still owed (less the first month's
-    // principal). The $2k/mo payment is NOT capitalized at 25× (that'd be +600k).
-    expect(traj[0].swrTarget).toBeGreaterThan(900_000 + 145_000);
-    expect(traj[0].swrTarget).toBeLessThan(900_000 + 150_000);
+    // 36k/yr ÷ 4% = 900k — and nothing added for the mortgage. The finite payment
+    // is a trajectory drawdown (covered by solvency), NOT a lump in the FI number,
+    // and it is not capitalized at 25× either. So the target stays ≈ 900k, whether
+    // or not a mortgage balance is present.
+    expect(traj[0].swrTarget).toBeCloseTo(900_000, -3);
   });
 
   it("treats rent as a perpetual expense capitalized into the FI number (no payoff)", () => {

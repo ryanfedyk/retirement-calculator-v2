@@ -247,7 +247,7 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
   if (isRent) {
     p(`- Rent: ${usd(sp.mortgage_payment)}/mo — a **perpetual** real expense (rises with inflation, never ends, no balance to amortize).`);
   } else {
-    p(`- Mortgage payment: ${usd(sp.mortgage_payment)}/mo (nominal; deflated to real over time since it's a fixed contract). It ends at payoff, and the **remaining balance is added to the FI number** (see §9).`);
+    p(`- Mortgage payment: ${usd(sp.mortgage_payment)}/mo (nominal; deflated to real over time since it's a fixed contract). It ends at payoff. As a **finite** obligation it is **not** capitalized into the FI number — it's a real drawdown in the trajectory and is covered by the solvency check instead (see §9).`);
   }
   if (sp.ltc_annual_cost) p(`- Long-term care: ${usd(sp.ltc_annual_cost)}/yr for ${sp.ltc_years ?? 3} years starting age ${sp.ltc_start_age ?? 80}.`);
   if (config.life_events?.length) {
@@ -320,17 +320,17 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
   p();
   p(`Each month the model computes a target and compares spendable assets against it.`);
   p();
-  p(`**FI Number (Rule of 25 / 4% safe withdrawal rate), plus housing:**`);
+  p(`**FI Number (Rule of 25 / 4% safe withdrawal rate):**`);
   p("```");
   p(`annual_need   = (lifestyle_monthly + self_paid_healthcare_monthly${isRent ? " + rent_monthly" : ""}) × 12`);
   p(`passive_net   = (rental_net + social_security_net) × 12`);
   p(`net_need      = max(0, annual_need − passive_net)`);
-  p(`FI_number     = net_need / 0.04 ${isRent ? "" : "+ remaining_mortgage_balance"}   (25 × net_need${isRent ? "" : ", plus the lump to clear the mortgage"})`);
+  p(`FI_number     = net_need / 0.04   (25 × net_need)`);
   p("```");
   if (isRent) {
     p(`Because this is a **renter**, rent is treated as a permanent expense and is *capitalized into* the FI number at 25× (it's inside \`annual_need\`); there is no mortgage balance to add.`);
   } else {
-    p(`The recurring mortgage **payment** is deliberately **not** capitalized at 25× (it's finite). Instead the **remaining balance** is added as the lump needed to clear the house; as it amortizes to $0 that add-on shrinks to nothing, and once paid off the payment also drops out of expenses.`);
+    p(`The mortgage is a **finite** obligation, not a perpetual expense, so it is **not** capitalized into the FI number at all — neither the monthly **payment** nor a lump to clear the **balance**. The payment is still a real drawdown in the trajectory, and the solvency check ensures the plan survives the payoff years; the perpetual FI number covers only your lasting, non-mortgage expenses. (This mirrors net worth, which also excludes the mortgage since the home behind it isn't tracked.)`);
   }
   p();
   p(`**Spendable ("after-tax") assets** — what's compared against the FI number:`);
@@ -349,8 +349,7 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
   p();
   if (today) {
     const netNeedToday = Math.max(0, today.annualExpenseNeed - today.annualPassiveIncome);
-    const housingAdd = Math.round(today.swrTarget - netNeedToday / 0.04); // ≈ remaining mortgage (0 for renters)
-    p(`- **FI Number today:** ${usd(today.swrTarget)}  (= 25 × net annual need of ${usd(netNeedToday)}${housingAdd > 1 ? ` + ${usd(housingAdd)} to clear the mortgage` : ""})`);
+    p(`- **FI Number today:** ${usd(today.swrTarget)}  (= 25 × net annual need of ${usd(netNeedToday)})`);
     p(`  - annual expense need: ${usd(today.annualExpenseNeed)}; passive income (net): ${usd(today.annualPassiveIncome)}`);
     p(`- **Spendable assets today:** ${usd(today.investableAfterTax)} (gross investable ${usd(today.investableAssets)})`);
     p(`- **Net worth today:** ${usd(today.totalNetWorth)}`);

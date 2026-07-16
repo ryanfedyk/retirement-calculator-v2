@@ -1285,8 +1285,16 @@ export const runSimulation = (
     const retirementRentalNet = (annualRentalGross - retirementRentalTax) / 12;
     const annualPassiveIncome = (retirementRentalNet + socialSecurityIncome) * 12; // rental (retirement-rate) + SS, net
     const netAnnualNeed       = Math.max(0, annualExpenses - annualPassiveIncome);
-    const mortgagePayoff      = hasMortgage ? currentMortgage / inflationMultiplier : 0; // today's $
-    const swrTargetValue      = netAnnualNeed / SWR + mortgagePayoff; // FI Number incl. rent (×25) or mortgage payoff
+    // A mortgage is a FINITE obligation, not a perpetual expense — and the home
+    // that backs it isn't tracked as an asset (net worth deliberately excludes
+    // the mortgage for exactly that reason, see above). So we don't capitalize it
+    // into the FI number at all: neither the monthly payment (already kept out of
+    // annualExpenses) nor a lump to clear the balance. The payment is still a real
+    // drawdown in the trajectory, and the solvency check ensures the plan survives
+    // the payoff years — but the perpetual "Rule of 25" target covers only your
+    // lasting, non-mortgage expenses. (Rent, being perpetual, stays in
+    // annualExpenses above and is therefore correctly capitalized at 25×.)
+    const swrTargetValue      = netAnnualNeed / SWR; // FI Number = 25× lasting net need
 
     // ── After-tax "spendable" assets ─────────────────────────────────────────
     // $1 in a pre-tax 401k/IRA, or sitting on a large unrealized capital gain,

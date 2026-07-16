@@ -6,6 +6,7 @@ import { useFinancialStore } from "@/store/useFinancialStore";
 import { IRS_401K } from "@/engine/calculator";
 import TickerAutocomplete from "@/components/finance/TickerAutocomplete";
 import LinkedNumberField from "@/components/finance/LinkedNumberField";
+import PlanHistory from "@/components/finance/PlanHistory";
 import { Field, Num, Two, Section, Toggle, TextInput, money, inputStyle, labelStyle } from "./sheetUI";
 
 type Holding = { id?: string; name: string; symbol: string; shares: number; expected_return?: number; [k: string]: unknown };
@@ -82,6 +83,9 @@ export default function MobileFinancesSections() {
 
   return (
     <>
+      {/* Plan history — monthly net-worth + FI-date trail. */}
+      <PlanHistory />
+
       {/* ── Income (baseline cash flow) ── */}
       <Section title="Income" accent="#4aab92" {...sec("income")}>
         <Field label="Gross Annual Salary"><Num prefix="$" step={1000} value={ip.gross_annual_salary} onChange={v => updateBaseline("income_profile", { gross_annual_salary: v })} /></Field>

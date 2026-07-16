@@ -48,6 +48,20 @@ export interface Scenario {
   unlinked: string[];
 }
 
+/** One monthly snapshot of the primary plan — net worth + spendable + where the
+ *  projected FI date sat at that moment. Accumulates over time so the app can
+ *  show your real trajectory and how your FI target has drifted. Figures are in
+ *  the model's real (today's) dollars as of the recording month. */
+export interface PlanHistoryPoint {
+  ym: string;             // "2026-07" — the month key (one point per calendar month)
+  recordedAt: string;     // ISO timestamp of capture
+  netWorth: number;       // total net worth at capture
+  spendable: number;      // after-tax spendable assets
+  swrTarget: number;      // the FI Number at capture
+  fiDate: string | null;  // projected FI date ("Mon YYYY"), or null if not reached
+  scenarioName: string;   // the primary scenario this reflects
+}
+
 /** The persisted, cloud-syncable slice of state. */
 export interface HorizonState {
   profile:  UserProfile;
@@ -58,6 +72,8 @@ export interface HorizonState {
   activeScenarioId: string;
   /** The user's "home" scenario — what the app lands in, marked across the UI. */
   primaryScenarioId: string;
+  /** Monthly snapshots of the primary plan, oldest first. */
+  planHistory: PlanHistoryPoint[];
 }
 
 interface FinancialStore extends HorizonState {
@@ -114,8 +130,22 @@ interface FinancialStore extends HorizonState {
   addScenarioFromConfig: (name: string, config: SimulationConfiguration, unlinked?: string[]) => void;
 
   setLivePrice:    (price: number) => void;
+  /** Append a snapshot of the primary plan for the current month (no-op if this
+   *  month is already recorded). Powers the plan-history view in Finances. */
+  recordHistoryPoint: (pt: Omit<PlanHistoryPoint, "ym" | "recordedAt">) => void;
   resetToDefaults: () => void;
   hydrate: (state: Partial<HorizonState>) => void;
+}
+
+/** Union two history series by month key, keeping the earliest capture per month
+ *  (so a device that recorded a month first wins) and sorting oldest → newest. */
+function mergeHistory(a: PlanHistoryPoint[], b: PlanHistoryPoint[]): PlanHistoryPoint[] {
+  const byMonth = new Map<string, PlanHistoryPoint>();
+  for (const p of [...a, ...b]) {
+    const existing = byMonth.get(p.ym);
+    if (!existing || p.recordedAt < existing.recordedAt) byMonth.set(p.ym, p);
+  }
+  return Array.from(byMonth.values()).sort((x, y) => x.ym.localeCompare(y.ym)).slice(-240);
 }
 
 /** Keep config.children (consumed by the engine) in sync with profile.children.
@@ -226,6 +256,7 @@ export const useFinancialStore = create<FinancialStore>()(
       scenarios: seed.scenarios,
       activeScenarioId: seed.activeScenarioId,
       primaryScenarioId: seed.activeScenarioId,
+      planHistory: [],
       livePrice: 0,
 
       updateProfile: (updates) =>
@@ -459,10 +490,20 @@ export const useFinancialStore = create<FinancialStore>()(
 
       setLivePrice: (price) => set({ livePrice: price }),
 
+      recordHistoryPoint: (pt) =>
+        set((s) => {
+          const now = new Date();
+          const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+          // One snapshot per calendar month — the first open of the month wins.
+          if (s.planHistory.some((h) => h.ym === ym)) return {};
+          const point: PlanHistoryPoint = { ...pt, ym, recordedAt: now.toISOString() };
+          return { planHistory: [...s.planHistory, point].slice(-240) };
+        }),
+
       resetToDefaults: () =>
         set(() => {
           const seeded = makeDefaultScenarios(DEFAULT_SIM_CONFIG);
-          return { profile: DEFAULT_PROFILE, snapshot: DEFAULT_SNAPSHOT, baseline: pickShared(DEFAULT_SIM_CONFIG), config: DEFAULT_SIM_CONFIG, ...seeded, primaryScenarioId: seeded.activeScenarioId };
+          return { profile: DEFAULT_PROFILE, snapshot: DEFAULT_SNAPSHOT, baseline: pickShared(DEFAULT_SIM_CONFIG), config: DEFAULT_SIM_CONFIG, ...seeded, primaryScenarioId: seeded.activeScenarioId, planHistory: [] };
         }),
 
       hydrate: (state) =>
@@ -491,7 +532,8 @@ export const useFinancialStore = create<FinancialStore>()(
           const config = { ...active.config, children: projectChildren(profile) };
           const primaryScenarioId = scenarios.some((x) => x.id === state.primaryScenarioId)
             ? state.primaryScenarioId! : activeScenarioId;
-          return { profile, snapshot: state.snapshot ?? s.snapshot, baseline, scenarios, activeScenarioId, primaryScenarioId, config };
+          const planHistory = mergeHistory(state.planHistory ?? [], s.planHistory ?? []);
+          return { profile, snapshot: state.snapshot ?? s.snapshot, baseline, scenarios, activeScenarioId, primaryScenarioId, planHistory, config };
         }),
       };
     },
@@ -502,6 +544,7 @@ export const useFinancialStore = create<FinancialStore>()(
       partialize: (s) => ({
         profile: s.profile, snapshot: s.snapshot, baseline: s.baseline, config: s.config,
         scenarios: s.scenarios, activeScenarioId: s.activeScenarioId, primaryScenarioId: s.primaryScenarioId,
+        planHistory: s.planHistory,
       }),
       migrate: (persisted: unknown) => {
         const p = persisted as Partial<HorizonState> & { config?: SimulationConfiguration };

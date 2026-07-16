@@ -8,6 +8,7 @@ import { IRS_401K } from "@/engine/calculator";
 import TickerAutocomplete from "./TickerAutocomplete";
 import LinkedNumberField from "./LinkedNumberField";
 import BaselineLinkBadge from "./BaselineLinkBadge";
+import PlanHistory from "./PlanHistory";
 import type { LivePrices } from "./FinancialDashboard";
 
 // ── Styled primitives ─────────────────────────────────────────────────────────
@@ -275,6 +276,9 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
       </div>
 
       <div style={{ padding: "14px 16px", flex: 1 }}>
+
+        {/* Plan history — monthly net-worth + FI-date trail (finances view only). */}
+        {showFacts && <PlanHistory />}
 
         {/* ── Income (baseline cash flow) ── */}
         <AccCard {...acc("fin_income")} hidden={!showFacts} title="Income" color="#4aab92">

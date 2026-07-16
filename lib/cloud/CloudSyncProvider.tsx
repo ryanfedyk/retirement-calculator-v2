@@ -115,7 +115,7 @@ export function CloudSyncProvider({ children }: { children: ReactNode }) {
     const unsub = useFinancialStore.subscribe((state) => {
       if (!uidRef.current) return; // not signed in
 
-      const slice = { profile: state.profile, config: state.config, snapshot: state.snapshot, baseline: state.baseline, scenarios: state.scenarios, activeScenarioId: state.activeScenarioId, primaryScenarioId: state.primaryScenarioId };
+      const slice = { profile: state.profile, config: state.config, snapshot: state.snapshot, baseline: state.baseline, scenarios: state.scenarios, activeScenarioId: state.activeScenarioId, primaryScenarioId: state.primaryScenarioId, planHistory: state.planHistory };
       const serialized = JSON.stringify(slice);
       // Ignore changes that don't touch the persisted slice (e.g. livePrice).
       if (serialized === lastSerialized.current) return;
@@ -140,6 +140,7 @@ export function CloudSyncProvider({ children }: { children: ReactNode }) {
             scenarios: state.scenarios,
             activeScenarioId: state.activeScenarioId,
             primaryScenarioId: state.primaryScenarioId,
+            planHistory: state.planHistory,
             updatedAt: serverTimestamp(),
           });
           setStatus("saved");

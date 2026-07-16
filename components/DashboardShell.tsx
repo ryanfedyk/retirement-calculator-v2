@@ -27,6 +27,7 @@ import { useUIStore } from "@/store/useUIStore";
 import { usePartnerStore } from "@/store/usePartnerStore";
 import { decodeAnswers } from "@/lib/partnerAlignment";
 import { useBrowserBackNav } from "@/hooks/useBrowserBackNav";
+import { useMonthlyPlanSnapshot } from "@/hooks/useMonthlyPlanSnapshot";
 
 const NAV = [
   { id: "seasons",    label: "Seasons",     icon: Anchor },
@@ -54,6 +55,8 @@ export default function DashboardShell() {
   const setAppView = (v: AppView) => setScenarioView(activeScenarioId, v);
   const isMobile = useIsMobile();
   const prices = useLivePrices({ enabled: !isMobile });
+  // Capture a monthly snapshot of the primary plan for the Finances history trail.
+  useMonthlyPlanSnapshot(prices.livePrices);
 
   // Land in the primary "home" scenario on first load, not wherever the active
   // pointer was last left.

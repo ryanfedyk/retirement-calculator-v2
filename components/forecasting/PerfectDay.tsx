@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Plus, X, Sparkles, RotateCcw, Check, Loader2, Pencil, CalendarRange, ArrowRight } from "lucide-react";
+import { Plus, X, Sparkles, RotateCcw, Check, Loader2, Pencil, CalendarRange, ArrowRight, Wand2 } from "lucide-react";
 import { C } from "@/config/colors";
 import { useUIStore } from "@/store/useUIStore";
 import { useFinancialStore } from "@/store/useFinancialStore";
@@ -11,6 +11,7 @@ import {
   ACTIVITIES, ACTIVITY_BY_ID, BLOCKS, CATEGORY_COLOR, THOUGHT_STARTERS, analyzeDay,
   type ActivityCategory, type DayBlock, type PerfectDayItem,
 } from "@/lib/perfectDay";
+import { seedPerfectDays } from "@/lib/perfectSeed";
 
 const money = (n: number) => `$${Math.round(n).toLocaleString()}`;
 const CATEGORIES = Object.keys(CATEGORY_COLOR) as ActivityCategory[];
@@ -29,10 +30,29 @@ type Culmination = { title: string; essence: string; themes: string[]; passions:
  * really about — then seeds your Perfect Year. Lives in the Reclaim view on
  * desktop and mobile. The AI is proactive: reads surface on their own. */
 export default function PerfectDay({ onGoToYear }: { onGoToYear?: () => void } = {}) {
-  const { days, activeId, add, remove, clear, addDay, removeDay, renameDay, setActive } = usePerfectDayStore();
+  const { days, activeId, seeded, applySeed, add, remove, clear, addDay, removeDay, renameDay, setActive } = usePerfectDayStore();
   const setFinancesOpen = useUIStore((s) => s.setFinancesOpen);
   const exitYear = useFinancialStore((s) => s.config.career_path.exit_year);
   const yearsToRetirement = exitYear ? Math.max(0, exitYear - new Date().getFullYear()) : null;
+
+  // Auto-draft a personalized set of days from what Taper knows (kids, partner)
+  // so a new user lands on rich, ready-to-read days instead of a blank canvas.
+  const children = useFinancialStore((s) => s.profile.children);
+  const filingStatus = useFinancialStore((s) => s.config.tax_assumptions.filing_status);
+  const usePartnerIncome = useFinancialStore((s) => s.config.income_profile.use_partner_income);
+  const seedInputs = useMemo(() => ({
+    childNames: (children ?? []).map((c) => c.name).filter(Boolean),
+    hasPartner: filingStatus === "married_joint" || !!usePartnerIncome,
+  }), [children, filingStatus, usePartnerIncome]);
+  const rebuildDays = () => { const s = seedPerfectDays(seedInputs); applySeed(s.days, s.activeId); };
+  const seedTried = useRef(false);
+  useEffect(() => {
+    if (seedTried.current) return;
+    seedTried.current = true;
+    const pristine = days.length === 1 && [...days[0].blocks.morning, ...days[0].blocks.afternoon, ...days[0].blocks.evening].length === 0;
+    if (!seeded && pristine) rebuildDays();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const activeDay = useMemo(() => days.find((d) => d.id === activeId) ?? days[0], [days, activeId]);
   const allIds = useMemo(() => allIdsOf(activeDay), [activeDay]);
@@ -216,6 +236,9 @@ export default function PerfectDay({ onGoToYear }: { onGoToYear?: () => void } =
         })}
         <button onClick={addDay} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "7px 12px", borderRadius: 99, border: `1px dashed ${C.border}`, background: "transparent", cursor: "pointer", color: C.tealDark, fontSize: 12.5, fontWeight: 700 }}>
           <Plus size={14} /> Add a day
+        </button>
+        <button onClick={rebuildDays} title="Draft a fresh set of days from your plan" style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "7px 12px", borderRadius: 99, border: `1px solid ${C.tealLight}`, background: C.tealWash, cursor: "pointer", color: C.tealDark, fontSize: 12.5, fontWeight: 700 }}>
+          <Wand2 size={14} /> Rebuild for me
         </button>
         {hasAny && (
           <button onClick={clear} title="Clear this day"

@@ -20,6 +20,9 @@ const genId = () => `day-${Math.random().toString(36).slice(2, 9)}`;
 type State = {
   days: PerfectDayItem[];
   activeId: string;
+  /** True once an auto-draft (or any content) exists, so we never re-seed over
+   *  the user. Set by applySeed and by the v2 migration for existing content. */
+  seeded?: boolean;
   // Active-day editing
   add: (block: DayBlock, id: string) => void;
   remove: (block: DayBlock, id: string) => void;
@@ -29,6 +32,8 @@ type State = {
   removeDay: (id: string) => void;
   renameDay: (id: string, name: string) => void;
   setActive: (id: string) => void;
+  /** Replace all days with a drafted set (auto-seed on empty, or "rebuild"). */
+  applySeed: (days: PerfectDayItem[], activeId: string) => void;
 };
 
 const mapActive = (s: State, fn: (d: PerfectDayItem) => PerfectDayItem) => ({
@@ -40,6 +45,9 @@ export const usePerfectDayStore = create<State>()(
     (set) => ({
       days: [freshDay(DEFAULT_DAY_ID, "My perfect day")],
       activeId: DEFAULT_DAY_ID,
+      seeded: false,
+
+      applySeed: (days, activeId) => set({ days, activeId, seeded: true }),
 
       add: (block, id) =>
         set((s) => mapActive(s, (d) =>
@@ -71,15 +79,25 @@ export const usePerfectDayStore = create<State>()(
     }),
     {
       name: "horizon-perfectday",
-      version: 1,
+      version: 2,
       storage: createJSONStorage(() => localStorage),
-      // v0 stored a single { blocks } map — fold it into the first named day.
       migrate: (persisted: unknown, version: number) => {
+        let state = persisted as State;
+        // v0 stored a single { blocks } map — fold it into the first named day.
         if (version === 0 && persisted && typeof persisted === "object") {
           const blocks = (persisted as { blocks?: PerfectDayItem["blocks"] }).blocks ?? emptyBlocks();
-          return { days: [{ id: DEFAULT_DAY_ID, name: "My perfect day", blocks }], activeId: DEFAULT_DAY_ID };
+          state = { days: [{ id: DEFAULT_DAY_ID, name: "My perfect day", blocks }], activeId: DEFAULT_DAY_ID } as State;
         }
-        return persisted as State;
+        // v2: add the `seeded` flag. Treat existing content as already-seeded so
+        // we never auto-draft over it; leave truly-empty stores unseeded so they
+        // receive a personalized draft on next open.
+        if (state && typeof state === "object" && state.seeded === undefined) {
+          const hasContent = Array.isArray(state.days) && state.days.some(
+            (d) => d?.blocks && (d.blocks.morning?.length || d.blocks.afternoon?.length || d.blocks.evening?.length),
+          );
+          state.seeded = !!hasContent;
+        }
+        return state;
       },
     },
   ),

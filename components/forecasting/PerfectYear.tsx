@@ -1,9 +1,11 @@
 "use client";
-import { useMemo, useState } from "react";
-import { Plus, X, Sparkles, RotateCcw, Check, CalendarRange } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Plus, X, Sparkles, RotateCcw, Check, CalendarRange, Wand2 } from "lucide-react";
 import { C } from "@/config/colors";
 import { ADVENTURE_SEEDS } from "@/data/adventureSeeds";
 import { usePerfectYearStore } from "@/store/usePerfectYearStore";
+import { useFinancialStore } from "@/store/useFinancialStore";
+import { seedPerfectYear } from "@/lib/perfectSeed";
 import type { AdventureBlueprint, AdventureCategory } from "@/types/horizon";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -32,10 +34,26 @@ const SEED_BY_ID: Record<string, AdventureBlueprint> = Object.fromEntries(ADVENT
  * palette. Replaces the standalone Adventure generator. Desktop + mobile.
  */
 export default function PerfectYear() {
-  const { plan, add, remove, clear } = usePerfectYearStore();
+  const { plan, seeded, applySeed, add, remove, clear } = usePerfectYearStore();
   const [picker, setPicker] = useState<number | null>(null); // month index being added to
 
   const total = useMemo(() => Object.values(plan).reduce((s, ids) => s + ids.length, 0), [plan]);
+
+  // Auto-draft a starting year from the household (kids vs not) so a new user
+  // lands on a filled calendar instead of an empty grid.
+  const children = useFinancialStore((s) => s.profile.children);
+  const seedInputs = useMemo(() => ({
+    childNames: (children ?? []).map((c) => c.name).filter(Boolean),
+    hasPartner: false, // not used by the year seed
+  }), [children]);
+  const rebuildYear = () => applySeed(seedPerfectYear(seedInputs));
+  const seedTried = useRef(false);
+  useEffect(() => {
+    if (seedTried.current) return;
+    seedTried.current = true;
+    if (!seeded && total === 0) rebuildYear();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // "Surprise me" — drop a random unplaced adventure onto a sensible month.
   const placedIds = useMemo(() => new Set(Object.values(plan).flat()), [plan]);
@@ -54,7 +72,10 @@ export default function PerfectYear() {
           <CalendarRange size={18} color={C.teal} />
           <h2 style={{ fontSize: 18, fontWeight: 800, color: C.ink, letterSpacing: "-0.01em" }}>Your perfect year</h2>
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
-            <button onClick={surprise} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: C.tealWash, border: `1px solid ${C.tealLight}`, borderRadius: 99, padding: "6px 12px", cursor: "pointer", color: C.tealDark, fontSize: 11.5, fontWeight: 700 }}>
+            <button onClick={rebuildYear} title="Draft a fresh year from your plan" style={{ display: "inline-flex", alignItems: "center", gap: 5, background: C.tealWash, border: `1px solid ${C.tealLight}`, borderRadius: 99, padding: "6px 12px", cursor: "pointer", color: C.tealDark, fontSize: 11.5, fontWeight: 700 }}>
+              <Wand2 size={13} /> Rebuild for me
+            </button>
+            <button onClick={surprise} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "none", border: `1px solid ${C.border}`, borderRadius: 99, padding: "6px 12px", cursor: "pointer", color: C.inkMid, fontSize: 11.5, fontWeight: 700 }}>
               <Sparkles size={13} /> Surprise me
             </button>
             {total > 0 && (

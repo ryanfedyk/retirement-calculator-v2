@@ -23,6 +23,11 @@ export interface FinancialSnapshot {
     mortgage_balance: number;
     mortgage_interest_rate?: number;
     mortgage_payoff_date?: string;
+    /** Market value of the mortgaged home/building (today's $). When set, net
+     *  worth tracks the home's equity (value − mortgage) as a real asset. Left
+     *  0/undefined for users who haven't entered it (net worth then excludes the
+     *  mortgage, as before). Not a spendable/FI asset — you live there. */
+    property_value?: number;
     consumer_debt: number;
     consumer_debt_payoff_date?: string;
     upcoming_capital_calls: number;
@@ -173,6 +178,8 @@ export interface TrajectoryPoint {
   googValue: number;
   totalNetWorth: number;
   totalLiabilities: number;
+  propertyValue: number;    // market value of the mortgaged home (today's $; 0 if not tracked)
+  homeEquity: number;       // propertyValue − remaining mortgage (today's $)
   isIndependent: boolean;
   swrTarget: number;              // the FI Number (Rule of 25)
   investableAssets: number;      // assets that fund retirement, GROSS (excl. 529)
@@ -428,6 +435,9 @@ export const runSimulation = (
   let current529 = (snapshot.education_assets.accounts || []).reduce((s, a) => s + a.balance, 0);
   let currentMortgage     = snapshot.liabilities.mortgage_balance;
   let currentConsumerDebt = snapshot.liabilities.consumer_debt;
+  // Home value, held flat in real (today's-$) terms. Equity grows over time as
+  // the nominal mortgage amortizes and inflation erodes its real value.
+  const currentPropertyValue = snapshot.liabilities.property_value ?? 0;
 
   const mortgageRate       = snapshot.liabilities.mortgage_interest_rate || 3.5;
   const mortgagePayoffDate = snapshot.liabilities.mortgage_payoff_date
@@ -1237,14 +1247,22 @@ export const runSimulation = (
     const currentGoogValue = Math.max(0, currentGoogShares * currentGoogPrice);
     // Deflate the (nominal) mortgage balance for display so liabilities read in
     // the same today's-dollar terms as the rest of the trajectory.
-    const totalLiabilities = currentMortgage / inflationMultiplier + currentConsumerDebt;
+    const realMortgage = currentMortgage / inflationMultiplier;
+    const totalLiabilities = realMortgage + currentConsumerDebt;
 
-    // Net worth excludes the mortgage: the offsetting primary-residence asset
-    // isn't tracked in the model, so subtracting the mortgage alone would
-    // understate net worth (drag it to ~$0). Consumer debt (no backing asset)
-    // is still netted out.
+    // Home equity. If the user gave the property's market value, the home is a
+    // real asset, so net worth includes its equity (value − remaining mortgage).
+    // As the nominal mortgage amortizes and inflation erodes its real value, that
+    // equity grows — paying down the loan builds visible net worth. When no value
+    // is given we keep the old behavior: exclude the mortgage entirely (the
+    // offsetting home isn't tracked, so subtracting the loan alone would
+    // understate net worth). Consumer debt is always netted out. NB: home equity
+    // is deliberately NOT part of the spendable/FI assets below — you live there.
+    const trackHome  = currentPropertyValue > 0;
+    const homeEquity = trackHome ? currentPropertyValue - realMortgage : 0;
     const totalNetWorth = liquidCash + totalRetirement + currentGoogValue
       + currentJumpStockValue + totalOtherInvestmentsValue + current529
+      + homeEquity
       - currentConsumerDebt;
 
     const investableAssets = liquidCash + totalRetirement + currentGoogValue
@@ -1349,6 +1367,8 @@ export const runSimulation = (
       googValue:  Math.round(currentGoogValue),
       totalNetWorth:    Math.round(totalNetWorth),
       totalLiabilities: Math.round(totalLiabilities),
+      propertyValue:    Math.round(trackHome ? currentPropertyValue : 0),
+      homeEquity:       Math.round(homeEquity),
       isIndependent,
       swrTarget:  Math.round(swrTargetValue),
       investableAssets:    Math.round(investableAssets),

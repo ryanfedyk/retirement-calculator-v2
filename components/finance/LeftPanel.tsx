@@ -468,11 +468,23 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
                 onChange={e => updateNestedSnapshot("retirement_assets", { roth_ira: +e.target.value || 0 })} />
             </div>
             {(bsp.housing_type ?? "mortgage") !== "rent" && (
-              <div>
-                <FieldLabel>Mortgage Balance</FieldLabel>
-                <Input type="number" value={snapshot.liabilities.mortgage_balance}
-                  onChange={e => updateNestedSnapshot("liabilities", { mortgage_balance: +e.target.value || 0 })} />
-              </div>
+              <>
+                <div>
+                  <FieldLabel>Mortgage Balance</FieldLabel>
+                  <Input type="number" value={snapshot.liabilities.mortgage_balance}
+                    onChange={e => updateNestedSnapshot("liabilities", { mortgage_balance: +e.target.value || 0 })} />
+                </div>
+                <div>
+                  <FieldLabel>Home / Building Value</FieldLabel>
+                  <Input type="number" value={snapshot.liabilities.property_value ?? 0}
+                    onChange={e => updateNestedSnapshot("liabilities", { property_value: +e.target.value || 0 })} />
+                  {(snapshot.liabilities.property_value ?? 0) > 0 && (
+                    <p className="mt-1 text-xs text-neutral-500">
+                      Equity today: ${Math.max(0, (snapshot.liabilities.property_value ?? 0) - snapshot.liabilities.mortgage_balance).toLocaleString()} — counted in net worth (not in your spendable FI assets).
+                    </p>
+                  )}
+                </div>
+              </>
             )}
           </div>
         </AccCard>

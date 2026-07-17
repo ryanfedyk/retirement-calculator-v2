@@ -205,10 +205,16 @@ export default function MobileFinancesSections() {
         </Two>
         <Field label="Traditional IRA"><Num prefix="$" step={1000} value={snapshot.retirement_assets.traditional_ira} onChange={v => updateNestedSnapshot("retirement_assets", { traditional_ira: v })} /></Field>
         {(sp.housing_type ?? "mortgage") !== "rent" ? (
-          <Two>
-            <Field label="Mortgage Balance"><Num prefix="$" step={1000} value={snapshot.liabilities.mortgage_balance} onChange={v => updateNestedSnapshot("liabilities", { mortgage_balance: v })} /></Field>
+          <>
+            <Two>
+              <Field label="Mortgage Balance"><Num prefix="$" step={1000} value={snapshot.liabilities.mortgage_balance} onChange={v => updateNestedSnapshot("liabilities", { mortgage_balance: v })} /></Field>
+              <Field label="Home / Building Value"><Num prefix="$" step={5000} value={snapshot.liabilities.property_value ?? 0} onChange={v => updateNestedSnapshot("liabilities", { property_value: v })} /></Field>
+            </Two>
+            {(snapshot.liabilities.property_value ?? 0) > 0 && (
+              <p className="-mt-1 text-xs text-neutral-500">Equity today: ${Math.max(0, (snapshot.liabilities.property_value ?? 0) - snapshot.liabilities.mortgage_balance).toLocaleString()} — counted in net worth, not in spendable FI assets.</p>
+            )}
             <Field label="Consumer Debt"><Num prefix="$" step={500} value={snapshot.liabilities.consumer_debt} onChange={v => updateNestedSnapshot("liabilities", { consumer_debt: v })} /></Field>
-          </Two>
+          </>
         ) : (
           <Field label="Consumer Debt"><Num prefix="$" step={500} value={snapshot.liabilities.consumer_debt} onChange={v => updateNestedSnapshot("liabilities", { consumer_debt: v })} /></Field>
         )}

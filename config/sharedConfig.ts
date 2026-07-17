@@ -81,6 +81,7 @@ export const DEFAULT_SNAPSHOT: FinancialSnapshot = {
   liabilities: {
     mortgage_balance:       0,
     mortgage_interest_rate: 0,
+    property_value:         0,
     consumer_debt:          0,
     upcoming_capital_calls: 0,
   },

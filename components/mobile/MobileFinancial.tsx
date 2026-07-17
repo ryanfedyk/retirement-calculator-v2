@@ -68,8 +68,11 @@ export default function MobileFinancial({ livePrices, onOpenConfig }: Props) {
   const plan     = assessPlan(traj);
   const today    = traj[0];
   const currentNW = today?.totalNetWorth ?? 0;
+  // Progress to FI tracks SPENDABLE assets (what the FI test uses), not net worth —
+  // so illiquid home equity can't push the bar past 100% before the FI date.
+  const spendable = today?.investableAfterTax ?? 0;
   const swrTarget = today?.swrTarget ?? 0;
-  const progress  = swrTarget > 0 ? Math.min(100, (currentNW / swrTarget) * 100) : 0;
+  const progress  = swrTarget > 0 ? Math.min(100, (spendable / swrTarget) * 100) : 0;
   const birthYear = config.birth_year ?? 1980;
   const savingsRate = today ? Math.max(0, Math.min(1, 1 - (today.annualExpenseNeed / Math.max(1, today.salaryAndEquityNet)))) : 0;
   const coastFI = isCoastFI({
@@ -190,7 +193,7 @@ export default function MobileFinancial({ livePrices, onOpenConfig }: Props) {
           to FI · Alerts. */}
       <SummaryCards
         indepDate={indep ? indep.date : null}
-        currentNW={currentNW}
+        spendable={spendable}
         swrTarget={swrTarget}
         progress={progress}
         notices={notices}

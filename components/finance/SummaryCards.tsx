@@ -29,9 +29,12 @@ function tickerSymbols(holdings: FinancialSnapshot["other_investments"] | undefi
  * differentiation; a small "?" opens an explanation; tapping the FI Number card
  * opens finances; the Alerts card opens the full list in a popover.
  */
-export default function SummaryCards({ indepDate, currentNW, swrTarget, progress, notices, onOpenFinances, holdings, livePrices, concentratedSymbol, housingType }: {
+export default function SummaryCards({ indepDate, spendable, swrTarget, progress, notices, onOpenFinances, holdings, livePrices, concentratedSymbol, housingType }: {
   indepDate: string | null;
-  currentNW: number;
+  /** Spendable (after-tax investable) assets — the same measure the FI date uses,
+   *  so progress hits 100% exactly at FI. Deliberately NOT net worth: home equity
+   *  and other illiquid wealth must not inflate progress past the FI date. */
+  spendable: number;
   swrTarget: number;
   progress: number;
   notices: Notice[];
@@ -76,7 +79,7 @@ export default function SummaryCards({ indepDate, currentNW, swrTarget, progress
       <p style={{ margin: 0 }}>Your <strong>FI number</strong> is 25× your annual living expenses — lifestyle + healthcare{housingType === "rent" ? " + rent" : ""}, net of rental income &amp; Social Security — sustaining a 4% withdrawal rate.{housingType === "rent"
         ? " Rent is a permanent expense, so it’s capitalized into the target (×25)."
         : " It also adds enough to pay off any remaining mortgage; the mortgage payment itself isn’t capitalized, since it ends once the balance is cleared."}</p>
-      <p style={{ margin: "10px 0 0" }}>You have <strong>{fmtMM(currentNW)}</strong> of a <strong>{fmtMM(swrTarget)}</strong> target ({progress.toFixed(0)}%). Tap the card to open your finances.</p>
+      <p style={{ margin: "10px 0 0" }}>You have <strong>{fmtMM(spendable)}</strong> of a <strong>{fmtMM(swrTarget)}</strong> target ({progress.toFixed(0)}%). Tap the card to open your finances.</p>
     </>
   );
   const alertsNode = (
@@ -122,7 +125,7 @@ export default function SummaryCards({ indepDate, currentNW, swrTarget, progress
             <div style={{ minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 6 }}><Label>Progress to FI</Label><Help onClick={() => open("FI Number", numExplain)} /></div>
               <div style={{ fontSize: 23, fontWeight: 300, color: C.ink, whiteSpace: "nowrap" }}>
-                {fmtMM(currentNW)} <span style={{ fontSize: 12.5, fontWeight: 400, color: C.inkSoft }}>of {fmtMM(swrTarget)}</span>
+                {fmtMM(spendable)} <span style={{ fontSize: 12.5, fontWeight: 400, color: C.inkSoft }}>of {fmtMM(swrTarget)}</span>
               </div>
             </div>
             <Chip bg={C.warmWash} color={C.warm} icon={TrendingUp} />

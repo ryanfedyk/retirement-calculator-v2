@@ -204,8 +204,13 @@ export default function RightPanel({ livePrices }: Props) {
   const plan           = assessPlan(trajectoryData);
   const todayPoint     = trajectoryData[0];
   const currentNW      = todayPoint?.totalNetWorth ?? 0;
+  // Progress toward FI is measured on SPENDABLE (after-tax investable) assets —
+  // the exact quantity the FI test uses — so the bar hits 100% precisely at the
+  // FI date. Net worth would over-count illiquid wealth (e.g. home equity) and
+  // push the bar past 100% while FI is still years away.
+  const spendable      = todayPoint?.investableAfterTax ?? 0;
   const swrTarget      = todayPoint?.swrTarget ?? 0;
-  const progress       = swrTarget > 0 ? Math.min(100, (currentNW / swrTarget) * 100) : 0;
+  const progress       = swrTarget > 0 ? Math.min(100, (spendable / swrTarget) * 100) : 0;
   const birthYear      = config.birth_year ?? 1980;
   // Rough current savings rate (net income that isn't going to needs) for FIRE callouts.
   const savingsRate    = todayPoint ? Math.max(0, Math.min(1, 1 - (todayPoint.annualExpenseNeed / Math.max(1, todayPoint.salaryAndEquityNet)))) : 0;
@@ -393,7 +398,7 @@ export default function RightPanel({ livePrices }: Props) {
       {/* ── Summary cards: Financial Independence · Progress to FI · Alerts ── */}
       <SummaryCards
         indepDate={indepPoint ? indepPoint.date : null}
-        currentNW={currentNW}
+        spendable={spendable}
         swrTarget={swrTarget}
         progress={progress}
         notices={notices}

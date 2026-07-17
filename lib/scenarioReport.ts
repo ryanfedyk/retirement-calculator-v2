@@ -258,6 +258,9 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
   } else {
     p(`- Mortgage payment: ${usd(sp.mortgage_payment)}/mo (nominal; deflated to real over time since it's a fixed contract). It ends at payoff, and the **remaining balance is added to the FI number** (see §9).`);
   }
+  if (!isRent && (sp.sell_home_year ?? 0) > 0 && (liab.property_value ?? 0) > 0) {
+    p(`- **Home sale / downsize in ${sp.sell_home_year}:** the home (value ${usd(liab.property_value ?? 0)}) is sold. Net proceeds = value − remaining mortgage − ~6% selling costs − capital-gains tax (gain over cost basis ${usd(liab.property_cost_basis ?? liab.property_value ?? 0)}, minus the $500k/$250k §121 exclusion, taxed at 15%) become spendable cash. The mortgage clears, rental income stops, and housing becomes rent at ${usd(sp.rent_after_sale ?? 0)}/mo (perpetual) from then on.`);
+  }
   if (sp.ltc_annual_cost) p(`- Long-term care: ${usd(sp.ltc_annual_cost)}/yr for ${sp.ltc_years ?? 3} years starting age ${sp.ltc_start_age ?? 80}.`);
   if (config.life_events?.length) {
     p(`- One-off life events:`);

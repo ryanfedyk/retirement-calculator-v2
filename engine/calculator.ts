@@ -28,6 +28,9 @@ export interface FinancialSnapshot {
      *  0/undefined for users who haven't entered it (net worth then excludes the
      *  mortgage, as before). Not a spendable/FI asset — you live there. */
     property_value?: number;
+    /** Cost basis of the property (today's $), for capital-gains on a sale.
+     *  Defaults to property_value (no taxable gain) when unset. */
+    property_cost_basis?: number;
     consumer_debt: number;
     consumer_debt_payoff_date?: string;
     upcoming_capital_calls: number;
@@ -127,6 +130,12 @@ export interface SimulationConfiguration {
     // so it's part of recurring expenses and capitalized into the FI number (×25),
     // with no balance to amortize or pay off.
     housing_type?: 'mortgage' | 'rent';
+    // Downsize / sell lever. In this calendar year the home is sold: net proceeds
+    // (value − mortgage − ~6% selling costs − cap-gains beyond the primary-residence
+    // exclusion) become spendable cash, the mortgage clears, rental income stops,
+    // and housing switches to renting at `rent_after_sale`/mo from then on.
+    sell_home_year?: number;   // 0/undefined = never sell
+    rent_after_sale?: number;  // monthly rent (today's $) once sold
     ltc_annual_cost?: number;  // Long-term care: annual cost in today's $ (0 = not modeled)
     ltc_start_age?: number;    // Age the LTC episode begins (default 80)
     ltc_years?: number;        // Duration of the LTC episode in years (default 3)
@@ -438,6 +447,7 @@ export const runSimulation = (
   // Home value, held flat in real (today's-$) terms. Equity grows over time as
   // the nominal mortgage amortizes and inflation erodes its real value.
   const currentPropertyValue = snapshot.liabilities.property_value ?? 0;
+  let homeSold = false; // flips true from the property-sale month onward
 
   const mortgageRate       = snapshot.liabilities.mortgage_interest_rate || 3.5;
   const mortgagePayoffDate = snapshot.liabilities.mortgage_payoff_date
@@ -527,6 +537,23 @@ export const runSimulation = (
     // future obligations back into today's dollars.
     const inflationMultiplier   = Math.pow(1 + config.market_assumptions.inflation_rate / 100, yearsPassed);
 
+    // ── Property sale / downsize ──────────────────────────────────────────────
+    // At the chosen year, sell the home: net proceeds become spendable cash, the
+    // mortgage clears, and from here on the household rents (rentalIncome stops,
+    // housing becomes `rent_after_sale`). Fires once, in January of the sale year.
+    const sellHomeYear = config.spending.sell_home_year ?? 0;
+    if (!homeSold && sellHomeYear > 0 && currentPropertyValue > 0 && currentYear >= sellHomeYear) {
+      const realMortgageAtSale = currentMortgage / inflationMultiplier;        // today's $
+      const sellingCosts       = currentPropertyValue * 0.06;                   // agent + closing ~6%
+      const basis              = snapshot.liabilities.property_cost_basis ?? currentPropertyValue;
+      const exclusion          = effectiveFiling === 'married_joint' ? 500_000 : 250_000; // §121 primary-home
+      const capGainsTax        = Math.max(0, (currentPropertyValue - basis) - exclusion) * 0.15;
+      const proceeds           = Math.max(0, currentPropertyValue - realMortgageAtSale - sellingCosts - capGainsTax);
+      liquidCash  += proceeds;   // proceeds land in the taxable/cash bucket and start working immediately
+      currentMortgage = 0;       // loan is cleared at closing → no more mortgage payment
+      homeSold = true;
+    }
+
     // ── Asset growth — REAL geometric monthly compounding ─────────────────────
     // In Monte Carlo mode the sampled real return drives the whole diversified
     // portfolio (so a bad run is bad across all market assets at once); otherwise
@@ -590,7 +617,7 @@ export const runSimulation = (
     }
 
     // ── Rental income (FICA-exempt, ordinary income tax) ──────────────────
-    const rentalIncome     = (ip.monthly_rental_income || 0)
+    const rentalIncome     = homeSold ? 0 : (ip.monthly_rental_income || 0)
       * Math.pow(1 + toReal(RENTAL_GROWTH_PCT) / 100, Math.floor(yearsPassed));
     const annualRentalGross = rentalIncome * 12;
 
@@ -663,7 +690,11 @@ export const runSimulation = (
     // NY state: follows federal mortgage interest deduction.
     // SALT: capped at $10k federally (NY state: no cap for state deduction itself).
     const isRent = config.spending.housing_type === 'rent';
-    const hasMortgageNow = !isRent && currentDate < mortgagePayoffDate && currentMortgage > 0;
+    // Once the home is sold the household rents from then on — treat housing as
+    // rent, at `rent_after_sale`/mo (a real, perpetual expense like any rent).
+    const effectiveIsRent = isRent || homeSold;
+    const rentMonthly     = homeSold ? (config.spending.rent_after_sale ?? 0) : config.spending.mortgage_payment;
+    const hasMortgageNow = !effectiveIsRent && currentDate < mortgagePayoffDate && currentMortgage > 0;
     const deductibleMortgagePct = hasMortgageNow
       ? Math.min(1, FED_MORTGAGE_CAP / Math.max(1, currentMortgage))
       : 0;
@@ -1012,9 +1043,9 @@ export const runSimulation = (
     //  • A mortgage is a finite, nominal-fixed debt: the payment is due only while a
     //    balance remains (and before the payoff date), shrinks in real terms as
     //    inflation erodes it, and stops once amortization clears the loan.
-    const hasMortgage = !isRent && currentDate < mortgagePayoffDate && currentMortgage > 0;
-    if (isRent) {
-      expense += config.spending.mortgage_payment; // real, never ends
+    const hasMortgage = !effectiveIsRent && currentDate < mortgagePayoffDate && currentMortgage > 0;
+    if (effectiveIsRent) {
+      expense += rentMonthly; // real, never ends (a renter's rent, or post-sale rent)
     } else if (hasMortgage) {
       expense += config.spending.mortgage_payment / inflationMultiplier;
       if (currentMortgage > 0) {
@@ -1258,7 +1289,9 @@ export const runSimulation = (
     // offsetting home isn't tracked, so subtracting the loan alone would
     // understate net worth). Consumer debt is always netted out. NB: home equity
     // is deliberately NOT part of the spendable/FI assets below — you live there.
-    const trackHome  = currentPropertyValue > 0;
+    // After a sale the home is gone (its net proceeds are now in liquidCash), so
+    // it no longer contributes equity — otherwise we'd double-count it.
+    const trackHome  = currentPropertyValue > 0 && !homeSold;
     const homeEquity = trackHome ? currentPropertyValue - realMortgage : 0;
     const totalNetWorth = liquidCash + totalRetirement + currentGoogValue
       + currentJumpStockValue + totalOtherInvestmentsValue + current529
@@ -1285,7 +1318,7 @@ export const runSimulation = (
     // Rent is perpetual, so it's a recurring expense (capitalized at 25× via the
     // SWR below). A mortgage is finite, so its payment stays OUT of recurring
     // expenses and instead its remaining balance is added as a lump to pay off.
-    const monthlyRentExpense  = isRent ? config.spending.mortgage_payment : 0;
+    const monthlyRentExpense  = effectiveIsRent ? rentMonthly : 0;
     const annualExpenses      = (baseMonthlySpend + selfPaidHealthcare + monthlyRentExpense) * 12;
     // Passive income is netted at a RETIREMENT tax rate for the target — rental
     // taxed as the household's own ordinary income (no salary stacked on top).
@@ -1383,7 +1416,7 @@ export const runSimulation = (
       rentalIncome:       Math.round(rentalIncome * 12),
       healthcareCost:     Math.round(currentHealthcareCost * 12),
       accumulatedReturns: 0,
-      mortgagePayment:    Math.round((isRent ? config.spending.mortgage_payment : (hasMortgage ? config.spending.mortgage_payment / inflationMultiplier : 0)) * 12),
+      mortgagePayment:    Math.round((effectiveIsRent ? rentMonthly : (hasMortgage ? config.spending.mortgage_payment / inflationMultiplier : 0)) * 12),
       lifestyleExpense:   Math.round(baseMonthlySpend * 12),
       socialSecurityIncome: Math.round(socialSecurityIncome * 12),
       educationAssets:    Math.round(current529),

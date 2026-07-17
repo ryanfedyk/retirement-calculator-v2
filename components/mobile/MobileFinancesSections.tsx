@@ -213,6 +213,22 @@ export default function MobileFinancesSections() {
             {(snapshot.liabilities.property_value ?? 0) > 0 && (
               <p className="-mt-1 text-xs text-neutral-500">Equity today: ${Math.max(0, (snapshot.liabilities.property_value ?? 0) - snapshot.liabilities.mortgage_balance).toLocaleString()} — counted in net worth, not in spendable FI assets.</p>
             )}
+            {(snapshot.liabilities.property_value ?? 0) > 0 && (
+              <>
+                <Toggle label="Plan to sell / downsize this home" on={(sp.sell_home_year ?? 0) > 0}
+                  onChange={v => updateBaseline("spending", { sell_home_year: v ? (config.career_path.exit_year || new Date().getFullYear() + 1) : 0 })} />
+                {(sp.sell_home_year ?? 0) > 0 && (
+                  <>
+                    <Two>
+                      <Field label="Sell in Year"><Num step={1} value={sp.sell_home_year ?? 0} onChange={v => updateBaseline("spending", { sell_home_year: v })} /></Field>
+                      <Field label="Rent After ($/mo)"><Num prefix="$" step={100} value={sp.rent_after_sale ?? 0} onChange={v => updateBaseline("spending", { rent_after_sale: v })} /></Field>
+                    </Two>
+                    <Field label="Home Cost Basis (capital gains)"><Num prefix="$" step={5000} value={snapshot.liabilities.property_cost_basis ?? 0} onChange={v => updateNestedSnapshot("liabilities", { property_cost_basis: v })} /></Field>
+                    <p className="-mt-1 text-xs text-neutral-500">Net proceeds (value − mortgage − ~6% costs − gains tax over the $500k/$250k exclusion) become spendable; rental income stops and you rent from then on.</p>
+                  </>
+                )}
+              </>
+            )}
             <Field label="Consumer Debt"><Num prefix="$" step={500} value={snapshot.liabilities.consumer_debt} onChange={v => updateNestedSnapshot("liabilities", { consumer_debt: v })} /></Field>
           </>
         ) : (

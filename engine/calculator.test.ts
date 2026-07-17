@@ -167,6 +167,48 @@ describe("home equity is tracked in net worth (but not in FI/spendable assets)",
   });
 });
 
+describe("sell / downsize the home", () => {
+  function sellCfg(sell: boolean): SimulationConfiguration {
+    const cfg = baseConfig();
+    cfg.spending.housing_type = "mortgage";
+    cfg.spending.mortgage_payment = 4_000;
+    cfg.income_profile.monthly_rental_income = 2_000; // an income-producing unit
+    if (sell) { cfg.spending.sell_home_year = YEAR + 3; cfg.spending.rent_after_sale = 2_500; }
+    return cfg;
+  }
+  function sellSnap(): FinancialSnapshot {
+    const snap = baseSnap();
+    snap.liabilities.mortgage_balance = 500_000;
+    snap.liabilities.mortgage_interest_rate = 3;
+    snap.liabilities.property_value = 1_200_000;
+    snap.liabilities.property_cost_basis = 1_000_000;
+    return snap;
+  }
+
+  it("converts equity to spendable cash, clears the mortgage, and stops rental income", () => {
+    const traj = runSimulation(sellSnap(), sellCfg(true), 200);
+    const before = traj.find((p) => p.date.endsWith(String(YEAR + 1)))!;
+    const after  = traj.find((p) => p.date.endsWith(String(YEAR + 4)))!;
+    // Pre-sale: home equity present, rental income flowing.
+    expect(before.homeEquity).toBeGreaterThan(0);
+    expect(before.rentalIncome).toBeGreaterThan(0);
+    // Post-sale: home is gone (equity 0), mortgage cleared, rental income stopped,
+    // and the freed equity shows up as spendable assets (a jump vs. not selling).
+    expect(after.homeEquity).toBe(0);
+    expect(after.propertyValue).toBe(0);
+    expect(after.rentalIncome).toBe(0);
+    const noSell = runSimulation(sellSnap(), sellCfg(false), 200).find((p) => p.date.endsWith(String(YEAR + 4)))!;
+    expect(after.investableAfterTax).toBeGreaterThan(noSell.investableAfterTax);
+  });
+
+  it("does nothing when no sale year is set", () => {
+    const traj = runSimulation(sellSnap(), sellCfg(false), 200);
+    const late = traj.find((p) => p.date.endsWith(String(YEAR + 4)))!;
+    expect(late.homeEquity).toBeGreaterThan(0);   // still owns the home
+    expect(late.rentalIncome).toBeGreaterThan(0); // still collecting rent
+  });
+});
+
 describe("decumulation draws down the taxable brokerage", () => {
   it("spends a diversified brokerage in retirement instead of leaving it untouched", () => {
     const snap = baseSnap();

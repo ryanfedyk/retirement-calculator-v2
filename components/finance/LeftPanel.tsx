@@ -484,6 +484,33 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
                     </p>
                   )}
                 </div>
+                {(snapshot.liabilities.property_value ?? 0) > 0 && (
+                  <div>
+                    <Checkbox id="sellHome" label="Plan to sell / downsize this home"
+                      checked={(bsp.sell_home_year ?? 0) > 0}
+                      onChange={v => updateBaseline("spending", { sell_home_year: v ? (config.career_path.exit_year || new Date().getFullYear() + 1) : 0 })} />
+                    {(bsp.sell_home_year ?? 0) > 0 && (
+                      <Indent>
+                        <Row>
+                          <div><FieldLabel>Sell in Year</FieldLabel>
+                            <Input type="number" value={bsp.sell_home_year ?? 0}
+                              onChange={e => updateBaseline("spending", { sell_home_year: +e.target.value || 0 })} /></div>
+                          <div><FieldLabel>Rent After ($/mo)</FieldLabel>
+                            <Input type="number" value={bsp.rent_after_sale ?? 0}
+                              onChange={e => updateBaseline("spending", { rent_after_sale: +e.target.value || 0 })} /></div>
+                        </Row>
+                        <div style={{ marginTop: 8 }}>
+                          <FieldLabel>Home Cost Basis (for capital gains)</FieldLabel>
+                          <Input type="number" value={snapshot.liabilities.property_cost_basis ?? 0}
+                            onChange={e => updateNestedSnapshot("liabilities", { property_cost_basis: +e.target.value || 0 })} />
+                        </div>
+                        <p className="mt-1 text-xs text-neutral-500">
+                          Sells the home that year: net proceeds (value − mortgage − ~6% selling costs − capital-gains tax over the $500k/$250k exclusion) become spendable cash. Rental income stops and you rent from then on. Leave basis at 0 to skip the gains tax.
+                        </p>
+                      </Indent>
+                    )}
+                  </div>
+                )}
               </>
             )}
           </div>

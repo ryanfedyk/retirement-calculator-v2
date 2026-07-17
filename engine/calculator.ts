@@ -189,6 +189,7 @@ export interface TrajectoryPoint {
   totalLiabilities: number;
   propertyValue: number;    // market value of the mortgaged home (today's $; 0 if not tracked)
   homeEquity: number;       // propertyValue − remaining mortgage (today's $)
+  netWorthWithHome: number; // totalNetWorth + homeEquity — the full-picture figure (separate note)
   isIndependent: boolean;
   swrTarget: number;              // the FI Number (Rule of 25)
   investableAssets: number;      // assets that fund retirement, GROSS (excl. 529)
@@ -1281,22 +1282,19 @@ export const runSimulation = (
     const realMortgage = currentMortgage / inflationMultiplier;
     const totalLiabilities = realMortgage + currentConsumerDebt;
 
-    // Home equity. If the user gave the property's market value, the home is a
-    // real asset, so net worth includes its equity (value − remaining mortgage).
-    // As the nominal mortgage amortizes and inflation erodes its real value, that
-    // equity grows — paying down the loan builds visible net worth. When no value
-    // is given we keep the old behavior: exclude the mortgage entirely (the
-    // offsetting home isn't tracked, so subtracting the loan alone would
-    // understate net worth). Consumer debt is always netted out. NB: home equity
-    // is deliberately NOT part of the spendable/FI assets below — you live there.
-    // After a sale the home is gone (its net proceeds are now in liquidCash), so
-    // it no longer contributes equity — otherwise we'd double-count it.
+    // The HEADLINE net worth deliberately excludes the home and its mortgage, so
+    // it speaks in the same "your investable money" terms as the Progress-to-FI
+    // card (a $4M home-inclusive figure next to a $1.5M spendable figure was
+    // confusing). Consumer debt is still netted out. The home is reported
+    // SEPARATELY via homeEquity / netWorthWithHome below, not folded into this line.
     const trackHome  = currentPropertyValue > 0 && !homeSold;
     const homeEquity = trackHome ? currentPropertyValue - realMortgage : 0;
     const totalNetWorth = liquidCash + totalRetirement + currentGoogValue
       + currentJumpStockValue + totalOtherInvestmentsValue + current529
-      + homeEquity
       - currentConsumerDebt;
+    // Full picture including the home's equity — shown as a separate note, never
+    // as the primary number.
+    const netWorthWithHome = totalNetWorth + homeEquity;
 
     const investableAssets = liquidCash + totalRetirement + currentGoogValue
       + currentJumpStockValue + totalOtherInvestmentsValue;
@@ -1402,6 +1400,7 @@ export const runSimulation = (
       totalLiabilities: Math.round(totalLiabilities),
       propertyValue:    Math.round(trackHome ? currentPropertyValue : 0),
       homeEquity:       Math.round(homeEquity),
+      netWorthWithHome: Math.round(netWorthWithHome),
       isIndependent,
       swrTarget:  Math.round(swrTargetValue),
       investableAssets:    Math.round(investableAssets),

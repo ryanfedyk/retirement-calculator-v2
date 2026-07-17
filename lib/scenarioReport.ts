@@ -154,10 +154,12 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
   p();
   p(
     propertyValue > 0
-      ? `**Net worth today: ${usd(today?.totalNetWorth ?? 0)}.** Includes home ` +
-          `equity (building value ${usd(propertyValue)} − mortgage), which grows ` +
-          `as the loan amortizes. Home equity is NOT counted among spendable/FI ` +
-          `assets (you live there). Consumer debt is netted out.`
+      ? `**Net worth today: ${usd(today?.totalNetWorth ?? 0)}** — this headline figure ` +
+          `*excludes* the home and its mortgage, so it reads in the same "investable ` +
+          `money" terms as everything else. Reported separately: home equity ` +
+          `${usd(today?.homeEquity ?? 0)} (building value ${usd(propertyValue)} − mortgage), ` +
+          `so **net worth including the home is ${usd(today?.netWorthWithHome ?? 0)}**. ` +
+          `Home equity is not a spendable/FI asset. Consumer debt is netted out.`
       : `**Net worth today: ${usd(today?.totalNetWorth ?? 0)}.** Note: the mortgage ` +
           `is *excluded* from net worth (no home value entered, so the offsetting ` +
           `asset isn't tracked), but consumer debt is netted out.`,
@@ -419,7 +421,7 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
   p(`- Social Security is estimated from current salary as a proxy for the 35-year indexed average (override available).`);
   p(`- Tax brackets are fixed at 2025 values; retirement-contribution limits at ${IRS_401K.year} (both held flat thereafter — valid because the model is real-dollar).`);
   p(propertyValue > 0
-    ? `- The home's market value is tracked, so net worth includes its equity (value − mortgage); that equity is excluded from spendable/FI assets since it isn't liquid.`
+    ? `- The home's market value is tracked, but its equity is kept OUT of the headline net worth (reported separately as home equity / net worth incl. home) and out of spendable/FI assets since it isn't liquid.`
     : `- No home value entered, so the home asset behind the mortgage isn't tracked and the mortgage is excluded from net worth.`);
   p(`- Effective vs. marginal tax rates are computed per-year, not per-transaction lot.`);
   p(`- The survivor transition (if enabled) continues on the primary's age/claim clock rather than each spouse's own mortality.`);

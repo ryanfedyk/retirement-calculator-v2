@@ -480,7 +480,7 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
                     onChange={e => updateNestedSnapshot("liabilities", { property_value: +e.target.value || 0 })} />
                   {(snapshot.liabilities.property_value ?? 0) > 0 && (
                     <p className="mt-1 text-xs text-neutral-500">
-                      Equity today: ${Math.max(0, (snapshot.liabilities.property_value ?? 0) - snapshot.liabilities.mortgage_balance).toLocaleString()} — counted in net worth (not in your spendable FI assets).
+                      Equity today: ${Math.max(0, (snapshot.liabilities.property_value ?? 0) - snapshot.liabilities.mortgage_balance).toLocaleString()} — tracked separately, not in your headline net worth or FI assets.
                     </p>
                   )}
                 </div>

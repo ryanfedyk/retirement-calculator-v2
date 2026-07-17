@@ -211,7 +211,7 @@ export default function MobileFinancesSections() {
               <Field label="Home / Building Value"><Num prefix="$" step={5000} value={snapshot.liabilities.property_value ?? 0} onChange={v => updateNestedSnapshot("liabilities", { property_value: v })} /></Field>
             </Two>
             {(snapshot.liabilities.property_value ?? 0) > 0 && (
-              <p className="-mt-1 text-xs text-neutral-500">Equity today: ${Math.max(0, (snapshot.liabilities.property_value ?? 0) - snapshot.liabilities.mortgage_balance).toLocaleString()} — counted in net worth, not in spendable FI assets.</p>
+              <p className="-mt-1 text-xs text-neutral-500">Equity today: ${Math.max(0, (snapshot.liabilities.property_value ?? 0) - snapshot.liabilities.mortgage_balance).toLocaleString()} — tracked separately, not in your headline net worth or FI assets.</p>
             )}
             {(snapshot.liabilities.property_value ?? 0) > 0 && (
               <>

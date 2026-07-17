@@ -128,7 +128,7 @@ describe("mortgage payments stop once the balance is paid off", () => {
   });
 });
 
-describe("home equity is tracked in net worth (but not in FI/spendable assets)", () => {
+describe("home equity is reported SEPARATELY, never in the headline net worth or FI assets", () => {
   function homeSnap(propertyValue: number, mortgage = 400_000): FinancialSnapshot {
     const snap = baseSnap();
     snap.liabilities.mortgage_balance = mortgage;
@@ -142,14 +142,15 @@ describe("home equity is tracked in net worth (but not in FI/spendable assets)",
     return cfg;
   }
 
-  it("adds equity (value − mortgage) to net worth only when a value is set", () => {
+  it("keeps home equity OUT of the headline net worth (same figure with or without a home value)", () => {
     const withHome = runSimulation(homeSnap(1_000_000), homeCfg(), 200)[0];
-    const noValue  = runSimulation(homeSnap(0), homeCfg(), 200)[0]; // value unset → old behavior
+    const noValue  = runSimulation(homeSnap(0), homeCfg(), 200)[0];
+    // Equity is computed and reported, but the headline net worth is identical.
     expect(withHome.homeEquity).toBeCloseTo(600_000, -3);
     expect(withHome.propertyValue).toBe(1_000_000);
-    expect(noValue.homeEquity).toBe(0);
-    // Tracking the home lifts net worth by exactly the equity.
-    expect(withHome.totalNetWorth - noValue.totalNetWorth).toBeCloseTo(600_000, -3);
+    expect(withHome.totalNetWorth).toBeCloseTo(noValue.totalNetWorth, -1);
+    // The full-picture figure adds equity on top, as a separate number.
+    expect(withHome.netWorthWithHome - withHome.totalNetWorth).toBeCloseTo(600_000, -3);
   });
 
   it("does NOT let home equity leak into spendable/FI assets", () => {
@@ -159,11 +160,12 @@ describe("home equity is tracked in net worth (but not in FI/spendable assets)",
     expect(withHome.swrTarget).toBe(noValue.swrTarget);
   });
 
-  it("grows equity over time as the mortgage amortizes / inflates away", () => {
+  it("grows the separately-reported equity over time as the mortgage amortizes / inflates away", () => {
     const cfg = homeCfg();
     cfg.spending.mortgage_payment = 3_000;
     const traj = runSimulation(homeSnap(1_000_000), cfg, 200);
     expect(traj[120].homeEquity).toBeGreaterThan(traj[0].homeEquity);
+    expect(traj[120].netWorthWithHome).toBeGreaterThan(traj[120].totalNetWorth);
   });
 });
 

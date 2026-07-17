@@ -398,6 +398,8 @@ export default function RightPanel({ livePrices }: Props) {
       {/* ── Summary cards: Financial Independence · Progress to FI · Alerts ── */}
       <SummaryCards
         indepDate={indepPoint ? indepPoint.date : null}
+        netWorth={currentNW}
+        netWorthWithHome={todayPoint?.netWorthWithHome ?? 0}
         spendable={spendable}
         grossInvestable={todayPoint?.investableAssets ?? 0}
         swrTarget={swrTarget}

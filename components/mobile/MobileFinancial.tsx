@@ -194,6 +194,7 @@ export default function MobileFinancial({ livePrices, onOpenConfig }: Props) {
       <SummaryCards
         indepDate={indep ? indep.date : null}
         spendable={spendable}
+        grossInvestable={today?.investableAssets ?? 0}
         swrTarget={swrTarget}
         progress={progress}
         notices={notices}

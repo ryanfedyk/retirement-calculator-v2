@@ -143,10 +143,25 @@ export default function SummaryCards({ indepDate, netWorth, netWorthWithHome, sp
             </div>
             <Chip bg={C.tealWash} color={C.teal} icon={Wallet} />
           </div>
-          <div style={{ fontSize: 10, color: C.inkFaint, marginTop: "auto", paddingTop: 8 }}>
-            {netWorthWithHome != null && netWorthWithHome > netWorth + 5000
-              ? `Investable money · ${fmtMM(netWorthWithHome)} incl. home`
-              : "Your investable money (excl. home)"}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: "auto", paddingTop: 8, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 10, color: C.inkFaint }}>
+              {netWorthWithHome != null && netWorthWithHome > netWorth + 5000
+                ? `Investable money · ${fmtMM(netWorthWithHome)} incl. home`
+                : "Your investable money (excl. home)"}
+            </span>
+            {tickers.length > 0 && (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 8, marginLeft: "auto" }}>
+                {tickers.map((sym) => {
+                  const info = livePrices?.[sym];
+                  return (
+                    <span key={sym} style={{ display: "inline-flex", alignItems: "baseline", gap: 3, fontVariantNumeric: "tabular-nums" }}>
+                      <span style={{ fontSize: 9, fontWeight: 700, color: C.inkSoft }}>{sym}</span>
+                      <span style={{ fontSize: 10, color: C.inkMid }}>{info?.price ? `$${info.price.toFixed(2)}` : "–"}</span>
+                    </span>
+                  );
+                })}
+              </span>
+            )}
           </div>
         </button>
 
@@ -168,19 +183,6 @@ export default function SummaryCards({ indepDate, netWorth, netWorthWithHome, sp
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 5, flexWrap: "wrap" }}>
               <span style={{ fontSize: 10, color: C.inkFaint }}>{progress.toFixed(0)}% of your FI number</span>
-              {tickers.length > 0 && (
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 8, marginLeft: "auto" }}>
-                  {tickers.map((sym) => {
-                    const info = livePrices?.[sym];
-                    return (
-                      <span key={sym} style={{ display: "inline-flex", alignItems: "baseline", gap: 3, fontVariantNumeric: "tabular-nums" }}>
-                        <span style={{ fontSize: 9, fontWeight: 700, color: C.inkSoft }}>{sym}</span>
-                        <span style={{ fontSize: 10, color: C.inkMid }}>{info?.price ? `$${info.price.toFixed(2)}` : "–"}</span>
-                      </span>
-                    );
-                  })}
-                </span>
-              )}
             </div>
           </div>
         </button>

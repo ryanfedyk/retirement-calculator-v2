@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { HelpCircle, AlertTriangle, CheckCircle, X, Flag, TrendingUp } from "lucide-react";
+import { HelpCircle, AlertTriangle, CheckCircle, X, Flag, TrendingUp, Wallet } from "lucide-react";
 import { C } from "@/config/colors";
 import { sevColor, sevBg, type Notice } from "@/lib/planNotices";
 import type { FinancialSnapshot } from "@/engine/calculator";
@@ -29,8 +29,14 @@ function tickerSymbols(holdings: FinancialSnapshot["other_investments"] | undefi
  * differentiation; a small "?" opens an explanation; tapping the FI Number card
  * opens finances; the Alerts card opens the full list in a popover.
  */
-export default function SummaryCards({ indepDate, spendable, grossInvestable, swrTarget, progress, notices, onOpenFinances, holdings, livePrices, concentratedSymbol, housingType }: {
+export default function SummaryCards({ indepDate, netWorth, netWorthWithHome, spendable, grossInvestable, swrTarget, progress, notices, onOpenFinances, holdings, livePrices, concentratedSymbol, housingType }: {
   indepDate: string | null;
+  /** Headline net worth (investable money; excludes the home/mortgage) — matches
+   *  the wealth chart's first point. */
+  netWorth: number;
+  /** Net worth including home equity, shown as a small secondary note when a home
+   *  value is tracked. */
+  netWorthWithHome?: number;
   /** Spendable (after-tax investable) assets — the same measure the FI date uses,
    *  so progress hits 100% exactly at FI. Deliberately NOT net worth: home equity
    *  and other illiquid wealth must not inflate progress past the FI date. */
@@ -85,6 +91,12 @@ export default function SummaryCards({ indepDate, spendable, grossInvestable, sw
       <p style={{ margin: "10px 0 0" }}>You have <strong>{fmtMM(spendable)}</strong> of a <strong>{fmtMM(swrTarget)}</strong> target ({progress.toFixed(0)}%){grossInvestable != null && grossInvestable > spendable + 5000 ? <> — that’s your <strong>after-tax spendable</strong> figure, out of <strong>{fmtMM(grossInvestable)}</strong> gross (before the tax owed on pre-tax 401k/IRA balances and embedded gains). Progress tracks the after-tax number so it lines up with your FI date.</> : "."} Tap the card to open your finances.</p>
     </>
   );
+  const nwExplain = (
+    <>
+      <p style={{ margin: 0 }}>Your <strong>net worth</strong> here is your <strong>investable money</strong> — cash, brokerage, retirement accounts and holdings, less consumer debt. It matches the first point on the wealth chart.</p>
+      <p style={{ margin: "10px 0 0" }}>It deliberately <strong>excludes your home and mortgage</strong> so it reads in the same terms everywhere.{netWorthWithHome != null && netWorthWithHome > netWorth + 5000 ? <> Counting your home&rsquo;s equity, the full-picture figure is <strong>{fmtMM(netWorthWithHome)}</strong>.</> : null}</p>
+    </>
+  );
   const alertsNode = (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       {notices.map((n) => (
@@ -122,7 +134,23 @@ export default function SummaryCards({ indepDate, spendable, grossInvestable, sw
           <div style={{ fontSize: 10, color: indepDate ? C.tealDark : C.inkFaint, opacity: 0.8, marginTop: "auto", paddingTop: 8 }}>{indepDate ? "Projected date you reach FI" : "Adjust strategy to reach FI"}</div>
         </div>
 
-        {/* Progress to FI — leads with have-vs-need; whole card opens finances */}
+        {/* Net Worth — your investable money; matches the wealth chart's first point */}
+        <button onClick={onOpenFinances} title="Open your finances" style={{ ...cardBase, cursor: "pointer", font: "inherit" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 6 }}><Label>Net Worth</Label><Help onClick={() => open("Net Worth", nwExplain)} /></div>
+              <div style={{ fontSize: 23, fontWeight: 300, color: C.ink, whiteSpace: "nowrap" }}>{fmtMM(netWorth)}</div>
+            </div>
+            <Chip bg={C.tealWash} color={C.teal} icon={Wallet} />
+          </div>
+          <div style={{ fontSize: 10, color: C.inkFaint, marginTop: "auto", paddingTop: 8 }}>
+            {netWorthWithHome != null && netWorthWithHome > netWorth + 5000
+              ? `Investable money · ${fmtMM(netWorthWithHome)} incl. home`
+              : "Your investable money (excl. home)"}
+          </div>
+        </button>
+
+        {/* Progress to FI — after-tax spendable vs the FI number; opens finances */}
         <button onClick={onOpenFinances} title="Open your finances" style={{ ...cardBase, cursor: "pointer", font: "inherit" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
             <div style={{ minWidth: 0 }}>
@@ -130,11 +158,7 @@ export default function SummaryCards({ indepDate, spendable, grossInvestable, sw
               <div style={{ fontSize: 23, fontWeight: 300, color: C.ink, whiteSpace: "nowrap" }}>
                 {fmtMM(spendable)} <span style={{ fontSize: 12.5, fontWeight: 400, color: C.inkSoft }}>of {fmtMM(swrTarget)}</span>
               </div>
-              {grossInvestable != null && grossInvestable > spendable + 5000 && (
-                <div style={{ fontSize: 10.5, color: C.inkFaint, marginTop: 3 }}>
-                  after tax · {fmtMM(grossInvestable)} gross
-                </div>
-              )}
+              <div style={{ fontSize: 10.5, color: C.inkFaint, marginTop: 3 }}>after-tax spendable</div>
             </div>
             <Chip bg={C.warmWash} color={C.warm} icon={TrendingUp} />
           </div>

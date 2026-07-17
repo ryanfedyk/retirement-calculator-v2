@@ -193,6 +193,8 @@ export default function MobileFinancial({ livePrices, onOpenConfig }: Props) {
           to FI · Alerts. */}
       <SummaryCards
         indepDate={indep ? indep.date : null}
+        netWorth={currentNW}
+        netWorthWithHome={today?.netWorthWithHome ?? 0}
         spendable={spendable}
         grossInvestable={today?.investableAssets ?? 0}
         swrTarget={swrTarget}

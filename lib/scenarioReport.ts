@@ -141,17 +141,26 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
     }
   }
   const isRent = sp.housing_type === "rent";
+  const propertyValue = liab.property_value ?? 0;
   if (isRent) {
     p(`| Housing | Renter | rent is a perpetual expense (no mortgage balance) |`);
   } else {
     p(`| Mortgage balance | ${usd(-liab.mortgage_balance)} | ${pct(liab.mortgage_interest_rate ?? 3.5)} fixed |`);
+    if (propertyValue > 0) {
+      p(`| Home / building value | ${usd(propertyValue)} | equity (value − mortgage = ${usd(propertyValue - liab.mortgage_balance)}) counts in net worth; NOT a spendable/FI asset |`);
+    }
   }
   if (liab.consumer_debt) p(`| Consumer debt | ${usd(-liab.consumer_debt)} | paid down when cash > $50k |`);
   p();
   p(
-    `**Net worth today: ${usd(today?.totalNetWorth ?? 0)}.** Note: the mortgage ` +
-      `is *excluded* from net worth (the offsetting home value isn't tracked), ` +
-      `but consumer debt is netted out.`,
+    propertyValue > 0
+      ? `**Net worth today: ${usd(today?.totalNetWorth ?? 0)}.** Includes home ` +
+          `equity (building value ${usd(propertyValue)} − mortgage), which grows ` +
+          `as the loan amortizes. Home equity is NOT counted among spendable/FI ` +
+          `assets (you live there). Consumer debt is netted out.`
+      : `**Net worth today: ${usd(today?.totalNetWorth ?? 0)}.** Note: the mortgage ` +
+          `is *excluded* from net worth (no home value entered, so the offsetting ` +
+          `asset isn't tracked), but consumer debt is netted out.`,
   );
   p();
 
@@ -406,7 +415,9 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
   p(`- Runs entirely in today's dollars; nominal display just re-inflates the output.`);
   p(`- Social Security is estimated from current salary as a proxy for the 35-year indexed average (override available).`);
   p(`- Tax brackets are fixed at 2025 values; retirement-contribution limits at ${IRS_401K.year} (both held flat thereafter — valid because the model is real-dollar).`);
-  p(`- The home asset behind the mortgage isn't tracked, so the mortgage is excluded from net worth.`);
+  p(propertyValue > 0
+    ? `- The home's market value is tracked, so net worth includes its equity (value − mortgage); that equity is excluded from spendable/FI assets since it isn't liquid.`
+    : `- No home value entered, so the home asset behind the mortgage isn't tracked and the mortgage is excluded from net worth.`);
   p(`- Effective vs. marginal tax rates are computed per-year, not per-transaction lot.`);
   p(`- The survivor transition (if enabled) continues on the primary's age/claim clock rather than each spouse's own mortality.`);
   p();

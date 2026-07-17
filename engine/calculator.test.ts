@@ -128,6 +128,45 @@ describe("mortgage payments stop once the balance is paid off", () => {
   });
 });
 
+describe("home equity is tracked in net worth (but not in FI/spendable assets)", () => {
+  function homeSnap(propertyValue: number, mortgage = 400_000): FinancialSnapshot {
+    const snap = baseSnap();
+    snap.liabilities.mortgage_balance = mortgage;
+    snap.liabilities.mortgage_interest_rate = 3;
+    snap.liabilities.property_value = propertyValue;
+    return snap;
+  }
+  function homeCfg(): SimulationConfiguration {
+    const cfg = baseConfig();
+    cfg.spending.housing_type = "mortgage";
+    return cfg;
+  }
+
+  it("adds equity (value − mortgage) to net worth only when a value is set", () => {
+    const withHome = runSimulation(homeSnap(1_000_000), homeCfg(), 200)[0];
+    const noValue  = runSimulation(homeSnap(0), homeCfg(), 200)[0]; // value unset → old behavior
+    expect(withHome.homeEquity).toBeCloseTo(600_000, -3);
+    expect(withHome.propertyValue).toBe(1_000_000);
+    expect(noValue.homeEquity).toBe(0);
+    // Tracking the home lifts net worth by exactly the equity.
+    expect(withHome.totalNetWorth - noValue.totalNetWorth).toBeCloseTo(600_000, -3);
+  });
+
+  it("does NOT let home equity leak into spendable/FI assets", () => {
+    const withHome = runSimulation(homeSnap(1_000_000), homeCfg(), 200)[0];
+    const noValue  = runSimulation(homeSnap(0), homeCfg(), 200)[0];
+    expect(withHome.investableAfterTax).toBe(noValue.investableAfterTax);
+    expect(withHome.swrTarget).toBe(noValue.swrTarget);
+  });
+
+  it("grows equity over time as the mortgage amortizes / inflates away", () => {
+    const cfg = homeCfg();
+    cfg.spending.mortgage_payment = 3_000;
+    const traj = runSimulation(homeSnap(1_000_000), cfg, 200);
+    expect(traj[120].homeEquity).toBeGreaterThan(traj[0].homeEquity);
+  });
+});
+
 describe("decumulation draws down the taxable brokerage", () => {
   it("spends a diversified brokerage in retirement instead of leaving it untouched", () => {
     const snap = baseSnap();

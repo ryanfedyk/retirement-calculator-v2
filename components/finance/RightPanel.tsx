@@ -399,6 +399,7 @@ export default function RightPanel({ livePrices }: Props) {
       <SummaryCards
         indepDate={indepPoint ? indepPoint.date : null}
         spendable={spendable}
+        grossInvestable={todayPoint?.investableAssets ?? 0}
         swrTarget={swrTarget}
         progress={progress}
         notices={notices}

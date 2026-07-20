@@ -5,7 +5,7 @@ import HorizonZoomButton from "@/components/finance/HorizonZoomButton";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
-import { runSimulation, findCashflowFiPoint, assessPlan, toDisplayDollars, findRetirementWindow } from "@/engine/calculator";
+import { runSimulationConverged, findCashflowFiPoint, assessPlan, toDisplayDollars, findRetirementWindow } from "@/engine/calculator";
 import { runMonteCarlo } from "@/engine/montecarlo";
 import { getLifeEvents } from "@/lib/horizonUtils";
 import { useHorizonProfile } from "@/config/horizonConfig";
@@ -55,8 +55,11 @@ export default function MobileFinancial({ livePrices, onOpenConfig }: Props) {
     }),
   }), [snapshot, livePrices]);
 
+  // Converged run: ACA subsidy uses each coverage year's OWN MAGI (see
+  // runSimulationConverged) — fixes the first-retirement-year subsidy that a
+  // prior-year proxy would wrongly deny.
   const traj = useMemo(
-    () => runSimulation(enrichedSnapshot, config, liveGoogPrice),
+    () => runSimulationConverged(enrichedSnapshot, config, liveGoogPrice),
     [enrichedSnapshot, config, liveGoogPrice]
   );
   const retireWindow = useMemo(

@@ -1198,14 +1198,25 @@ const simulate = (
     if (liquidCash < 0) {
       let deficit = Math.abs(liquidCash);
       liquidCash = 0;
+      // Ordinary-based rate — correct only for the pre-tax (traditional) bucket below.
       const emergencyTaxRate = Math.min(0.55, marginalRate + 0.05);
+      // Long-term capital-gains rate for TAXABLE brokerage sales. Gains are NOT
+      // ordinary income: they stack on top of this year's ordinary income and fill
+      // the 0% / 15% / 20% federal LTCG brackets (+ NIIT + state, which the engine
+      // computes). A retiree living off a taxable portfolio with low ordinary income
+      // realizes most gains at 0–15%, far below the ordinary marginal rate — so the
+      // old code (emergencyTaxRate on gains) badly over-taxed the drawdown. Derive
+      // the true stacked rate from a $20k marginal slice of LTCG on top of ordinary
+      // income; one extra tax pass, and only when a deficit actually needs funding.
+      const ltcgRate = Math.min(0.37, Math.max(0,
+        (calculateTaxRaw({ ...taxInput, longTermCapitalGains: 20_000 }).totalTax - taxResult.totalTax) / 20_000));
 
       // 1a. Concentrated employer position (average-basis LTCG).
       if (deficit > 0 && currentGoogShares > 0) {
         const totalBasis = currentGoogByBasis.reduce((a, b) => a + b.shares * b.basis, 0);
         const totalSh    = currentGoogByBasis.reduce((a, b) => a + b.shares, 0);
         const avgBasis   = totalSh > 0 ? totalBasis / totalSh : 0;
-        const netPerShare = currentGoogPrice - emergencyTaxRate * Math.max(0, currentGoogPrice - avgBasis);
+        const netPerShare = currentGoogPrice - ltcgRate * Math.max(0, currentGoogPrice - avgBasis);
         const proceeds = currentGoogShares * Math.max(0, netPerShare);
         const gainPerShare = Math.max(0, currentGoogPrice - avgBasis);
         if (proceeds >= deficit) {
@@ -1220,13 +1231,13 @@ const simulate = (
         }
       }
 
-      // 1b. Diversified taxable holdings — tax only the proportional gain.
+      // 1b. Diversified taxable holdings — tax only the proportional gain, at LTCG.
       for (const inv of currentOtherInvestments) {
         if (deficit <= 0) break;
         if (inv.currentValue <= 0) continue;
         const basisTotal   = (inv.shares * inv.cost_basis) || 0;
         const gainFraction = Math.max(0, (inv.currentValue - basisTotal) / inv.currentValue);
-        const netPerDollar = Math.max(0.01, 1 - emergencyTaxRate * gainFraction);
+        const netPerDollar = Math.max(0.01, 1 - ltcgRate * gainFraction);
         const grossNeeded  = deficit / netPerDollar;
         if (grossNeeded >= inv.currentValue) {
           deficit -= inv.currentValue * netPerDollar;
@@ -1242,11 +1253,12 @@ const simulate = (
         }
       }
 
-      // 1c. Jump-company equity (taxable; ~25% haircut on the draw).
+      // 1c. Jump-company equity (taxable, basis untracked → treated as all gain, at LTCG).
       if (deficit > 0 && currentJumpStockValue > 0) {
-        const proceeds = currentJumpStockValue * 0.75;
+        const net = Math.max(0.01, 1 - ltcgRate);
+        const proceeds = currentJumpStockValue * net;
         if (proceeds >= deficit) {
-          const drawn = deficit / 0.75;
+          const drawn = deficit / net;
           currentJumpStockValue -= drawn;
           magiThisYear += drawn; // basis untracked → treat the draw as gain
           deficit = 0;
@@ -1368,7 +1380,13 @@ const simulate = (
     // owed on their embedded gains. The FI test then compares spendable assets
     // against the (post-tax) spending need — apples to apples. The old test used
     // gross balances and triggered FI years early for pre-tax-heavy savers.
-    const RETIRE_LTCG_RATE = 0.15; // federal long-term capital-gains midpoint
+    // VALUATION assumption (not a tax calculation): to state spendable assets today
+    // we discount embedded unrealized gains by a flat 15% — the mid federal LTCG
+    // bracket. The ACTUAL tax at liquidation depends on the year's income and the
+    // 0/15/20% stacking (that's modeled exactly in the cash-flow drawdown above);
+    // here we only need a single conservative haircut to compare assets vs the FI
+    // target, so a flat midpoint is deliberate and sufficient.
+    const RETIRE_LTCG_RATE = 0.15;
     const deferredTaxRate = calculateTaxRaw({
       filingStatus:     effectiveFiling,
       state:            config.tax_assumptions.state_of_residence,

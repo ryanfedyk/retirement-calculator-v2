@@ -830,6 +830,42 @@ describe("Phase 4 polish: dividend drag & marginal bonus", () => {
   });
 });
 
+describe("federal LTCG stacking (0 / 15 / 20% on top of ordinary income)", () => {
+  const mfj = (ordinary: number, ltcg: number) => calculateTax({
+    filingStatus: "married_joint", state: "NONE",
+    grossIncome: ordinary, longTermCapitalGains: ltcg, shortTermCapitalGains: 0,
+  });
+
+  it("taxes gains in the 0% bracket when total taxable income is low", () => {
+    // $40k ordinary (well under the std deduction + 0% LTCG top) + $40k LTCG stays
+    // inside the $96,700 MFJ 0% bracket → ~no federal cap-gains tax.
+    expect(mfj(40_000, 40_000).capitalGainsTax).toBeLessThan(500);
+  });
+
+  it("taxes gains at ~15% once ordinary income has filled the 0% bracket", () => {
+    // $200k ordinary + $50k LTCG: above the 0% top, MAGI $250k = NIIT threshold
+    // (no NIIT), below the 20% breakpoint → a clean 15%.
+    const rate = mfj(200_000, 50_000).capitalGainsTax / 50_000;
+    expect(rate).toBeGreaterThan(0.14);
+    expect(rate).toBeLessThan(0.17);
+  });
+
+  it("reaches 20% (+ NIIT) for very high incomes", () => {
+    // $700k ordinary is past the $600,050 MFJ 20% breakpoint; MAGI far over the
+    // NIIT threshold → 20% + 3.8%.
+    const rate = mfj(700_000, 100_000).capitalGainsTax / 100_000;
+    expect(rate).toBeGreaterThan(0.20);
+  });
+
+  it("the same gain is taxed far less than ordinary income at low retiree income", () => {
+    // The point of the drawdown fix: $60k of LTCG for a low-income retiree costs
+    // much less than $60k of ordinary income would.
+    const asGains    = mfj(30_000, 60_000).totalTax - mfj(30_000, 0).totalTax;
+    const asOrdinary = mfj(90_000, 0).totalTax    - mfj(30_000, 0).totalTax;
+    expect(asGains).toBeLessThan(asOrdinary);
+  });
+});
+
 describe("Medicare IRMAA surcharge (MAGI-based)", () => {
   function medicareRetiree(annualRental: number): SimulationConfiguration {
     const cfg = baseConfig();

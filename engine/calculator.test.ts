@@ -31,6 +31,58 @@ describe("runSimulation — invariants", () => {
   });
 });
 
+describe("balance-sheet reconciliation", () => {
+  function reconSnap(): FinancialSnapshot {
+    const snap = baseSnap();
+    snap.liquid_assets.cash_savings    = 45_000;
+    snap.liquid_assets.vanguard_bridge = 0;
+    snap.retirement_assets.k401            = 600_000;
+    snap.retirement_assets.traditional_ira = 27_338;
+    snap.retirement_assets.roth_ira        = 40_000;
+    snap.education_assets = { total_529: 94_817, accounts: [{ id: "a", name: "529", balance: 94_817 }] };
+    snap.other_investments = [
+      { id: "1", name: "Vanguard", symbol: "VTI",  shares: 1000, cost_basis: 100, current_price: 300, expected_return: 7 },
+      { id: "2", name: "Google",   symbol: "GOOG", shares: 500,  cost_basis: 40,  current_price: 180, expected_return: 8 },
+    ];
+    snap.liabilities = { ...snap.liabilities, mortgage_balance: 0, consumer_debt: 0, property_value: 0 };
+    return snap;
+  }
+  function reconCfg(): SimulationConfiguration {
+    const cfg = baseConfig();
+    cfg.use_equity_comp     = true;
+    cfg.concentrated_symbol = "GOOG";
+    return cfg;
+  }
+
+  // The core invariant, checkable from the point's own fields with no hardcoded
+  // amounts: net worth (excl. home) = gross investable + 529 − consumer debt. With
+  // consumer debt zeroed it collapses to a clean equality that must hold EVERY
+  // month, not just month 0.
+  it("net worth = gross investable + 529 (consumer debt zeroed), every month", () => {
+    const traj = runSimulation(reconSnap(), reconCfg(), 180);
+    for (const p of traj) {
+      expect(p.totalNetWorth).toBeCloseTo(p.investableAssets + p.educationAssets, -1);
+    }
+  });
+
+  // The specific bug behind the ~$39k mismatch flagged in review: vested RSU shares
+  // held OUTSIDE other_investments (via share_counts.google_shares) ARE part of
+  // gross investable, so the report must itemize them. Prove they're counted by
+  // toggling only those shares and confirming gross investable moves by ~their value.
+  it("counts vested RSU shares held outside the portfolio (share_counts)", () => {
+    const withRsu = reconSnap();
+    withRsu.share_counts = { ...withRsu.share_counts, google_shares: 200, cost_basis: 40, live_stock_price: 180 };
+    const without = reconSnap();
+    without.share_counts = { ...without.share_counts, google_shares: 0, cost_basis: 40, live_stock_price: 180 };
+
+    const a = runSimulation(withRsu, reconCfg(), 180)[0];
+    const b = runSimulation(without, reconCfg(), 180)[0];
+    // 200 extra shares near $180 ≈ $36k of gross investable (allow month-0 drift).
+    expect(a.investableAssets - b.investableAssets).toBeGreaterThan(33_000);
+    expect(a.investableAssets - b.investableAssets).toBeLessThan(37_000);
+  });
+});
+
 // A retired, no-income, no-spend household whose only dynamic is asset growth —
 // used to test compounding cleanly (no salary, 401k, backdoor Roth, SS, or spend).
 function idleRetiree(): SimulationConfiguration {

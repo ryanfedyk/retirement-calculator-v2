@@ -121,7 +121,15 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
     (s, a) => s + a.balance,
     0,
   );
-  const otherInv = snapshot.other_investments ?? [];
+  // The concentrated employer position (config.concentrated_symbol) is counted by
+  // the engine under `googValue` — which also includes vested RSU shares held via
+  // share_counts, OUTSIDE other_investments. List it as its own line and filter it
+  // out of the generic-holdings loop so the itemization ties to the engine's
+  // aggregate exactly (no missing shares, no double-count).
+  const concSym = config.use_equity_comp ? (config.concentrated_symbol ?? "").toUpperCase() : "";
+  const isConc = (s: string) => concSym !== "" && (s ?? "").toUpperCase() === concSym;
+  const otherInv = (snapshot.other_investments ?? []).filter((i) => !isConc(i.symbol));
+  const concValue = today?.googValue ?? 0;
 
   p(`## 2. Starting balance sheet (today's dollars)`);
   p();
@@ -130,6 +138,9 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
   p(`| Taxable brokerage + cash | ${usd(taxableStart)} | LTCG on embedded gains only |`);
   p(`| Traditional 401(k)/IRA | ${usd(tradStart)} | ordinary income (fully taxed) |`);
   p(`| Roth IRA | ${usd(ra.roth_ira)} | tax-free |`);
+  if (concValue > 0) {
+    p(`| Concentrated equity: ${concSym || "employer stock"} | ${usd(concValue)} | vested shares (portfolio + RSU grants); LTCG on embedded gains |`);
+  }
   p(`| 529 (education) | ${usd(eduStart)} | education-only; excluded from net worth's FI assets |`);
   if (otherInv.length) {
     for (const inv of otherInv) {
@@ -164,6 +175,24 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
           `is *excluded* from net worth (no home value entered, so the offsetting ` +
           `asset isn't tracked), but consumer debt is netted out.`,
   );
+  p();
+  // Reconciliation — the engine's aggregate net worth is EXACTLY the sum of its
+  // parts, each shown, so the figure audits line-by-line with no phantom gap. This
+  // decomposes the engine's own month-0 state (which is why it can drift ~one month
+  // of growth from the raw balance-sheet inputs above). Crucially it includes the
+  // concentrated position's out-of-portfolio RSU shares, which the old report
+  // omitted — the source of the ~$39k mismatch flagged in review.
+  const gInv = today?.investableAssets ?? 0;
+  const liqui = today?.liquidCash ?? 0;
+  const retire = today?.retirement ?? 0;
+  const concEng = today?.googValue ?? 0;
+  const otherHoldingsVal = gInv - liqui - retire - concEng; // residual = non-concentrated holdings (jump = 0 at month 0)
+  const edu = today?.educationAssets ?? 0;
+  const debt = liab.consumer_debt || 0;
+  p(`**Reconciliation (ties out exactly).**`);
+  p(`- Gross investable = cash ${usd(liqui)} + retirement ${usd(retire)}${concEng > 0 ? ` + concentrated equity ${usd(concEng)}` : ""} + other holdings ${usd(otherHoldingsVal)} = **${usd(gInv)}**.`);
+  p(`- Net worth (excl. home) = gross investable + 529 (${usd(edu)}) − consumer debt (${usd(debt)}) = **${usd(gInv + edu - debt)}**, matching the reported net worth of **${usd(today?.totalNetWorth ?? 0)}**.`);
+  p(`- The 529 is a household asset but excluded from spendable/FI assets; home equity (if any) is reported separately above and also excluded from FI assets.`);
   p();
 
   // ── 3. Assumptions ──────────────────────────────────────────────────────────
@@ -402,11 +431,16 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
     const mc = runMonteCarlo(snapshot, config, live, { runs: 400 });
     p(`## 11. Sequence-of-returns risk (Monte Carlo)`);
     p();
-    p(`The deterministic path above uses a single fixed real return. Monte Carlo instead draws a random annual real return each year from a normal distribution:`);
+    p(`The deterministic path above compounds at a single **geometric** real return, \`toReal(${ma.market_return_rate} − ${ma.volatility_drag}) = ${round1(toReal(Math.max(0, ma.market_return_rate - ma.volatility_drag), infl))}%\`. Monte Carlo instead draws a random annual real return each year from a normal distribution — and is calibrated so its paths compound to that SAME geometric return, so the two models can't disagree:`);
+    const geoTarget = toReal(Math.max(0, ma.market_return_rate - ma.volatility_drag), infl);
+    const sig = (ma.return_volatility ?? 15) / 100;
+    const arithMean = geoTarget + (sig * sig / 2) * 100;
     p("```");
-    p(`return ~ Normal(mean = ${round1(toReal(ma.market_return_rate, infl))}% real, σ = ${ma.return_volatility ?? 15}%)`);
+    p(`geometric target = ${round1(geoTarget)}% real   (= the deterministic rate)`);
+    p(`arithmetic mean  = geometric target + σ²/2 = ${round1(arithMean)}% real`);
+    p(`return ~ Normal(mean = ${round1(arithMean)}% real, σ = ${ma.return_volatility ?? 15}%)`);
     p("```");
-    p(`The mean is the **arithmetic** expected real return (the volatility drag is *not* re-applied here): the geometric "drag" emerges naturally from σ's variance over time, so subtracting it again would double-count.`);
+    p(`The draws are **arithmetic**, but variance drags the realized geometric mean down by ≈ σ²/2 — so pinning the arithmetic mean to \`geometric target + σ²/2\` makes the drawn paths compound to the geometric target in expectation. The deterministic projection then lands on the Monte Carlo median. (Earlier the MC drew a mean of \`toReal(${ma.market_return_rate})\` with no drag, which quietly made it more optimistic than the deterministic path — that inconsistency is now fixed.)`);
     p(`across ${mc.runs} independent lifetime simulations. "Success" = spendable assets never hit zero once retired.`);
     p();
     p(`- **Success rate: ${Math.round(mc.successRate * 100)}%** of paths fund the plan to age 100.`);

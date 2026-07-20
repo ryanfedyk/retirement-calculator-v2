@@ -10,6 +10,7 @@
 import {
   runSimulation,
   findIndependencePoint,
+  findCashflowFiPoint,
   IRS_401K,
   type FinancialSnapshot,
   type SimulationConfiguration,
@@ -53,7 +54,8 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
   const infl = ma.inflation_rate || 0;
 
   const trajectory = runSimulation(snapshot, config, live);
-  const fi = findIndependencePoint(trajectory);
+  const fi = findIndependencePoint(trajectory);            // Rule-of-25 crossing (reference)
+  const fiSurvival = findCashflowFiPoint(snapshot, config, live, trajectory); // headline FI (cash-flow survival)
   const today = trajectory[0];
   const last = trajectory[trajectory.length - 1];
   const thisYear = input.generatedAt
@@ -361,7 +363,9 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
   // ── 9. The FI test ────────────────────────────────────────────────────────────
   p(`## 9. Financial-independence test (the headline)`);
   p();
-  p(`Each month the model computes a target and compares spendable assets against it.`);
+  p(`**The headline FI date is a cash-flow survival test, not the Rule of 25.** For each candidate month the engine runs the *actual* retirement forward — stop working entirely that month, then draw from the portfolio to fund every modeled expense (mortgage until payoff, healthcare growth, college, taxes, RMDs), offset by Social Security and rental income as they begin — and keeps the earliest month whose assets never deplete before age 100. This is honest because real spending is **non-level**: the mortgage ends, guaranteed income starts, college is temporary, healthcare outpaces inflation, so a single perpetual-withdrawal target is rarely the exact portfolio a plan needs.`);
+  p();
+  p(`The **FI Number (Rule of 25)** below is kept only as a familiar *reference* heuristic — the Progress-to-FI bar is measured against it — not as the pass/fail test.`);
   p();
   p(`**FI Number (Rule of 25 / 4% safe withdrawal rate), plus housing:**`);
   p("```");
@@ -384,7 +388,7 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
   p("```");
   p(`- \`effective_withdrawal_rate\` is the **effective** (not marginal, not the §8 cash-flow 30%) tax rate on this year's net withdrawal need — usually ~8–15%. Applying a flat 30% here would materially *understate* spendable assets.`);
   p(`- \`embedded_unrealized_gains\` is summed **per lot** from each holding's own cost basis: \`Σ max(0, lot_value − lot_shares × lot_basis)\`. A holding with a **$0 basis** is therefore 100% gain and takes the full 15% haircut — the loop runs over every listed position, not a flat discount on the cash balance.`);
-  p(`A household is financially independent once \`spendable ≥ FI_number\` and stays there for the rest of the horizon (a durable crossing, not a transient one during a stock windfall).`);
+  p(`The Rule-of-25 crossing (\`spendable ≥ FI_number\`, durable) is reported below as a reference point, but the **headline FI date is the cash-flow-survival month** described above.`);
   p();
 
   // ── 10. Results ───────────────────────────────────────────────────────────────
@@ -398,11 +402,15 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
     p(`- **Spendable assets today:** ${usd(today.investableAfterTax)} (gross investable ${usd(today.investableAssets)})`);
     p(`- **Net worth today:** ${usd(today.totalNetWorth)}`);
   }
-  if (fi) {
-    p(`- **Financial independence reached: ${fi.date}** (age ${Number((fi.date.match(/\d{4}/) || [])[0]) - birthYear}).`);
-    p(`  - At that point: spendable ${usd(fi.investableAfterTax)} ≥ FI number ${usd(fi.swrTarget)}.`);
+  if (fiSurvival) {
+    p(`- **Financial independence (cash-flow survival): ${fiSurvival.date}** (age ${Number((fiSurvival.date.match(/\d{4}/) || [])[0]) - birthYear}) — the earliest month you could fully retire and still fund every modeled expense to age 100.`);
   } else {
-    p(`- **Financial independence: NOT reached by age 100** under these assumptions — spendable assets never durably cover the FI number.`);
+    p(`- **Financial independence: NOT reached by age 100** — no month lets you fully retire without depleting before age 100 under these assumptions.`);
+  }
+  if (fi) {
+    p(`  - Reference (Rule of 25): spendable durably clears the FI number in **${fi.date}** (${usd(fi.investableAfterTax)} ≥ ${usd(fi.swrTarget)}). This is the heuristic, not the headline test above.`);
+  } else {
+    p(`  - Reference (Rule of 25): spendable assets never durably reach the FI number within the horizon.`);
   }
   if (retirePoint) {
     p(`- **At full retirement (${retirePoint.date}):** net worth ${usd(retirePoint.totalNetWorth)}, spendable ${usd(retirePoint.investableAfterTax)}, annual need ${usd(retirePoint.annualExpenseNeed)}.`);

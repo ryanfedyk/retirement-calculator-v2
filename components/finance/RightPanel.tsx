@@ -8,7 +8,7 @@ import { CalendarDays } from "lucide-react";
 import HorizonZoomButton from "./HorizonZoomButton";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
-import { runSimulation, findIndependencePoint, assessPlan, toDisplayDollars, findRetirementWindow } from "@/engine/calculator";
+import { runSimulation, findCashflowFiPoint, assessPlan, toDisplayDollars, findRetirementWindow } from "@/engine/calculator";
 import type { TrajectoryPoint } from "@/engine/calculator";
 import { runMonteCarlo } from "@/engine/montecarlo";
 import { MomentumGrid } from "./MotivationWidgets";
@@ -200,7 +200,13 @@ export default function RightPanel({ livePrices }: Props) {
   );
 
   // Key metrics
-  const indepPoint     = findIndependencePoint(trajectoryData);
+  // FI date = the earliest month you could fully retire and still fund every
+  // modeled expense to age 100 (real cash-flow survival). The Rule-of-25 swrTarget
+  // below stays as the "FI Number" heuristic that drives the Progress bar.
+  const fiPoint = useMemo(
+    () => findCashflowFiPoint(enrichedSnapshot, config, liveGoogPrice, trajectoryData),
+    [enrichedSnapshot, config, liveGoogPrice, trajectoryData],
+  );
   const plan           = assessPlan(trajectoryData);
   const todayPoint     = trajectoryData[0];
   const currentNW      = todayPoint?.totalNetWorth ?? 0;
@@ -227,9 +233,9 @@ export default function RightPanel({ livePrices }: Props) {
   // FIRE callouts (MILESTONES), so the Alerts card and those notifications match.
   const isIndependent = todayPoint?.isIndependent ?? false;
   const notices = useMemo(
-    () => buildNotices({ health: plan.health, depletion: plan.depletion, reachesFI: !!indepPoint, birthYear,
+    () => buildNotices({ health: plan.health, depletion: plan.depletion, reachesFI: !!fiPoint, birthYear,
       metrics: { netWorth: currentNW, swrTarget, isIndependent, savingsRate, coastFI } }),
-    [plan.health, plan.depletion, indepPoint, currentNW, swrTarget, isIndependent, coastFI, savingsRate, birthYear],
+    [plan.health, plan.depletion, fiPoint, currentNW, swrTarget, isIndependent, coastFI, savingsRate, birthYear],
   );
 
   // The trajectory re-expressed in the global money basis (today's vs future $).
@@ -336,7 +342,7 @@ export default function RightPanel({ livePrices }: Props) {
     const m: Milestone[] = [];
     // Primary — the headline financial milestones
     if (retireDateStr)   m.push({ x: retireDateStr,   stroke: "#2a7a68", label: hasPostPhases ? "Career Exit" : "Retire", primary: true  });
-    if (indepPoint)      m.push({ x: indepPoint.date, stroke: "#80c4ae", label: "FI",         primary: true  });
+    if (fiPoint)         m.push({ x: fiPoint.date, stroke: "#80c4ae", label: "FI",         primary: true  });
     if (mortgageDateStr && config.spending.housing_type !== "rent") m.push({ x: mortgageDateStr, stroke: "#9bbdb4", label: "Paid Off",   primary: true  });
     if (enDateStr)       m.push({ x: enDateStr,       stroke: C.warm,    label: "Empty Nest", primary: true  });
     // Career-phase transitions — prominent (always visible), since they're the
@@ -397,7 +403,7 @@ export default function RightPanel({ livePrices }: Props) {
 
       {/* ── Summary cards: Financial Independence · Progress to FI · Alerts ── */}
       <SummaryCards
-        indepDate={indepPoint ? indepPoint.date : null}
+        indepDate={fiPoint ? fiPoint.date : null}
         netWorth={currentNW}
         netWorthWithHome={todayPoint?.netWorthWithHome ?? 0}
         spendable={spendable}

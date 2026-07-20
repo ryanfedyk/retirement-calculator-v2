@@ -79,7 +79,8 @@ export default function SummaryCards({ indepDate, netWorth, netWorthWithHome, sp
 
   const fiExplain = (
     <>
-      <p style={{ margin: 0 }}>The date your investments are projected to durably cover your spending — when your assets reach your FI number (25× annual expenses) and stay there. From then on, paid work is optional.</p>
+      <p style={{ margin: 0 }}>The earliest date you could <strong>stop working entirely</strong> and still fund every projected expense — your mortgage until it’s paid off, healthcare (which outpaces inflation), college, taxes — all the way to age 100, offset by Social Security and rental income as they begin.</p>
+      <p style={{ margin: "10px 0 0" }}>This is the honest test: we actually run your retirement cash-flow forward from each month and pick the first one that never runs dry. (The <em>FI Number</em> card is the simpler 25× rule of thumb — a useful reference, but real spending isn’t level, so it’s not the exact target.)</p>
       {indepDate && <p style={{ margin: "10px 0 0" }}>For this scenario that’s <strong>{indepDate}</strong>.</p>}
     </>
   );
@@ -131,7 +132,7 @@ export default function SummaryCards({ indepDate, netWorth, netWorthWithHome, sp
             </div>
             <Chip bg={indepDate ? "#ffffffcc" : C.borderSoft} color={indepDate ? C.teal : C.inkFaint} icon={Flag} />
           </div>
-          <div style={{ fontSize: 10, color: indepDate ? C.tealDark : C.inkFaint, opacity: 0.8, marginTop: "auto", paddingTop: 8 }}>{indepDate ? "Projected date you reach FI" : "Adjust strategy to reach FI"}</div>
+          <div style={{ fontSize: 10, color: indepDate ? C.tealDark : C.inkFaint, opacity: 0.8, marginTop: "auto", paddingTop: 8 }}>{indepDate ? "Earliest you can retire, funded to 100" : "Adjust strategy to reach FI"}</div>
         </div>
 
         {/* Net Worth — your investable money; matches the wealth chart's first point */}

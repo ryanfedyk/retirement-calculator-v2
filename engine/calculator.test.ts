@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { runSimulation, findIndependencePoint, assessPlan, toDisplayDollars, findRetirementWindow } from "@/engine/calculator";
+import { runSimulation, findIndependencePoint, assessPlan, toDisplayDollars, findRetirementWindow, findCashflowFiPoint } from "@/engine/calculator";
 import { estimateMonthlySocialSecurity } from "@/engine/social_security";
 import { calculateTax } from "@/engine/tax_engine";
 import type { FinancialSnapshot, SimulationConfiguration } from "@/engine/calculator";
@@ -28,6 +28,51 @@ describe("runSimulation — invariants", () => {
     const traj = runSimulation(idleSnap(1_000_000), cfg, 200);
     // One clean year of growth (no contributions/withdrawals) → exactly 7%.
     expect(traj[24].liquidCash / traj[12].liquidCash).toBeCloseTo(1.07, 3);
+  });
+});
+
+describe("findCashflowFiPoint — survival-based FI", () => {
+  it("flags an over-funded household as FI at/near the start", () => {
+    const snap = baseSnap();
+    snap.liquid_assets.cash_savings    = 6_000_000;
+    snap.liquid_assets.vanguard_bridge = 0;
+    const cfg = baseConfig();
+    cfg.birth_year = YEAR - 60;                 // age 60, ~40-year horizon
+    cfg.spending.monthly_lifestyle  = 4_000;    // ~0.8% withdrawal on $6M
+    cfg.spending.healthcare_premium = 0;
+    cfg.spending.mortgage_payment   = 0;
+    const fi = findCashflowFiPoint(snap, cfg, 200);
+    expect(fi).toBeDefined();
+    expect(fi!.monthIndex).toBeLessThan(24);    // FI now or within ~2 years
+  });
+
+  it("returns undefined when an immediate retirement never survives", () => {
+    const snap = baseSnap();
+    snap.liquid_assets.cash_savings    = 200_000;
+    snap.liquid_assets.vanguard_bridge = 0;
+    snap.retirement_assets = { k401: 0, traditional_ira: 0, roth_ira: 0 };
+    snap.other_investments = [];
+    const cfg = baseConfig();
+    cfg.birth_year = YEAR - 45;                    // long horizon to fund
+    cfg.income_profile.gross_annual_salary = 0;    // no income to accumulate from
+    cfg.spending.monthly_lifestyle = 9_000;        // way over what $200k supports
+    expect(findCashflowFiPoint(snap, cfg, 200)).toBeUndefined();
+  });
+
+  it("is independent of the Rule-of-25 heuristic — guaranteed income can make you FI below 25×", () => {
+    // Rental + (eventual) Social Security cover most of a modest lifestyle, so the
+    // cash-flow plan survives even though gross spending × 25 dwarfs the portfolio.
+    const snap = baseSnap();
+    snap.liquid_assets.cash_savings    = 900_000;
+    snap.liquid_assets.vanguard_bridge = 0;
+    const cfg = baseConfig();
+    cfg.birth_year = YEAR - 62;
+    cfg.spending.monthly_lifestyle  = 4_500;
+    cfg.spending.healthcare_premium = 0;
+    cfg.spending.mortgage_payment   = 0;
+    cfg.income_profile.monthly_rental_income = 3_500; // strong guaranteed offset
+    const fi = findCashflowFiPoint(snap, cfg, 200);
+    expect(fi).toBeDefined();
   });
 });
 

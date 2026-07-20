@@ -5,7 +5,7 @@ import HorizonZoomButton from "@/components/finance/HorizonZoomButton";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
-import { runSimulation, findIndependencePoint, assessPlan, toDisplayDollars, findRetirementWindow } from "@/engine/calculator";
+import { runSimulation, findCashflowFiPoint, assessPlan, toDisplayDollars, findRetirementWindow } from "@/engine/calculator";
 import { runMonteCarlo } from "@/engine/montecarlo";
 import { getLifeEvents } from "@/lib/horizonUtils";
 import { useHorizonProfile } from "@/config/horizonConfig";
@@ -64,7 +64,13 @@ export default function MobileFinancial({ livePrices, onOpenConfig }: Props) {
     [enrichedSnapshot, config, liveGoogPrice],
   );
 
-  const indep    = findIndependencePoint(traj);
+  // FI date = earliest month you could fully retire and fund every modeled expense
+  // to age 100 (real cash-flow survival). Rule-of-25 (swrTarget) stays the heuristic
+  // "FI Number" behind the Progress bar.
+  const indep    = useMemo(
+    () => findCashflowFiPoint(enrichedSnapshot, config, liveGoogPrice, traj),
+    [enrichedSnapshot, config, liveGoogPrice, traj],
+  );
   const plan     = assessPlan(traj);
   const today    = traj[0];
   const currentNW = today?.totalNetWorth ?? 0;

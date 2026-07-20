@@ -1532,3 +1532,70 @@ export function findRetirementWindow(
   }
   return { earliest, recommended };
 }
+
+/**
+ * TRUE cash-flow financial independence: the earliest month from which the
+ * household could stop working entirely and still fund every modeled expense —
+ * mortgage (until its own payoff), healthcare growth, college, taxes, RMDs — all
+ * the way to age 100, offset by Social Security and rental income as they start.
+ *
+ * This is the honest FI test. The Rule-of-25 `swrTarget` is only a heuristic: it
+ * assumes a LEVEL perpetual expense, but real spending is non-level (the mortgage
+ * ends, SS/rental begin, college is temporary, healthcare outpaces inflation), so
+ * the 25× number is rarely the exact portfolio a plan needs. Here we instead run
+ * the retirement cash-flow model forward from each candidate month and keep the
+ * first that never depletes — the durable, defensible FI date.
+ *
+ * "Retire now" means a clean full stop: no sabbatical/jump/bridge phases (those
+ * are optional career moves, not part of "can I afford to quit?"). Scans years
+ * coarsely, then refines to the month, so cost stays comparable to
+ * findRetirementWindow. Returns the matching point on the passed-in trajectory
+ * (so its date/monthIndex line up with the chart), or undefined if the plan never
+ * survives an immediate retirement within the horizon.
+ */
+export function findCashflowFiPoint(
+  snapshot: FinancialSnapshot,
+  config: SimulationConfiguration,
+  livePrice = 0,
+  points?: TrajectoryPoint[],
+): TrajectoryPoint | undefined {
+  const startYear  = new Date().getFullYear();
+  const startMonth = new Date().getMonth();
+  const maxYear    = (config.birth_year || 1985) + 75;
+  const main = points ?? runSimulation(snapshot, config, livePrice);
+  if (!main.length) return undefined;
+
+  // A "retire fully at (year, month)" config: exit then, with no post-exit career
+  // phases — a pure "stop working and live off assets" test.
+  const survives = (year: number, month: number): boolean => {
+    const cfg: SimulationConfiguration = {
+      ...structuredClone(config),
+      career_path: {
+        ...config.career_path,
+        exit_year: year, exit_month: month,
+        use_sabbatical: false, use_jump: false, use_bridge: false,
+      },
+    };
+    return assessPlan(runSimulation(snapshot, cfg, livePrice)).health !== "shortfall";
+  };
+
+  // Coarse pass — earliest survivable YEAR (tested in January, or the current month
+  // for this year since we can't retire in the past).
+  let earliestYear: number | null = null;
+  for (let yr = startYear; yr <= maxYear; yr++) {
+    if (survives(yr, yr === startYear ? startMonth : 0)) { earliestYear = yr; break; }
+  }
+  if (earliestYear == null) return undefined;
+
+  // Refine to the month — scan from the prior year so a mid-year crossing the
+  // January-granular pass would miss is still caught.
+  for (let yr = Math.max(startYear, earliestYear - 1); yr <= earliestYear; yr++) {
+    for (let m = yr === startYear ? startMonth : 0; m < 12; m++) {
+      if (survives(yr, m)) {
+        const idx = (yr - startYear) * 12 + m - startMonth;
+        return main[Math.max(0, Math.min(main.length - 1, idx))];
+      }
+    }
+  }
+  return undefined;
+}

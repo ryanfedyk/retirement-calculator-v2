@@ -59,6 +59,37 @@ describe("findCashflowFiPoint — survival-based FI", () => {
     expect(findCashflowFiPoint(snap, cfg, 200)).toBeUndefined();
   });
 
+  it("reports FI only once the plan has a real cushion — not a tight, SS-rescued near-$0 plan", () => {
+    // Regression: a plan that technically never hits exactly $0 only because Social
+    // Security rescues a near-zero portfolio late in retirement is NOT "funded to
+    // 100" — its wealth chart nose-dives toward zero. Retiring AT the reported FI
+    // date must be genuinely on-track (a real reserve), not razor-thin.
+    const snap = baseSnap();
+    snap.liquid_assets.cash_savings    = 150_000;
+    snap.liquid_assets.vanguard_bridge = 0;
+    snap.retirement_assets = { k401: 800_000, traditional_ira: 0, roth_ira: 150_000 };
+    snap.other_investments = [{ id: "1", name: "VTI", symbol: "VTI", shares: 1500, cost_basis: 150, current_price: 270, expected_return: 7 }];
+    snap.liabilities = { ...snap.liabilities, mortgage_balance: 1_400_000, mortgage_interest_rate: 3, property_value: 2_600_000 };
+    const cfg = baseConfig();
+    cfg.birth_year = 1980;
+    cfg.spending.housing_type = "mortgage";
+    cfg.spending.monthly_lifestyle = 7_500;
+    cfg.income_profile.gross_annual_salary  = 300_000;
+    cfg.income_profile.monthly_rental_income = 2_000;
+
+    const fi = findCashflowFiPoint(snap, cfg, 270);
+    expect(fi).toBeDefined();
+    // Rebuild the exact "retire at the reported FI date" scenario and confirm it's
+    // on-track — the guarantee findCashflowFiPoint now makes.
+    const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const [mo, yr] = fi!.date.split(" ");
+    const atFi = {
+      ...structuredClone(cfg),
+      career_path: { ...cfg.career_path, exit_year: Number(yr), exit_month: MONTHS.indexOf(mo), use_sabbatical: false, use_jump: false, use_bridge: false },
+    };
+    expect(assessPlan(runSimulation(snap, atFi, 270)).health).toBe("on-track");
+  });
+
   it("is independent of the Rule-of-25 heuristic — guaranteed income can make you FI below 25×", () => {
     // Rental + (eventual) Social Security cover most of a modest lifestyle, so the
     // cash-flow plan survives even though gross spending × 25 dwarfs the portfolio.

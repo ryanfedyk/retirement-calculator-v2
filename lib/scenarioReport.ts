@@ -39,6 +39,8 @@ export interface ScenarioReportInput {
   liveGoogPrice?: number;
   /** Run Monte Carlo (slower) and include the success-rate section. Default true. */
   includeMonteCarlo?: boolean;
+  /** Number of Monte Carlo simulations (default 4000). Lower it in tests for speed. */
+  monteCarloRuns?: number;
   /** ISO date string for the report header (the engine forbids Date.now()). */
   generatedAt?: string;
 }
@@ -438,7 +440,7 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
 
   // ── 11. Monte Carlo ───────────────────────────────────────────────────────────
   if (input.includeMonteCarlo ?? true) {
-    const mc = runMonteCarlo(snapshot, config, live, { runs: 4000 });
+    const mc = runMonteCarlo(snapshot, config, live, { runs: input.monteCarloRuns ?? 4000 });
     p(`## 11. Sequence-of-returns risk (Monte Carlo)`);
     p();
     p(`The deterministic path above compounds at a single **geometric** real return, \`toReal(${ma.market_return_rate} − ${ma.volatility_drag}) = ${round1(toReal(Math.max(0, ma.market_return_rate - ma.volatility_drag), infl))}%\`. Monte Carlo instead draws a random annual real return each year from a normal distribution — and is calibrated so its paths compound to that SAME geometric return, so the two models can't disagree:`);

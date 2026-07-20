@@ -1566,7 +1566,12 @@ export function findCashflowFiPoint(
   if (!main.length) return undefined;
 
   // A "retire fully at (year, month)" config: exit then, with no post-exit career
-  // phases — a pure "stop working and live off assets" test.
+  // phases — a pure "stop working and live off assets" test. FI requires a genuine
+  // cushion (assessPlan "on-track"), NOT merely "never hits exactly $0": a plan
+  // that only survives because Social Security rescues a near-zero portfolio late
+  // in retirement is technically solvent but is not what anyone means by "funded
+  // to 100" — its wealth chart nose-dives toward zero. "on-track" means the
+  // leanest retired moment still holds well over a year of expenses in reserve.
   const survives = (year: number, month: number): boolean => {
     const cfg: SimulationConfiguration = {
       ...structuredClone(config),
@@ -1576,7 +1581,7 @@ export function findCashflowFiPoint(
         use_sabbatical: false, use_jump: false, use_bridge: false,
       },
     };
-    return assessPlan(runSimulation(snapshot, cfg, livePrice)).health !== "shortfall";
+    return assessPlan(runSimulation(snapshot, cfg, livePrice)).health === "on-track";
   };
 
   // Coarse pass — earliest survivable YEAR (tested in January, or the current month

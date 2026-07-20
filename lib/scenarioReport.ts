@@ -16,7 +16,7 @@ import {
   type SimulationConfiguration,
   type TrajectoryPoint,
 } from "@/engine/calculator";
-import { runMonteCarlo } from "@/engine/montecarlo";
+import { runMonteCarlo, findMonteCarloFiYears } from "@/engine/montecarlo";
 import { estimateMonthlySocialSecurity } from "@/engine/social_security";
 
 const usd = (n: number) =>
@@ -464,6 +464,20 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
     }
     p(`- Ending net worth across paths: 10th pct ${usd(lastBand?.p10 ?? 0)} · median ${usd(lastBand?.p50 ?? 0)} · 90th pct ${usd(lastBand?.p90 ?? 0)}.`);
     p(`- Median ending spendable assets: ${usd(mc.medianFinalNetWorth)}.`);
+    p();
+
+    // Confidence-graded FI dates: the earliest retirement year that survives 90 /
+    // 95 / 99% of simulated market paths, alongside the deterministic (median-path)
+    // date. This answers "how sure am I?", not just "does the base case work?".
+    const fiConf = findMonteCarloFiYears(snapshot, config, live, { runsPerYear: Math.min(250, input.monteCarloRuns ?? 250) });
+    p(`**Confidence-graded FI date** — earliest full-retirement year by probability of funding the plan to age 100 (≈ ±1 year, 250 sims/year):`);
+    p("```");
+    p(`base case (deterministic median path): ${fiConf.baseYear ?? "not reached"}`);
+    for (const t of fiConf.thresholds) {
+      p(`${Math.round(t.p * 100)}% of market paths succeed:   ${t.year ?? "not by age 100"}`);
+    }
+    p("```");
+    p(`The base-case date assumes the single expected return every year; the ${fiConf.thresholds.map((t) => `${Math.round(t.p * 100)}%`).join(" / ")} dates require surviving progressively worse return *sequences*, so they land later. The gap between the base case and the 95% date is the real cost of sequence risk — often several years.`);
     p();
   }
 

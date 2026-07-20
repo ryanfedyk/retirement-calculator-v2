@@ -13,7 +13,7 @@
 // concentrated employer position keeps its own growth assumption (see
 // runSimulation's marketReturnPath).
 
-import { runSimulation } from "./calculator";
+import { runSimulation, findCashflowFiPoint } from "./calculator";
 import type { FinancialSnapshot, SimulationConfiguration } from "./calculator";
 
 export interface MonteCarloBand {
@@ -170,4 +170,59 @@ export function runMonteCarlo(
     bands,
     medianFinalNetWorth: percentile(finals, 50),
   };
+}
+
+export interface MonteCarloFiResult {
+  /** The deterministic (base-case) FI year — the median-path reference. */
+  baseYear: number | null;
+  /** Earliest exit YEAR whose Monte Carlo success rate meets each probability. */
+  thresholds: { p: number; year: number | null }[];
+}
+
+/**
+ * Confidence-graded FI dates: alongside the single deterministic FI date, the
+ * earliest retirement year that funds the plan to age 100 in at least 90% / 95% /
+ * 99% of simulated market paths. A deterministic date answers "does it work under
+ * the base-case return?"; this answers "how sure am I?" — usually the far more
+ * decision-relevant question.
+ *
+ * Efficiency: a probability-graded date can't precede the median-path (base-case)
+ * date — higher confidence must survive worse sequences, needing a later exit — so
+ * we scan UPWARD from the base year, run Monte Carlo per candidate exit with a
+ * FIXED seed (every year sees the same return paths, so success rates are directly
+ * comparable and monotonic), and stop the moment the strictest threshold is met.
+ */
+export function findMonteCarloFiYears(
+  snapshot: FinancialSnapshot,
+  config: SimulationConfiguration,
+  livePrice = 0,
+  opts: { probabilities?: number[]; runsPerYear?: number; seed?: number } = {},
+): MonteCarloFiResult {
+  const probs = (opts.probabilities ?? [0.9, 0.95, 0.99]).slice().sort((a, b) => a - b);
+  const runs  = Math.max(1, Math.floor(opts.runsPerYear ?? 500));
+  const seed  = opts.seed ?? 0x1234567;
+  const startYear = new Date().getFullYear();
+  const maxYear   = (config.birth_year || 1985) + 75;
+
+  const basePt = findCashflowFiPoint(snapshot, config, livePrice);
+  const baseYear = basePt ? Number(basePt.date.split(" ")[1]) : null;
+
+  const results = probs.map((p) => ({ p, year: null as number | null }));
+  // If the plan never reaches FI even on the deterministic median path, it can't
+  // reach any confidence threshold either — skip the (potentially long) scan.
+  if (baseYear == null) return { baseYear: null, thresholds: results };
+
+  // Scan upward from the base year, capped so a marginal plan that never reaches
+  // 99% doesn't scan decades.
+  const scanTo = Math.min(maxYear, baseYear + 35);
+  for (let yr = Math.max(startYear, baseYear); yr <= scanTo; yr++) {
+    const cfg: SimulationConfiguration = {
+      ...structuredClone(config),
+      career_path: { ...config.career_path, exit_year: yr, use_sabbatical: false, use_jump: false, use_bridge: false },
+    };
+    const { successRate } = runMonteCarlo(snapshot, cfg, livePrice, { runs, seed });
+    for (const r of results) if (r.year == null && successRate >= r.p) r.year = yr;
+    if (results.every((r) => r.year != null)) break;
+  }
+  return { baseYear, thresholds: results };
 }

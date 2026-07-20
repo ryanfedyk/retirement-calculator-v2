@@ -115,7 +115,11 @@ export function runMonteCarlo(
     // One real-return draw per year, held flat across that year's 12 months.
     const path = new Array<number>(PATH_MONTHS);
     for (let y = 0; y < years; y++) {
-      const annual = meanRealPct + sdPct * normal();
+      // A normal draw can technically fall below −100% (an impossible annual
+      // return that would drive the portfolio negative). At σ=15% that's a ~7-sigma
+      // event, but clamp the floor at −95% so no drawn path is mathematically
+      // impossible. (No upper clamp — big positive years are fine.)
+      const annual = Math.max(-95, meanRealPct + sdPct * normal());
       for (let m = 0; m < 12; m++) {
         const idx = y * 12 + m;
         if (idx < PATH_MONTHS) path[idx] = annual;

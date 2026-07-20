@@ -39,6 +39,8 @@ export interface ScenarioReportInput {
   liveGoogPrice?: number;
   /** Run Monte Carlo (slower) and include the success-rate section. Default true. */
   includeMonteCarlo?: boolean;
+  /** Number of Monte Carlo simulations (default 4000). Lower it in tests for speed. */
+  monteCarloRuns?: number;
   /** ISO date string for the report header (the engine forbids Date.now()). */
   generatedAt?: string;
 }
@@ -214,8 +216,10 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
   p(`**Real-rate conversion (Fisher):** \`real = (1 + nominal) / (1 + inflation) − 1\`.`);
   p(
     `The entire projection runs in today's dollars, so growth is applied at the ` +
-      `*real* rate. This also keeps the fixed 2025 tax brackets valid year over ` +
-      `year (no phantom bracket creep).`,
+      `*real* rate. Tax thresholds and deductions are correspondingly held constant ` +
+      `in **real** dollars — a simplifying assumption that tax law stays inflation- ` +
+      `indexed and the real tax structure is unchanged (so there's no phantom bracket ` +
+      `creep). It does NOT mean the literal 2025 nominal brackets apply in future years.`,
   );
   p();
   p(`**Monthly compounding:** an annual rate \`r\` (as a %) becomes a monthly factor`);
@@ -380,13 +384,13 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
     p(`The recurring mortgage **payment** is deliberately **not** capitalized at 25× (it's finite). Instead the **remaining balance** is added as the lump needed to clear the house; as it amortizes to $0 that add-on shrinks to nothing, and once paid off the payment also drops out of expenses.`);
   }
   p();
-  p(`**Spendable ("after-tax") assets** — what's compared against the FI number:`);
+  p(`**Estimated spendable value** of assets — used only for the Rule-of-25 reference metric, NOT the headline FI test (which is the cash-flow survival model, where every dollar of tax is computed exactly year by year). This is a rough *valuation* of illiquid/tax-deferred assets, not a precise after-tax figure:`);
   p("```");
-  p(`spendable = cash + roth`);
+  p(`spendable ≈ cash + roth`);
   p(`          + traditional × (1 − effective_withdrawal_rate)`);
   p(`          + taxable_holdings − 0.15 × embedded_unrealized_gains`);
   p("```");
-  p(`- \`effective_withdrawal_rate\` is the **effective** (not marginal, not the §8 cash-flow 30%) tax rate on this year's net withdrawal need — usually ~8–15%. Applying a flat 30% here would materially *understate* spendable assets.`);
+  p(`- The traditional term is an *estimate under one withdrawal assumption*, not a true market value — a $1M pre-tax account is worth more if drawn slowly at low rates (or Roth-converted in low-income years) than if liquidated in one high-tax year. \`effective_withdrawal_rate\` here is the **effective** (not marginal, not the §8 cash-flow 30%) rate on this year's net withdrawal need — usually ~8–15%.`);
   p(`- \`embedded_unrealized_gains\` is summed **per lot** from each holding's own cost basis: \`Σ max(0, lot_value − lot_shares × lot_basis)\`. A holding with a **$0 basis** is therefore 100% gain and takes the full 15% haircut — the loop runs over every listed position, not a flat discount on the cash balance.`);
   p(`The Rule-of-25 crossing (\`spendable ≥ FI_number\`, durable) is reported below as a reference point, but the **headline FI date is the cash-flow-survival month** described above.`);
   p();
@@ -436,7 +440,7 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
 
   // ── 11. Monte Carlo ───────────────────────────────────────────────────────────
   if (input.includeMonteCarlo ?? true) {
-    const mc = runMonteCarlo(snapshot, config, live, { runs: 400 });
+    const mc = runMonteCarlo(snapshot, config, live, { runs: input.monteCarloRuns ?? 4000 });
     p(`## 11. Sequence-of-returns risk (Monte Carlo)`);
     p();
     p(`The deterministic path above compounds at a single **geometric** real return, \`toReal(${ma.market_return_rate} − ${ma.volatility_drag}) = ${round1(toReal(Math.max(0, ma.market_return_rate - ma.volatility_drag), infl))}%\`. Monte Carlo instead draws a random annual real return each year from a normal distribution — and is calibrated so its paths compound to that SAME geometric return, so the two models can't disagree:`);
@@ -449,9 +453,16 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
     p(`return ~ Normal(mean = ${round1(arithMean)}% real, σ = ${ma.return_volatility ?? 15}%)`);
     p("```");
     p(`The draws are **arithmetic**, but variance drags the realized geometric mean down by ≈ σ²/2 — so pinning the arithmetic mean to \`geometric target + σ²/2\` makes the drawn paths compound to the geometric target in expectation. The deterministic projection then lands on the Monte Carlo median. (Earlier the MC drew a mean of \`toReal(${ma.market_return_rate})\` with no drag, which quietly made it more optimistic than the deterministic path — that inconsistency is now fixed.)`);
-    p(`across ${mc.runs} independent lifetime simulations. "Success" = spendable assets never hit zero once retired.`);
+    p(`across ${mc.runs} independent lifetime simulations (returns randomized from today through age 100, so accumulation-phase sequence risk is captured, not just the retirement draw-down). "Success" = spendable assets never hit zero once retired.`);
     p();
-    p(`- **Success rate: ${Math.round(mc.successRate * 100)}%** of paths fund the plan to age 100.`);
+    const failures = Math.round((1 - mc.successRate) * mc.runs);
+    const lastBand = mc.bands[mc.bands.length - 1];
+    if (failures === 0) {
+      p(`- **No failures in ${mc.runs} simulations** — every simulated market path funded the plan to age 100. This is *not* a proof of zero failure risk: with 0 failures in ${mc.runs} trials the true failure rate could still be as high as ~${(300 / mc.runs).toFixed(2)}% at 95% confidence (rule of three).`);
+    } else {
+      p(`- **${failures} of ${mc.runs} simulations failed** to fund the plan to age 100 — a ${((1 - mc.successRate) * 100).toFixed(1)}% failure rate (${(mc.successRate * 100).toFixed(1)}% success).`);
+    }
+    p(`- Ending net worth across paths: 10th pct ${usd(lastBand?.p10 ?? 0)} · median ${usd(lastBand?.p50 ?? 0)} · 90th pct ${usd(lastBand?.p90 ?? 0)}.`);
     p(`- Median ending spendable assets: ${usd(mc.medianFinalNetWorth)}.`);
     p();
   }
@@ -461,7 +472,7 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
   p();
   p(`- Runs entirely in today's dollars; nominal display just re-inflates the output.`);
   p(`- Social Security is estimated from current salary as a proxy for the 35-year indexed average (override available).`);
-  p(`- Tax brackets are fixed at 2025 values; retirement-contribution limits at ${IRS_401K.year} (both held flat thereafter — valid because the model is real-dollar).`);
+  p(`- Tax brackets (2025) and retirement-contribution limits (${IRS_401K.year}) are held constant in **real** dollars — i.e. assumed to keep tracking inflation — not frozen at their nominal values. A simplification, but a reasonable one for a real-dollar model.`);
   p(propertyValue > 0
     ? `- The home's market value is tracked, but its equity is kept OUT of the headline net worth (reported separately as home equity / net worth incl. home) and out of spendable/FI assets since it isn't liquid.`
     : `- No home value entered, so the home asset behind the mortgage isn't tracked and the mortgage is excluded from net worth.`);

@@ -208,6 +208,12 @@ export default function RightPanel({ livePrices }: Props) {
     [enrichedSnapshot, config, liveGoogPrice, trajectoryData],
   );
   const plan           = assessPlan(trajectoryData);
+  // FI is only "reached" if retiring under YOUR actual plan (your chosen exit year)
+  // stays funded with a cushion. Retire before you're funded and the plan draws
+  // down and never recovers — so FI reads "not reached", and fiPoint (the earliest
+  // funded month) is shown only once your plan actually clears the bar. This is why
+  // moving your exit earlier than you can afford pushes FI out of reach.
+  const fiShown        = plan.health === "on-track" && fiPoint ? fiPoint : undefined;
   const todayPoint     = trajectoryData[0];
   const currentNW      = todayPoint?.totalNetWorth ?? 0;
   // Progress toward FI is measured on SPENDABLE (after-tax investable) assets —
@@ -233,9 +239,9 @@ export default function RightPanel({ livePrices }: Props) {
   // FIRE callouts (MILESTONES), so the Alerts card and those notifications match.
   const isIndependent = todayPoint?.isIndependent ?? false;
   const notices = useMemo(
-    () => buildNotices({ health: plan.health, depletion: plan.depletion, reachesFI: !!fiPoint, birthYear,
+    () => buildNotices({ health: plan.health, depletion: plan.depletion, reachesFI: !!fiShown, birthYear,
       metrics: { netWorth: currentNW, swrTarget, isIndependent, savingsRate, coastFI } }),
-    [plan.health, plan.depletion, fiPoint, currentNW, swrTarget, isIndependent, coastFI, savingsRate, birthYear],
+    [plan.health, plan.depletion, fiShown, currentNW, swrTarget, isIndependent, coastFI, savingsRate, birthYear],
   );
 
   // The trajectory re-expressed in the global money basis (today's vs future $).
@@ -342,7 +348,7 @@ export default function RightPanel({ livePrices }: Props) {
     const m: Milestone[] = [];
     // Primary — the headline financial milestones
     if (retireDateStr)   m.push({ x: retireDateStr,   stroke: "#2a7a68", label: hasPostPhases ? "Career Exit" : "Retire", primary: true  });
-    if (fiPoint)         m.push({ x: fiPoint.date, stroke: "#80c4ae", label: "FI",         primary: true  });
+    if (fiShown)         m.push({ x: fiShown.date, stroke: "#80c4ae", label: "FI",         primary: true  });
     if (mortgageDateStr && config.spending.housing_type !== "rent") m.push({ x: mortgageDateStr, stroke: "#9bbdb4", label: "Paid Off",   primary: true  });
     if (enDateStr)       m.push({ x: enDateStr,       stroke: C.warm,    label: "Empty Nest", primary: true  });
     // Career-phase transitions — prominent (always visible), since they're the
@@ -403,7 +409,7 @@ export default function RightPanel({ livePrices }: Props) {
 
       {/* ── Summary cards: Financial Independence · Progress to FI · Alerts ── */}
       <SummaryCards
-        indepDate={fiPoint ? fiPoint.date : null}
+        indepDate={fiShown ? fiShown.date : null}
         netWorth={currentNW}
         netWorthWithHome={todayPoint?.netWorthWithHome ?? 0}
         spendable={spendable}

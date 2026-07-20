@@ -1501,16 +1501,20 @@ export function assessPlan(points: TrajectoryPoint[]): PlanAssessment {
 }
 
 export interface RetirementWindow {
-  /** Earliest exit year whose plan still funds retirement to age 100 and reaches FI. */
+  /** Earliest exit year whose plan is comfortably funded to age 100 (a real cushion). */
   earliest: number | null;
-  /** Earliest exit year that's comfortably on-track (a real cushion). */
+  /** Same as `earliest` — the comfortably-funded threshold. Kept for compatibility. */
   recommended: number | null;
 }
 
 /**
  * Scan candidate exit years to find the soonest the user could retire and stay
- * funded (`earliest`) and the soonest with a comfortable cushion (`recommended`).
- * Later exits are healthier, so we scan ascending and stop once both are found.
+ * comfortably funded to age 100 (assessPlan "on-track" — a real cushion, not merely
+ * scraping past $0). Uses the SAME bar as the headline FI test (findCashflowFiPoint)
+ * so the exit slider's "Earliest YYYY" caption agrees with the FI card: it never
+ * suggests a year the card would call "not reached". Later exits are only healthier,
+ * so we scan ascending and stop at the first that clears the bar. Respects the
+ * configured exit_month, matching how the year slider actually moves the exit.
  */
 export function findRetirementWindow(
   snapshot: FinancialSnapshot,
@@ -1520,17 +1524,11 @@ export function findRetirementWindow(
   const currentYear = new Date().getFullYear();
   const maxYear = (config.birth_year || 1985) + 75;
   let earliest: number | null = null;
-  let recommended: number | null = null;
   for (let yr = currentYear; yr <= maxYear; yr++) {
     const cfg: SimulationConfiguration = { ...structuredClone(config), career_path: { ...config.career_path, exit_year: yr } };
-    const pts = runSimulation(snapshot, cfg, livePrice);
-    const { health } = assessPlan(pts);
-    const reachesFI = !!findIndependencePoint(pts);
-    if (earliest == null && health !== "shortfall" && reachesFI) earliest = yr;
-    if (recommended == null && health === "on-track") recommended = yr;
-    if (earliest != null && recommended != null) break;
+    if (assessPlan(runSimulation(snapshot, cfg, livePrice)).health === "on-track") { earliest = yr; break; }
   }
-  return { earliest, recommended };
+  return { earliest, recommended: earliest };
 }
 
 /**

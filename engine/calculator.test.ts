@@ -90,6 +90,31 @@ describe("findCashflowFiPoint — survival-based FI", () => {
     expect(assessPlan(runSimulation(snap, atFi, 270)).health).toBe("on-track");
   });
 
+  it("earliest retirement year is the on-track threshold — retire the year before and the plan is not funded", () => {
+    // The exit slider's "Earliest YYYY" caption and the FI card's reached/not-reached
+    // must agree: retiring AT `earliest` is on-track; retiring the year before is not,
+    // so setting an exit earlier than you can afford leaves you drawing down (FI card
+    // then reads "not reached").
+    const snap = baseSnap();
+    snap.liquid_assets.cash_savings    = 150_000;
+    snap.liquid_assets.vanguard_bridge = 0;
+    snap.retirement_assets = { k401: 800_000, traditional_ira: 0, roth_ira: 150_000 };
+    snap.other_investments = [{ id: "1", name: "VTI", symbol: "VTI", shares: 1500, cost_basis: 150, current_price: 270, expected_return: 7 }];
+    snap.liabilities = { ...snap.liabilities, mortgage_balance: 1_400_000, mortgage_interest_rate: 3, property_value: 2_600_000 };
+    const cfg = baseConfig();
+    cfg.birth_year = 1980;
+    cfg.spending.housing_type = "mortgage";
+    cfg.spending.monthly_lifestyle = 7_500;
+    cfg.income_profile.gross_annual_salary = 300_000;
+    cfg.career_path = { ...cfg.career_path, use_sabbatical: false, use_jump: false, use_bridge: false };
+
+    const win = findRetirementWindow(snap, cfg, 270);
+    expect(win.earliest).not.toBeNull();
+    const atExit = (yr: number) => assessPlan(runSimulation(snap, { ...structuredClone(cfg), career_path: { ...cfg.career_path, exit_year: yr } }, 270)).health;
+    expect(atExit(win.earliest!)).toBe("on-track");           // retiring at earliest is funded
+    expect(atExit(win.earliest! - 1)).not.toBe("on-track");   // a year sooner is not
+  });
+
   it("is independent of the Rule-of-25 heuristic — guaranteed income can make you FI below 25×", () => {
     // Rental + (eventual) Social Security cover most of a modest lifestyle, so the
     // cash-flow plan survives even though gross spending × 25 dwarfs the portfolio.

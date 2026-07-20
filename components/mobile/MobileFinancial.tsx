@@ -72,6 +72,11 @@ export default function MobileFinancial({ livePrices, onOpenConfig }: Props) {
     [enrichedSnapshot, config, liveGoogPrice, traj],
   );
   const plan     = assessPlan(traj);
+  // FI counts as "reached" only if YOUR actual plan (your chosen exit) stays funded
+  // with a cushion. Retire before you're funded and the plan draws down and never
+  // recovers, so FI reads "not reached" — moving your exit earlier than you can
+  // afford pushes FI out of reach.
+  const indepShown = plan.health === "on-track" && indep ? indep : undefined;
   const today    = traj[0];
   const currentNW = today?.totalNetWorth ?? 0;
   // Progress to FI tracks SPENDABLE assets (what the FI test uses), not net worth —
@@ -90,9 +95,9 @@ export default function MobileFinancial({ livePrices, onOpenConfig }: Props) {
   const isIndependent = today?.isIndependent ?? false;
   // Same Alerts content as desktop — plan health + FIRE milestones, in full.
   const notices = useMemo(() => buildNotices({
-    health: plan.health, depletion: plan.depletion, reachesFI: !!indep, birthYear,
+    health: plan.health, depletion: plan.depletion, reachesFI: !!indepShown, birthYear,
     metrics: { netWorth: currentNW, swrTarget, isIndependent, savingsRate, coastFI },
-  }), [plan.health, plan.depletion, indep, currentNW, swrTarget, isIndependent, savingsRate, coastFI, birthYear]);
+  }), [plan.health, plan.depletion, indepShown, currentNW, swrTarget, isIndependent, savingsRate, coastFI, birthYear]);
 
   // Sample yearly (every 12 months) to keep the mobile chart light & legible.
   // Re-express in the global money basis first (month-0 metrics are unaffected).
@@ -171,7 +176,7 @@ export default function MobileFinancial({ livePrices, onOpenConfig }: Props) {
   if (fullRetireDate)    addMile(fullRetireDate, "Full retirement 🌿", "#7a6da8");
   if (children.length > 0 && config.spending.use_empty_nest !== false && config.spending.empty_nest_year) addMile(findDate(p => p.date.includes(String(config.spending.empty_nest_year))), "Empty nest", C.warm);
   if (snapshot.liabilities.mortgage_balance > 0) addMile(findDate(p => p.date === "Jun 2051"), "Mortgage paid off", "#9bbdb4");
-  if (indep) addMile(indep.date, "Financial independence 🎉", "#80c4ae");
+  if (indepShown) addMile(indepShown.date, "Financial independence 🎉", "#80c4ae");
   if (config.social_security) addMile(findDate(p => p.date.includes(String(by + config.social_security.start_age))), "Social Security starts", C.warm);
   if (config.medicare)        addMile(findDate(p => p.date.includes(String(by + config.medicare.start_age))),        "Medicare starts", "#9bbdb4");
   for (const ev of config.life_events ?? []) addMile(findDate(p => p.date.includes(String(ev.year))), ev.name, "#b9895e");
@@ -187,7 +192,7 @@ export default function MobileFinancial({ livePrices, onOpenConfig }: Props) {
     fullRetireDate    && { x: snap(fullRetireDate), c: "#7a6da8", l: "Retire" },
     children.length > 0 && config.spending.use_empty_nest !== false && config.spending.empty_nest_year && { x: snap(findDate(p => p.date.includes(String(config.spending.empty_nest_year)))), c: C.warm, l: "Nest" },
     snapshot.liabilities.mortgage_balance > 0 && { x: snap(findDate(p => p.date === "Jun 2051")), c: "#9bbdb4", l: "Paid" },
-    indep && { x: snap(indep.date), c: "#80c4ae", l: "FI" },
+    indepShown && { x: snap(indepShown.date), c: "#80c4ae", l: "FI" },
   ].filter(Boolean) as { x?: string; c: string; l: string }[]).filter(m => m.x) as { x: string; c: string; l: string }[];
 
   return (
@@ -198,7 +203,7 @@ export default function MobileFinancial({ livePrices, onOpenConfig }: Props) {
       {/* Summary cards — identical to desktop: Financial Independence · Progress
           to FI · Alerts. */}
       <SummaryCards
-        indepDate={indep ? indep.date : null}
+        indepDate={indepShown ? indepShown.date : null}
         netWorth={currentNW}
         netWorthWithHome={today?.netWorthWithHome ?? 0}
         spendable={spendable}

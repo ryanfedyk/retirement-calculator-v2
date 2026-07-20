@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { runSimulation, findIndependencePoint, assessPlan, toDisplayDollars, findRetirementWindow, findCashflowFiPoint } from "@/engine/calculator";
+import { runSimulation, runSimulationConverged, findIndependencePoint, assessPlan, toDisplayDollars, findRetirementWindow, findCashflowFiPoint } from "@/engine/calculator";
 import { estimateMonthlySocialSecurity } from "@/engine/social_security";
 import { calculateTax } from "@/engine/tax_engine";
 import type { FinancialSnapshot, SimulationConfiguration } from "@/engine/calculator";
@@ -129,6 +129,47 @@ describe("findCashflowFiPoint — survival-based FI", () => {
     cfg.income_profile.monthly_rental_income = 3_500; // strong guaranteed offset
     const fi = findCashflowFiPoint(snap, cfg, 200);
     expect(fi).toBeDefined();
+  });
+});
+
+describe("ACA subsidy: coverage-year MAGI via convergence", () => {
+  function acaScenario() {
+    const snap = baseSnap();
+    snap.liquid_assets.cash_savings    = 500_000;
+    snap.liquid_assets.vanguard_bridge = 0;
+    snap.retirement_assets = { k401: 400_000, traditional_ira: 0, roth_ira: 900_000 };
+    snap.other_investments = [{ id: "1", name: "VTI", symbol: "VTI", shares: 3000, cost_basis: 150, current_price: 270, expected_return: 7 }];
+    snap.liabilities = { ...snap.liabilities, mortgage_balance: 0, consumer_debt: 0, property_value: 0 };
+    const cfg = baseConfig();
+    cfg.birth_year = 1975;                       // pre-65 through early retirement
+    cfg.spending.housing_type = "rent";
+    cfg.spending.monthly_lifestyle  = 5_000;
+    cfg.spending.healthcare_premium = 2_000;     // unsubsidized $2k/mo
+    cfg.income_profile.gross_annual_salary = 400_000; // high wages while working
+    cfg.career_path = { ...cfg.career_path, exit_year: YEAR + 1, use_sabbatical: false, use_jump: false, use_bridge: false };
+    return { snap, cfg };
+  }
+  const firstRetired = (t: ReturnType<typeof runSimulation>) => t.find((p) => p.currentPhase === "RETIRED")!;
+
+  it("applies the first-retirement-year subsidy that a prior-year (high-wage) proxy denies", () => {
+    const { snap, cfg } = acaScenario();
+    const single = runSimulation(snap, cfg, 270);           // prior-year proxy: still sees $400k wages
+    const conv   = runSimulationConverged(snap, cfg, 270);  // same-year MAGI: living off assets, low
+    expect(firstRetired(conv).healthcareCost).toBeLessThan(firstRetired(single).healthcareCost * 0.85);
+  });
+
+  it("converges to the single-pass result in steady-state (prior-year ≈ same-year once retired)", () => {
+    const { snap, cfg } = acaScenario();
+    const single = runSimulation(snap, cfg, 270);
+    const conv   = runSimulationConverged(snap, cfg, 270);
+    const retired = (t: ReturnType<typeof runSimulation>) => t.filter((p) => p.currentPhase === "RETIRED");
+    // ~3 years into retirement, wages are long gone so both bases agree.
+    expect(retired(conv)[40].healthcareCost).toBeCloseTo(retired(single)[40].healthcareCost, -2);
+  });
+
+  it("is deterministic", () => {
+    const { snap, cfg } = acaScenario();
+    expect(runSimulationConverged(snap, cfg, 270)).toEqual(runSimulationConverged(snap, cfg, 270));
   });
 });
 

@@ -374,7 +374,11 @@ function irmaaMonthlySurcharge(
 
 // ── Main simulation ───────────────────────────────────────────────────────────
 
-export const runSimulation = (
+// The core simulation. Returns the trajectory AND the per-calendar-year realized
+// MAGI it accumulated — the latter lets runSimulationConverged feed each year's own
+// MAGI back into the ACA subsidy on a second pass (see below). Not exported; call
+// runSimulation (single pass, unchanged behavior) or runSimulationConverged.
+const simulate = (
   snapshot: FinancialSnapshot,
   config: SimulationConfiguration,
   live_price_input: number,
@@ -384,8 +388,13 @@ export const runSimulation = (
   // broad-market brokerage holdings — modeling sequence-of-returns risk. The
   // concentrated employer position keeps its own growth assumption. Omit it for
   // the normal deterministic projection (behavior is then identical to before).
-  marketReturnPath?: number[]
-): TrajectoryPoint[] => {
+  marketReturnPath?: number[],
+  // Optional SAME-YEAR MAGI basis for the ACA premium-tax-credit subsidy: calendar
+  // year → that year's MAGI. When supplied, the subsidy uses the coverage year's
+  // own MAGI instead of the prior-year proxy, resolving the subsidy↔withdrawal
+  // circularity. Omitted → identical to the historical prior-year behavior.
+  acaMagiByYear?: Map<number, number>,
+): { points: TrajectoryPoint[]; magiByYear: Map<number, number> } => {
   const points: TrajectoryPoint[] = [];
 
   // Concentrated-position price: the live quote if we have one, else the
@@ -996,15 +1005,21 @@ export const runSimulation = (
 
       // ACA premium subsidy. Applies during any pre-Medicare window where the
       // household buys its own coverage — the sabbatical AND early retirement —
-      // capping the premium at the applicable % of MAGI. Driven by the household's
-      // actual MAGI (prior completed year), so a retiree who keeps income low
-      // (living off cash/Roth/basis) qualifies for large subsidies, while one
+      // capping the premium at the applicable % of MAGI. A retiree who keeps income
+      // low (living off cash/Roth/basis) qualifies for large subsidies, while one
       // with rental + investment income that clears 400% FPL gets NOTHING (the
       // post-2025 subsidy cliff) and pays the full unsubsidized premium.
+      //
+      // MAGI basis: when runSimulationConverged supplies same-year MAGI, use the
+      // COVERAGE year's own MAGI (the correct basis — the credit reconciles on that
+      // year's actual income, and it resolves the subsidy↔withdrawal loop). Single-
+      // pass runSimulation has no override, so it falls back to the prior completed
+      // year's MAGI (a lagged proxy), then a same-year recurring-income estimate.
       const acaWindow = (phase === 'SABBATICAL' || phase === 'RETIRED') && !primaryOnMed;
       if (acaWindow && (opt?.enable_aca_optimization ?? true)) {
         const fpl            = getFPL(householdSize);
-        const magiForACA     = magiByYear.get(currentYear - 1)
+        const magiForACA     = acaMagiByYear?.get(currentYear)
+          ?? magiByYear.get(currentYear - 1)
           ?? (annualRentalGross + taxableSSForMagi + Math.max(0, annualW2Gross - annualK401) + taxableDivMonthly * 12);
         const pct            = acaApplicablePct(magiForACA / fpl);
         // pct === null → above 400% FPL → no premium tax credit → full premium.
@@ -1422,8 +1437,50 @@ export const runSimulation = (
     });
   }
 
-  return points;
+  return { points, magiByYear };
 };
+
+/**
+ * The normal deterministic projection. Behavior is unchanged: the ACA subsidy uses
+ * the prior-year MAGI proxy. This is the hot path — the FI-date scan and Monte
+ * Carlo call it many times — so it stays a single pass.
+ */
+export const runSimulation = (
+  snapshot: FinancialSnapshot,
+  config: SimulationConfiguration,
+  live_price_input: number,
+  marketReturnPath?: number[],
+): TrajectoryPoint[] => simulate(snapshot, config, live_price_input, marketReturnPath).points;
+
+/**
+ * Same projection, but with the ACA premium-tax-credit subsidy computed on each
+ * coverage year's OWN MAGI rather than the prior year's — the correct basis, since
+ * the credit is reconciled on the coverage year's actual income. Same-year MAGI
+ * depends on the withdrawals taken to fund spending, which depend on the subsidy,
+ * so the two are solved by fixed-point iteration: pass 1 uses the prior-year proxy
+ * and yields each year's realized MAGI; later passes feed that back as the same-year
+ * basis until MAGI stabilizes. Converges in 2–3 passes (the feedback is a strong
+ * contraction). A few extra full simulations, so it's used only for the primary
+ * displayed projection and the report — never the many-times-called scans.
+ */
+export function runSimulationConverged(
+  snapshot: FinancialSnapshot,
+  config: SimulationConfiguration,
+  live_price_input: number,
+  marketReturnPath?: number[],
+): TrajectoryPoint[] {
+  let prev = simulate(snapshot, config, live_price_input, marketReturnPath); // pass 1: prior-year proxy
+  for (let pass = 0; pass < 3; pass++) {
+    const next = simulate(snapshot, config, live_price_input, marketReturnPath, prev.magiByYear);
+    let maxDelta = 0;
+    for (const [yr, m] of next.magiByYear) {
+      maxDelta = Math.max(maxDelta, Math.abs(m - (prev.magiByYear.get(yr) ?? m)));
+    }
+    prev = next;
+    if (maxDelta < 100) break; // every year's MAGI stable to <$100 → converged
+  }
+  return prev.points;
+}
 
 /**
  * The TRUE financial-independence point: the start of the final, sustained run

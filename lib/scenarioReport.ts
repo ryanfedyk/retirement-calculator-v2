@@ -8,7 +8,7 @@
 // substituted in, so the math is auditable rather than a black box.
 
 import {
-  runSimulation,
+  runSimulationConverged,
   findIndependencePoint,
   findCashflowFiPoint,
   IRS_401K,
@@ -53,7 +53,7 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
   const cp = config.career_path;
   const infl = ma.inflation_rate || 0;
 
-  const trajectory = runSimulation(snapshot, config, live);
+  const trajectory = runSimulationConverged(snapshot, config, live);
   const fi = findIndependencePoint(trajectory);            // Rule-of-25 crossing (reference)
   const fiSurvival = findCashflowFiPoint(snapshot, config, live, trajectory); // headline FI (cash-flow survival)
   const today = trajectory[0];
@@ -352,7 +352,7 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
   p(`- **RMDs:** from age ${rmdStart} (SECURE 2.0), each year withdraws \`traditional_balance ÷ IRS_Uniform_Lifetime_divisor(age)\`, taxed as ordinary income; net proceeds move to cash.`);
   p(`- **Medicare/IRMAA:** at age ${config.medicare?.start_age ?? 65}, premiums of ${usd(config.medicare?.monthly_premium ?? 185)}/mo per adult apply, plus an IRMAA surcharge driven by MAGI from two years prior.`);
   if (config.tax_optimization?.enable_aca_optimization ?? true)
-    p(`- **ACA subsidies:** during pre-Medicare retirement/sabbatical, the self-paid premium is capped at an ARPA-style % of MAGI. Household size for the Federal-Poverty-Line test is derived from the actual household — ${ta.filing_status === "married_joint" ? 2 : 1} adult(s) + ${kids.filter((k) => thisYear - k.birthYear < 22).length} child(ren) on the plan today (it tapers as kids age out) — so keeping taxable income low yields larger subsidies. The modeled cost is then **floored at 50% of the full unsubsidized premium** so a large subsidy can't drive real health spending to $0.`);
+    p(`- **ACA subsidies:** during pre-Medicare retirement/sabbatical, the self-paid premium is capped at an ARPA-style % of MAGI. The subsidy is computed on the **coverage year's OWN MAGI** (the correct basis — the premium tax credit reconciles on that year's actual income), not the prior year's. Since that year's MAGI depends on the withdrawals taken to fund spending, and those depend on the subsidy, the two are solved by **fixed-point iteration** (a first pass seeds each year's MAGI, later passes feed it back until it stabilizes) — this resolves the subsidy↔withdrawal circularity and, importantly, gives the correct subsidy in the **first retirement year**, when income drops sharply and a prior-year proxy would still see high wages and deny it. Household size for the Federal-Poverty-Line test is the actual household — ${ta.filing_status === "married_joint" ? 2 : 1} adult(s) + ${kids.filter((k) => thisYear - k.birthYear < 22).length} child(ren) on the plan today (it tapers as kids age out) — so keeping taxable income low yields larger subsidies. The modeled cost is then **floored at 50% of the full unsubsidized premium** so a large subsidy can't drive real health spending to $0.`);
   if (config.tax_optimization?.enable_roth_conversion ?? true)
     p(`- **Roth conversions:** during a low-income sabbatical, traditional balances are converted up to the ${usd(config.tax_optimization?.roth_conversion_target_bracket ?? 206700)} taxable-income ceiling, paying tax now from cash.`);
   if (ta.filing_status === "married_joint" && (config.mortality?.first_death_age ?? 0) > 0) {

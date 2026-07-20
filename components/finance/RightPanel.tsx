@@ -8,7 +8,7 @@ import { CalendarDays } from "lucide-react";
 import HorizonZoomButton from "./HorizonZoomButton";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
-import { runSimulation, findCashflowFiPoint, assessPlan, toDisplayDollars, findRetirementWindow } from "@/engine/calculator";
+import { runSimulation, runSimulationConverged, findCashflowFiPoint, assessPlan, toDisplayDollars, findRetirementWindow } from "@/engine/calculator";
 import type { TrajectoryPoint } from "@/engine/calculator";
 import { runMonteCarlo } from "@/engine/montecarlo";
 import { MomentumGrid } from "./MotivationWidgets";
@@ -185,8 +185,11 @@ export default function RightPanel({ livePrices }: Props) {
     [enrichedSnapshot, config, liveGoogPrice],
   );
 
+  // Converged run: the ACA subsidy uses each coverage year's OWN MAGI (see
+  // runSimulationConverged). Matters most in the first retirement year, when
+  // income drops and the prior-year proxy would wrongly deny the subsidy.
   const trajectoryData = useMemo(
-    () => runSimulation(enrichedSnapshot, config, liveGoogPrice),
+    () => runSimulationConverged(enrichedSnapshot, config, liveGoogPrice),
     [enrichedSnapshot, config, liveGoogPrice]
   );
 

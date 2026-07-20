@@ -79,16 +79,28 @@ export function runMonteCarlo(
   const seed = opts.seed ?? 0x9e3779b9;
   const sampleEvery = Math.max(1, Math.floor(opts.sampleEvery ?? 12));
 
-  // Mean for the random draws = the ARITHMETIC expected real return, NOT the
-  // deterministic engine's drag-adjusted rate. In a stochastic model the
-  // geometric "volatility drag" emerges on its own from the variance of the
-  // draws (≈ σ²/2 over time); subtracting `volatility_drag` here as well would
-  // double-penalize returns and understate the success rate. So deflate the raw
-  // expected return by inflation and let σ generate the drag.
+  // Reconcile the two models so they target the SAME expected real return.
+  //
+  // The deterministic engine compounds at a GEOMETRIC real rate:
+  //     geo = toReal(market_return_rate − volatility_drag)
+  // The Monte Carlo draws are ARITHMETIC; over time their variance drags the
+  // realized geometric mean down by ≈ σ²/2 (the "volatility drag" that emerges on
+  // its own from sequence risk). If we drew with an arithmetic mean of
+  // toReal(market_return_rate) — i.e. WITHOUT the drag — the MC would compound at
+  // geo + drag − σ²/2, i.e. a DIFFERENT (more optimistic) rate than the
+  // deterministic path whenever drag ≠ σ²/2. That mismatch is a real bug: the two
+  // projections would disagree on the same portfolio.
+  //
+  // Fix: pin the MC's arithmetic mean to the deterministic geometric target plus
+  // the variance drag, so the drawn paths compound to `geo` in expectation and the
+  // deterministic projection lands on the MC median.
   const infl = config.market_assumptions.inflation_rate || 0;
   const nominalMean = Math.max(0, config.market_assumptions.market_return_rate);
-  const meanRealPct = ((1 + nominalMean / 100) / (1 + infl / 100) - 1) * 100;
+  const drag = Math.max(0, config.market_assumptions.volatility_drag || 0);
+  const geoRealPct = ((1 + Math.max(0, nominalMean - drag) / 100) / (1 + infl / 100) - 1) * 100;
   const sdPct = opts.volatilityPct ?? config.market_assumptions.return_volatility ?? 15;
+  const sigma = sdPct / 100;
+  const meanRealPct = geoRealPct + (sigma * sigma / 2) * 100; // arithmetic mean s.t. geometric ≈ geoRealPct
 
   const rand = mulberry32(seed);
   const normal = makeNormal(rand);

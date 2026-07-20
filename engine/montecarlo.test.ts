@@ -70,17 +70,21 @@ describe("runMonteCarlo", () => {
     expect(spread(hi)).toBeGreaterThan(spread(lo));
   });
 
-  it("does not re-apply volatility drag to the random mean (that's σ's job)", () => {
-    // The deterministic engine subtracts volatility_drag; Monte Carlo must NOT,
-    // or returns are double-penalized. So the drag knob has no effect on the MC
-    // outcome — two plans differing only in volatility_drag are identical here.
+  it("targets the deterministic engine's geometric return, so drag lowers MC too", () => {
+    // Reconciled contract: the MC's ARITHMETIC draw-mean is pinned to the
+    // deterministic GEOMETRIC target — toReal(return − volatility_drag) — plus the
+    // variance drag (σ²/2), so both models compound to the SAME expected real
+    // return and can't disagree. A larger volatility_drag therefore lowers the MC
+    // success rate exactly as it lowers the deterministic return. (σ still adds its
+    // own drag on top via variance; that is NOT double-counting the input drag —
+    // the input drag sets the target, σ generates the spread around it.)
     const a = retiree({ cash: 1_100_000, spend: 4_500 });
     const b = retiree({ cash: 1_100_000, spend: 4_500 });
     a.cfg.market_assumptions.volatility_drag = 0;
     b.cfg.market_assumptions.volatility_drag = 3;
-    const ra = runMonteCarlo(a.snap, a.cfg, 200, { runs: 150, seed: 11 });
-    const rb = runMonteCarlo(b.snap, b.cfg, 200, { runs: 150, seed: 11 });
-    expect(rb.successRate).toBe(ra.successRate);
+    const ra = runMonteCarlo(a.snap, a.cfg, 200, { runs: 200, seed: 11 });
+    const rb = runMonteCarlo(b.snap, b.cfg, 200, { runs: 200, seed: 11 });
+    expect(rb.successRate).toBeLessThan(ra.successRate);
   });
 
   it("rates an over-funded plan safe and an over-spending plan risky", () => {

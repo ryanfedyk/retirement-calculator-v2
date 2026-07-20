@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { runSimulation } from "@/engine/calculator";
-import { runMonteCarlo } from "@/engine/montecarlo";
+import { runMonteCarlo, findMonteCarloFiYears } from "@/engine/montecarlo";
 import type { FinancialSnapshot, SimulationConfiguration } from "@/engine/calculator";
 import { DEFAULT_SIM_CONFIG, DEFAULT_SNAPSHOT } from "@/config/sharedConfig";
 
@@ -95,5 +95,26 @@ describe("runMonteCarlo", () => {
     expect(safeRes.successRate).toBeGreaterThan(0.95);
     expect(riskyRes.successRate).toBeLessThan(safeRes.successRate);
     expect(riskyRes.successRate).toBeLessThan(0.5);
+  });
+});
+
+describe("findMonteCarloFiYears (confidence-graded FI dates)", () => {
+  it("returns dates ordered base ≤ 90% ≤ 95% ≤ 99% (higher confidence ⇒ later)", () => {
+    const { snap, cfg } = retiree({ cash: 1_500_000, spend: 4_500 });
+    cfg.income_profile.gross_annual_salary = 200_000; // still working, so later exits accumulate
+    const r = findMonteCarloFiYears(snap, cfg, 200, { runsPerYear: 120, seed: 7 });
+    const [p90, p95, p99] = r.thresholds.map((t) => t.year);
+    expect(p90).not.toBeNull();                                   // a fundable plan reaches 90%
+    if (r.baseYear != null && p90 != null) expect(p90).toBeGreaterThanOrEqual(r.baseYear);
+    if (p90 != null && p95 != null) expect(p95).toBeGreaterThanOrEqual(p90);
+    if (p95 != null && p99 != null) expect(p99).toBeGreaterThanOrEqual(p95);
+  });
+
+  it("is deterministic (fixed seed)", () => {
+    const { snap, cfg } = retiree({ cash: 1_500_000, spend: 4_500 });
+    cfg.income_profile.gross_annual_salary = 200_000;
+    const a = findMonteCarloFiYears(snap, cfg, 200, { runsPerYear: 100, seed: 5 });
+    const b = findMonteCarloFiYears(snap, cfg, 200, { runsPerYear: 100, seed: 5 });
+    expect(a).toEqual(b);
   });
 });

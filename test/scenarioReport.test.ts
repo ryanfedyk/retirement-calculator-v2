@@ -40,7 +40,7 @@ describe("buildScenarioReport", () => {
   });
 
   it("includes the Monte Carlo section only when requested", () => {
-    const withMc = buildScenarioReport({ scenarioName: "X", snapshot: snap(), config: cfg(), includeMonteCarlo: true, monteCarloRuns: 100 });
+    const withMc = buildScenarioReport({ scenarioName: "X", snapshot: snap(), config: cfg(), includeMonteCarlo: true, monteCarloRuns: 40 });
     const without = buildScenarioReport({ scenarioName: "X", snapshot: snap(), config: cfg(), includeMonteCarlo: false });
     expect(withMc).toContain("Sequence-of-returns risk (Monte Carlo)");
     expect(without).not.toContain("Sequence-of-returns risk (Monte Carlo)");

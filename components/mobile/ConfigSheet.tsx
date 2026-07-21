@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { X, Trash2, Plus, Wallet, ChevronRight } from "lucide-react";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
@@ -7,6 +7,7 @@ import { useUIStore } from "@/store/useUIStore";
 import TickerAutocomplete from "@/components/finance/TickerAutocomplete";
 import LinkedNumberField from "@/components/finance/LinkedNumberField";
 import BaselineLinkBadge from "@/components/finance/BaselineLinkBadge";
+import BottomSheet from "./BottomSheet";
 import { money, inputStyle, Field, Num, TextInput, Toggle, Two, Section } from "./sheetUI";
 
 export default function ConfigSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -17,21 +18,6 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
   const age = thisYear - (config.birth_year || 1985);
   const [openId, setOpenId] = useState<string | null>("career");
   const [newEvent, setNewEvent] = useState({ name: "", year: 2030, cost: 50_000 });
-  const scrollRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (open) {
-      const prev = document.body.style.overflow;
-      document.body.style.overflow = "hidden";
-      return () => { document.body.style.overflow = prev; };
-    }
-  }, [open]);
-
-  // The sheet stays mounted (slides off-screen), so reset its scroll to the top
-  // each time it's opened rather than reopening wherever it was last left.
-  useEffect(() => {
-    if (open) requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: 0 }));
-  }, [open]);
 
   const cp = config.career_path;
   const ip = config.income_profile;
@@ -40,40 +26,22 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
   const sec = (id: string) => ({ openId, setOpenId, id });
 
   return (
-    <>
-      <div onClick={onClose} style={{
-        position: "fixed", inset: 0, zIndex: 60, background: "rgba(26,46,37,0.45)", backdropFilter: "blur(2px)",
-        opacity: open ? 1 : 0, pointerEvents: open ? "auto" : "none", transition: "opacity 0.25s ease",
-      }} />
-      <div style={{
-        position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 61,
-        background: C.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24,
-        boxShadow: "0 -8px 40px rgba(0,0,0,0.18)",
-        transform: open ? "translateY(0)" : "translateY(100%)",
-        transition: "transform 0.32s cubic-bezier(0.32,0.72,0,1)",
-        // dvh (not vh) so the sheet's top isn't hidden behind the browser chrome.
-        height: "92dvh", maxHeight: "92dvh", display: "flex", flexDirection: "column",
-      }}>
-        {/* Grabber + header */}
-        <div style={{ flexShrink: 0, padding: "8px 20px 12px" }}>
-          <div style={{ display: "flex", justifyContent: "center", padding: "4px 0 10px" }}>
-            <div style={{ width: 40, height: 5, borderRadius: 999, background: C.border }} />
+    <BottomSheet open={open} onClose={onClose} zIndex={60} restFraction={0.6} fullFraction={0.92}
+      header={
+        <div style={{ padding: "0 20px 12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <h2 style={{ fontSize: 20, fontWeight: 300, color: C.ink }}>Scenario plan</h2>
+            <span style={{ fontSize: 11, fontWeight: 600, color: C.inkFaint }}>Just this scenario</span>
           </div>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div>
-              <h2 style={{ fontSize: 20, fontWeight: 300, color: C.ink }}>Scenario plan</h2>
-              <span style={{ fontSize: 11, fontWeight: 600, color: C.inkFaint }}>Just this scenario</span>
-            </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={onClose} style={{ width: 34, height: 34, borderRadius: "50%", border: `1px solid ${C.border}`, background: C.bgCard, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-                <X size={16} color={C.inkSoft} />
-              </button>
-            </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={onClose} style={{ width: 34, height: 34, borderRadius: "50%", border: `1px solid ${C.border}`, background: C.bgCard, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+              <X size={16} color={C.inkSoft} />
+            </button>
           </div>
         </div>
-
-        {/* Scrollable body */}
-        <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "0 16px calc(28px + env(safe-area-inset-bottom))", WebkitOverflowScrolling: "touch" }}>
+      }
+    >
+      <div style={{ padding: "0 16px calc(28px + env(safe-area-inset-bottom))" }}>
 
           {/* Shortcut to the shared balance sheet — assets/holdings/529s live in
               "Your finances" (shared across scenarios), not in this per-scenario plan. */}
@@ -281,11 +249,10 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
 
           {/* Family (kids & partner) now lives in Settings (profile menu). */}
 
-          <button onClick={onClose} style={{ marginTop: 8, width: "100%", padding: "16px", borderRadius: 16, border: "none", background: C.teal, color: "white", fontSize: 15, fontWeight: 600, cursor: "pointer", boxShadow: `0 4px 16px ${C.teal}55` }}>
-            Done
-          </button>
-        </div>
+        <button onClick={onClose} style={{ marginTop: 8, width: "100%", padding: "16px", borderRadius: 16, border: "none", background: C.teal, color: "white", fontSize: 15, fontWeight: 600, cursor: "pointer", boxShadow: `0 4px 16px ${C.teal}55` }}>
+          Done
+        </button>
       </div>
-    </>
+    </BottomSheet>
   );
 }

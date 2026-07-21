@@ -1,11 +1,11 @@
 "use client";
-import { useEffect, useRef } from "react";
 import { X, Wallet } from "lucide-react";
 import { C } from "@/config/colors";
 import { useUIStore } from "@/store/useUIStore";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import LeftPanel from "@/components/finance/LeftPanel";
 import MobileFinancesSections from "@/components/mobile/MobileFinancesSections";
+import BottomSheet from "@/components/mobile/BottomSheet";
 import type { LivePrices } from "@/components/finance/FinancialDashboard";
 
 // The shared "Your finances" editor (the global snapshot — assets, holdings,
@@ -17,65 +17,31 @@ export default function FinancesOverlay({ livePrices = {} }: { livePrices?: Live
   const open = useUIStore((s) => s.financesOpen);
   const setOpen = useUIStore((s) => s.setFinancesOpen);
   const isMobile = useIsMobile();
-  const scrollRef = useRef<HTMLDivElement>(null);
-
-  // Lock body scroll while the mobile sheet is open.
-  useEffect(() => {
-    if (!open || !isMobile) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = prev; };
-  }, [open, isMobile]);
-
-  // The sheet stays mounted (it only slides off-screen), so its scroll position
-  // persists between opens — reset it to the top each time it's opened.
-  useEffect(() => {
-    if (open && isMobile) requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: 0 }));
-  }, [open, isMobile]);
 
   if (isMobile) {
     return (
-      <>
-        <div onClick={() => setOpen(false)} style={{
-          position: "fixed", inset: 0, zIndex: 60, background: "rgba(26,46,37,0.45)", backdropFilter: "blur(2px)",
-          opacity: open ? 1 : 0, pointerEvents: open ? "auto" : "none", transition: "opacity 0.25s ease",
-        }} />
-        <div style={{
-          position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 61,
-          background: C.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24,
-          boxShadow: "0 -8px 40px rgba(0,0,0,0.18)",
-          transform: open ? "translateY(0)" : "translateY(100%)",
-          transition: "transform 0.32s cubic-bezier(0.32,0.72,0,1)",
-          // dvh (dynamic viewport) — not vh — so the sheet sizes to the *visible*
-          // area and its top isn't tucked behind the mobile browser chrome.
-          height: "92dvh", maxHeight: "92dvh", display: "flex", flexDirection: "column",
-        }}>
-          {/* Grabber + header */}
-          <div style={{ flexShrink: 0, padding: "8px 20px 12px" }}>
-            <div style={{ display: "flex", justifyContent: "center", padding: "4px 0 10px" }}>
-              <div style={{ width: 40, height: 5, borderRadius: 999, background: C.border }} />
+      <BottomSheet open={open} onClose={() => setOpen(false)} zIndex={60} restFraction={0.62} fullFraction={0.94}
+        header={
+          <div style={{ padding: "0 20px 12px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+            <div style={{ minWidth: 0 }}>
+              <h2 style={{ fontSize: 20, fontWeight: 300, color: C.ink, display: "flex", alignItems: "center", gap: 8 }}>
+                <Wallet size={18} color={C.teal} /> Your finances
+              </h2>
+              <span style={{ fontSize: 11, fontWeight: 600, color: C.inkFaint }}>Shared across every scenario</span>
             </div>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-              <div style={{ minWidth: 0 }}>
-                <h2 style={{ fontSize: 20, fontWeight: 300, color: C.ink, display: "flex", alignItems: "center", gap: 8 }}>
-                  <Wallet size={18} color={C.teal} /> Your finances
-                </h2>
-                <span style={{ fontSize: 11, fontWeight: 600, color: C.inkFaint }}>Shared across every scenario</span>
-              </div>
-              <button onClick={() => setOpen(false)} aria-label="Close" style={{ flexShrink: 0, width: 34, height: 34, borderRadius: "50%", border: `1px solid ${C.border}`, background: C.bgCard, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-                <X size={16} color={C.inkSoft} />
-              </button>
-            </div>
-          </div>
-          {/* Scrollable body */}
-          <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "0 16px calc(28px + env(safe-area-inset-bottom))", WebkitOverflowScrolling: "touch" }}>
-            <MobileFinancesSections />
-            <button onClick={() => setOpen(false)} style={{ marginTop: 8, width: "100%", padding: "16px", borderRadius: 16, border: "none", background: C.teal, color: "white", fontSize: 15, fontWeight: 600, cursor: "pointer", boxShadow: `0 4px 16px ${C.teal}55` }}>
-              Done
+            <button onClick={() => setOpen(false)} aria-label="Close" style={{ flexShrink: 0, width: 34, height: 34, borderRadius: "50%", border: `1px solid ${C.border}`, background: C.bgCard, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+              <X size={16} color={C.inkSoft} />
             </button>
           </div>
+        }
+      >
+        <div style={{ padding: "0 16px calc(28px + env(safe-area-inset-bottom))" }}>
+          <MobileFinancesSections />
+          <button onClick={() => setOpen(false)} style={{ marginTop: 8, width: "100%", padding: "16px", borderRadius: 16, border: "none", background: C.teal, color: "white", fontSize: 15, fontWeight: 600, cursor: "pointer", boxShadow: `0 4px 16px ${C.teal}55` }}>
+            Done
+          </button>
         </div>
-      </>
+      </BottomSheet>
     );
   }
 

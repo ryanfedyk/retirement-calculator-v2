@@ -13,6 +13,7 @@ import MobileFinancial from "./MobileFinancial";
 import MobileForecasting from "./MobileForecasting";
 import ScenariosHub from "@/components/ScenariosHub";
 import ConfigSheet from "./ConfigSheet";
+import BottomSheet from "./BottomSheet";
 import FinancesOverlay from "@/components/finance/FinancesOverlay";
 import SettingsPanel from "@/components/SettingsPanel";
 import ScenarioReportModal from "@/components/ScenarioReportModal";
@@ -227,8 +228,6 @@ function MobileScenarioSheet({ open, onClose }: { open: boolean; onClose: () => 
   const [nameBuf, setNameBuf] = useState(active?.name ?? "");
   useEffect(() => { if (open) { setRenaming(false); setNameBuf(active?.name ?? ""); } }, [open, active?.name]);
 
-  if (!open) return null;
-
   const pick = (id: string) => { setActiveScenario(id); setCompareOpen(false); onClose(); };
   const commitRename = () => { const n = nameBuf.trim(); if (n) renameScenario(activeScenarioId, n); setRenaming(false); };
 
@@ -246,16 +245,8 @@ function MobileScenarioSheet({ open, onClose }: { open: boolean; onClose: () => 
   );
 
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(20,30,28,0.4)", display: "flex", alignItems: "flex-end" }}>
-      <div onClick={(e) => e.stopPropagation()} style={{
-        width: "100%", maxHeight: "85dvh", overflowY: "auto", background: C.bg,
-        borderTopLeftRadius: 20, borderTopRightRadius: 20,
-        padding: "10px 16px calc(20px + env(safe-area-inset-bottom))",
-      }}>
-        <div style={{ display: "flex", justifyContent: "center", padding: "4px 0 12px" }}>
-          <span style={{ width: 36, height: 4, borderRadius: 99, background: C.border }} />
-        </div>
-
+    <BottomSheet open={open} onClose={onClose} zIndex={200} restFraction={0.55} fullFraction={0.9}>
+      <div style={{ padding: "2px 16px calc(20px + env(safe-area-inset-bottom))" }}>
         {renaming ? (
           <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
             <input autoFocus value={nameBuf} onChange={(e) => setNameBuf(e.target.value)}
@@ -296,7 +287,7 @@ function MobileScenarioSheet({ open, onClose }: { open: boolean; onClose: () => 
           </>
         )}
       </div>
-    </div>
+    </BottomSheet>
   );
 }
 

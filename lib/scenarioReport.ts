@@ -134,7 +134,14 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
   const concSym = config.use_equity_comp ? (config.concentrated_symbol ?? "").toUpperCase() : "";
   const isConc = (s: string) => concSym !== "" && (s ?? "").toUpperCase() === concSym;
   const otherInv = (snapshot.other_investments ?? []).filter((i) => !isConc(i.symbol));
-  const concValue = today?.googValue ?? 0;
+  // Concentrated position at AS-ENTERED (today) values so the table ties to the
+  // reconciliation exactly: portfolio-held concentrated shares + out-of-portfolio
+  // RSU shares (share_counts), priced at the live/last-known quote — the same
+  // seeding the engine uses at month 0.
+  const concShares = (snapshot.other_investments ?? []).filter((i) => isConc(i.symbol)).reduce((s, i) => s + i.shares, 0)
+    + (snapshot.share_counts?.google_shares ?? 0);
+  const concPrice = live > 0 ? live : (snapshot.share_counts?.live_stock_price || 175);
+  const concValue = concShares * concPrice;
 
   p(`## 2. Starting balance sheet (today's dollars)`);
   p();
@@ -181,23 +188,20 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
           `asset isn't tracked), but consumer debt is netted out.`,
   );
   p();
-  // Reconciliation — the engine's aggregate net worth is EXACTLY the sum of its
-  // parts, each shown, so the figure audits line-by-line with no phantom gap. This
-  // decomposes the engine's own month-0 state (which is why it can drift ~one month
-  // of growth from the raw balance-sheet inputs above). Crucially it includes the
-  // concentrated position's out-of-portfolio RSU shares, which the old report
-  // omitted — the source of the ~$39k mismatch flagged in review.
-  const gInv = today?.investableAssets ?? 0;
-  const liqui = today?.liquidCash ?? 0;
-  const retire = today?.retirement ?? 0;
-  const concEng = today?.googValue ?? 0;
-  const otherHoldingsVal = gInv - liqui - retire - concEng; // residual = non-concentrated holdings (jump = 0 at month 0)
-  const edu = today?.educationAssets ?? 0;
+  // Reconciliation — the AS-ENTERED table lines sum exactly to these totals (every
+  // asset shown, including the concentrated position's out-of-portfolio RSU shares
+  // that an earlier report omitted). A separate note reconciles these as-entered
+  // values to the engine's month-0 record, which is one month into the projection.
+  const otherHoldingsRaw = otherInv.reduce((s, i) => s + i.shares * i.current_price, 0);
   const debt = liab.consumer_debt || 0;
-  p(`**Reconciliation (ties out exactly).**`);
-  p(`- Gross investable = cash ${usd(liqui)} + retirement ${usd(retire)}${concEng > 0 ? ` + concentrated equity ${usd(concEng)}` : ""} + other holdings ${usd(otherHoldingsVal)} = **${usd(gInv)}**.`);
-  p(`- Net worth (excl. home) = gross investable + 529 (${usd(edu)}) − consumer debt (${usd(debt)}) = **${usd(gInv + edu - debt)}**, matching the reported net worth of **${usd(today?.totalNetWorth ?? 0)}**.`);
-  p(`- The 529 is a household asset but excluded from spendable/FI assets; home equity (if any) is reported separately above and also excluded from FI assets.`);
+  const rawGross = taxableStart + tradStart + ra.roth_ira + concValue + otherHoldingsRaw;
+  const rawNet = rawGross + eduStart - debt;
+  const engMortgage = Math.round((today?.totalLiabilities ?? 0) - debt); // real mortgage at engine month-0 (used in FI number)
+  p(`**Reconciliation — the table above ties out exactly (as-entered / today).**`);
+  p(`- Gross investable = cash+taxable ${usd(taxableStart)} + traditional ${usd(tradStart)} + Roth ${usd(ra.roth_ira)}${concValue > 0 ? ` + concentrated equity ${usd(concValue)}` : ""}${otherHoldingsRaw > 0 ? ` + other holdings ${usd(otherHoldingsRaw)}` : ""} = **${usd(rawGross)}**.`);
+  p(`- Net worth (excl. home) = gross investable + 529 (${usd(eduStart)}) − consumer debt (${usd(debt)}) = **${usd(rawNet)}**.`);
+  p(`- **Valuation date.** The above are today's as-entered values and tie to the table exactly. The engine's projection starts here, but its **month-0 record** — used in §9–10 (Results, FI test) and the Monte Carlo — is one month in, reflecting a month of market growth, any contributions / RSU vesting while still working, and a mortgage payment. So those figures run slightly higher: net worth **${usd(rawNet)}** as-entered vs **${usd(today?.totalNetWorth ?? 0)}** at engine month-0; and the FI number uses the month-0 mortgage **${usd(engMortgage)}** rather than the as-entered **${usd(liab.mortgage_balance)}**. This is a timing convention, not a discrepancy.`);
+  p(`- The 529 is a household asset but excluded from spendable/FI assets; home equity (if any) is reported separately above and also excluded.`);
   p();
 
   // ── 3. Assumptions ──────────────────────────────────────────────────────────
@@ -488,8 +492,53 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
     p();
   }
 
-  // ── 12. Known simplifications ─────────────────────────────────────────────────
-  p(`## 12. Known simplifications (worth scrutinizing)`);
+  // ── 12. Sensitivity to the key decision variables ────────────────────────────
+  // Re-run the SAME deterministic cash-flow FI test with one assumption stressed at
+  // a time, so the reader sees which variables actually move the retirement date.
+  // findCashflowFiPoint is deterministic (no Monte Carlo), so each row is cheap.
+  {
+    p(`## 12. Sensitivity — what actually moves the FI date`);
+    p();
+    const baseFiYr = fiSurvival ? Number(fiSurvival.date.split(" ")[1]) : null;
+    p(`Base-case deterministic FI date: **${fiSurvival?.date ?? "not reached"}**. Each row re-runs the same cash-flow survival test with ONE assumption stressed, everything else held fixed — so you can see which variables the ${fiSurvival?.date ?? "FI"} date actually depends on. (Deterministic; pair with the Monte Carlo confidence dates above for sequence risk.)`);
+    p();
+    p(`| Stressed assumption | FI date | vs base |`);
+    p(`|---|---|---|`);
+    const crashPrice = (live > 0 ? live : (snapshot.share_counts?.live_stock_price || 175)) * 0.5;
+    const clone = () => structuredClone(config);
+    const row = (label: string, pt: TrajectoryPoint | undefined) => {
+      const yr = pt ? Number(pt.date.split(" ")[1]) : null;
+      const vs = baseFiYr == null || yr == null ? "—" : yr === baseFiYr ? "same" : `${yr - baseFiYr > 0 ? "+" : ""}${yr - baseFiYr} yr`;
+      p(`| ${label} | ${pt ? pt.date : "not reached by 100"} | ${vs} |`);
+    };
+    row(`Base case`, fiSurvival ?? undefined);
+    if (config.use_equity_comp && concValue > 0) {
+      row(`${concSym || "GOOG"} grows at the market rate (${pct(ma.market_return_rate)}), not ${pct(ma.goog_growth_rate)}`,
+        findCashflowFiPoint(snapshot, { ...clone(), market_assumptions: { ...ma, goog_growth_rate: ma.market_return_rate } }, live) ?? undefined);
+      row(`${concSym || "GOOG"} grows at just 4% nominal (severe underperformance)`,
+        findCashflowFiPoint(snapshot, { ...clone(), market_assumptions: { ...ma, goog_growth_rate: 4 } }, live) ?? undefined);
+      row(`${concSym || "GOOG"} drops 50% today`,
+        findCashflowFiPoint(snapshot, clone(), crashPrice) ?? undefined);
+    }
+    if ((ip.monthly_rental_income ?? 0) > 0) {
+      row(`Rental income lost entirely`,
+        findCashflowFiPoint(snapshot, { ...clone(), income_profile: { ...ip, monthly_rental_income: 0 } }, live) ?? undefined);
+    }
+    row(`Healthcare +50% (${usd(Math.round(sp.healthcare_premium * 1.5))}/mo)`,
+      findCashflowFiPoint(snapshot, { ...clone(), spending: { ...sp, healthcare_premium: sp.healthcare_premium * 1.5 } }, live) ?? undefined);
+    const ss = config.social_security;
+    const baseSS = ss ? (ss.social_security_linked !== false ? estimateMonthlySocialSecurity(ip.gross_annual_salary, ss.start_age) : (ss.monthly_amount || 0)) : 0;
+    if (ss && baseSS > 0) {
+      row(`Social Security cut 25% (${usd(Math.round(baseSS * 0.75))}/mo)`,
+        findCashflowFiPoint(snapshot, { ...clone(), social_security: { ...ss, social_security_linked: false, monthly_amount: Math.round(baseSS * 0.75) } }, live) ?? undefined);
+    }
+    p();
+    p(`A row that barely moves the date is a variable the plan is robust to; a large shift — or "not reached" — flags a dependency worth de-risking before relying on the ${fiSurvival?.date ?? "base"} date. **Note:** the GOOG-crash row models a 50% lower price *today*; it does not model a crash timed exactly at retirement (a worse case the deterministic engine can't place — the Monte Carlo captures sequence risk instead).`);
+    p();
+  }
+
+  // ── 13. Known simplifications ─────────────────────────────────────────────────
+  p(`## 13. Known simplifications (worth scrutinizing)`);
   p();
   p(`- Runs entirely in today's dollars; nominal display just re-inflates the output.`);
   p(`- Social Security is estimated from current salary as a proxy for the 35-year indexed average (override available).`);

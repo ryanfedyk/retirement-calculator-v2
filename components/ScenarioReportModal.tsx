@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { X, Copy, Check, Download } from "lucide-react";
+import { X, Copy, Check, Download, Loader2 } from "lucide-react";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
@@ -20,6 +20,8 @@ export default function ScenarioReportModal({ livePrices }: { livePrices: LivePr
   const scenarios = useFinancialStore((s) => s.scenarios);
   const snapshot = useFinancialStore((s) => s.snapshot);
   const [copied, setCopied] = useState(false);
+  const [report, setReport] = useState("");
+  const [generating, setGenerating] = useState(false);
 
   const scenario = scenarios.find((s) => s.id === reportScenarioId) ?? null;
   const open = !!scenario;
@@ -46,17 +48,30 @@ export default function ScenarioReportModal({ livePrices }: { livePrices: LivePr
     }),
   }), [snapshot, livePrices]);
 
-  const report = useMemo(() => {
-    if (!scenario) return "";
-    return buildScenarioReport({
-      scenarioName: scenario.name,
-      snapshot: enrichedSnapshot,
-      config: scenario.config,
-      liveGoogPrice: liveGoog,
-      includeMonteCarlo: true,
-      generatedAt: new Date().toISOString(),
-    });
-  }, [scenario, enrichedSnapshot, liveGoog]);
+  // Report generation is a multi-second computation (Monte Carlo + confidence-date
+  // scan + sensitivity table), so it CANNOT run inline during render or the UI would
+  // freeze with no feedback. Compute it in an effect behind a short timeout: the
+  // "Generating…" state paints first, then the build runs, then the result shows.
+  const scenarioId = scenario?.id;
+  useEffect(() => {
+    if (!scenario) return;
+    setGenerating(true);
+    setReport("");
+    let cancelled = false;
+    const id = setTimeout(() => {
+      const text = buildScenarioReport({
+        scenarioName: scenario.name,
+        snapshot: enrichedSnapshot,
+        config: scenario.config,
+        liveGoogPrice: liveGoog,
+        includeMonteCarlo: true,
+        generatedAt: new Date().toISOString(),
+      });
+      if (!cancelled) { setReport(text); setGenerating(false); }
+    }, 50);
+    return () => { cancelled = true; clearTimeout(id); };
+    // enrichedSnapshot is memoized on snapshot+livePrices; scenarioId keys the run.
+  }, [scenarioId, enrichedSnapshot, liveGoog]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!open) return null;
 
@@ -112,11 +127,11 @@ export default function ScenarioReportModal({ livePrices }: { livePrices: LivePr
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-            <button onClick={download} style={btn} title="Download as Markdown">
+            <button onClick={download} disabled={generating} style={{ ...btn, opacity: generating ? 0.5 : 1, cursor: generating ? "default" : "pointer" }} title="Download as Markdown">
               <Download size={14} /> <span className="hidden min-[560px]:inline">Download</span>
             </button>
-            <button onClick={copy} style={{ ...btn, borderColor: C.teal, background: copied ? C.tealWash : C.teal, color: copied ? C.tealDark : "#fff" }}>
-              {copied ? <Check size={14} /> : <Copy size={14} />} {copied ? "Copied" : "Copy"}
+            <button onClick={copy} disabled={generating} style={{ ...btn, borderColor: C.teal, background: copied ? C.tealWash : C.teal, color: copied ? C.tealDark : "#fff", opacity: generating ? 0.55 : 1, cursor: generating ? "default" : "pointer" }}>
+              {generating ? <Loader2 size={14} className="animate-spin" /> : copied ? <Check size={14} /> : <Copy size={14} />} {generating ? "Generating…" : copied ? "Copied" : "Copy"}
             </button>
             <button onClick={closeReport} aria-label="Close" style={{ width: 34, height: 34, borderRadius: "50%", border: `1px solid ${C.border}`, background: C.bgCard, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
               <X size={17} color={C.inkSoft} />
@@ -124,19 +139,30 @@ export default function ScenarioReportModal({ livePrices }: { livePrices: LivePr
           </div>
         </div>
 
-        {/* Body — a real textarea so users can select/edit, monospaced for the tables */}
-        <textarea
-          id="scenario-report-text"
-          readOnly
-          value={report}
-          spellCheck={false}
-          style={{
-            flex: 1, width: "100%", boxSizing: "border-box", resize: "none", border: "none", outline: "none",
-            padding: "18px 20px", background: C.bg, color: C.ink,
-            fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-            fontSize: 12, lineHeight: 1.55, whiteSpace: "pre", overflow: "auto",
-          }}
-        />
+        {/* Body — loading panel while the multi-second build runs, then a real
+            textarea (select/edit, monospaced for the tables). */}
+        {generating ? (
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, color: C.inkSoft, padding: 24, textAlign: "center" }}>
+            <Loader2 size={30} className="animate-spin" color={C.teal} />
+            <div style={{ fontSize: 14, fontWeight: 600, color: C.inkMid }}>Generating your plan…</div>
+            <div style={{ fontSize: 12, maxWidth: 340, lineHeight: 1.5 }}>
+              Running the Monte Carlo simulations and confidence-graded FI dates. This takes a few seconds.
+            </div>
+          </div>
+        ) : (
+          <textarea
+            id="scenario-report-text"
+            readOnly
+            value={report}
+            spellCheck={false}
+            style={{
+              flex: 1, width: "100%", boxSizing: "border-box", resize: "none", border: "none", outline: "none",
+              padding: "18px 20px", background: C.bg, color: C.ink,
+              fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+              fontSize: 12, lineHeight: 1.55, whiteSpace: "pre", overflow: "auto",
+            }}
+          />
+        )}
       </div>
     </>
   );

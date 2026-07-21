@@ -47,14 +47,10 @@ export default function PerfectDay({ onGoToYear }: { onGoToYear?: () => void } =
   }), [children, filingStatus, usePartnerIncome]);
   const rebuildDays = () => { const s = seedPerfectDays(seedInputs); applySeed(s.days, s.activeId); };
 
-  // Guided-first: a new/empty user is walked through the wizard; anyone with days
-  // already built lands straight in the editor. Decided once, after hydration, so
-  // there's no SSR mismatch. `null` = deciding.
-  const [mode, setMode] = useState<"wizard" | "editor" | null>(null);
-  useEffect(() => {
-    const hasContent = usePerfectDayStore.getState().days.some((d) => allIdsOf(d).length > 0);
-    setMode(hasContent ? "editor" : "wizard");
-  }, []);
+  // Guided-first: the wizard is the default experience for everyone (it resumes
+  // at your reveal if you've already set a blend). The detailed editor is opt-in,
+  // reached from the reveal and re-enterable via "Guide me".
+  const [mode, setMode] = useState<"wizard" | "editor">("wizard");
 
   const activeDay = useMemo(() => days.find((d) => d.id === activeId) ?? days[0], [days, activeId]);
   const allIds = useMemo(() => allIdsOf(activeDay), [activeDay]);
@@ -187,8 +183,6 @@ export default function PerfectDay({ onGoToYear }: { onGoToYear?: () => void } =
     setEditingId(null);
   };
 
-  // Deciding whether to guide or edit — render nothing for the one frame it takes.
-  if (mode === null) return <div style={{ minHeight: 200 }} />;
   if (mode === "wizard") return <PerfectDayWizard onDone={() => setMode("editor")} onGoToYear={onGoToYear} />;
 
   return (

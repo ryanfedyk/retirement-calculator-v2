@@ -10,7 +10,7 @@
  * detailed editor for anyone who wants to go deeper).
  */
 import {
-  ACTIVITY_BY_ID, type ActivityCategory, type PerfectDayItem,
+  ACTIVITY_BY_ID, CATEGORY_COLOR, type ActivityCategory, type PerfectDayItem,
 } from "@/lib/perfectDay";
 import type { SeedInputs } from "@/lib/perfectSeed";
 import { ADVENTURE_SEEDS } from "@/data/adventureSeeds";
@@ -90,36 +90,91 @@ const THEME: Record<ActivityCategory, { noun: string; passion: string; hash: str
   Home:      { noun: "ritual",     passion: "Home & ritual",        hash: "home" },
 };
 
-/** Turn the chosen days into a warm, one-glance "what your retirement is about"
- *  read — no AI, so it appears instantly and always works. */
-export function synthesizeDays(days: PerfectDayItem[]): Synthesis {
-  const counts = new Map<ActivityCategory, number>();
-  for (const d of days) {
-    for (const id of [...d.blocks.morning, ...d.blocks.afternoon, ...d.blocks.evening]) {
-      const a = ACTIVITY_BY_ID[id];
-      if (a) counts.set(a.category, (counts.get(a.category) ?? 0) + 1);
-    }
-  }
-  const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([c]) => c);
+const allActivityIds = (d: PerfectDayItem) => [...d.blocks.morning, ...d.blocks.afternoon, ...d.blocks.evening];
 
+function synthFromRanked(ranked: ActivityCategory[]): Synthesis {
   if (ranked.length === 0) {
     return {
       title: "A life that's yours to shape",
-      essence: "Pick a couple of days that sound like you and the throughline will appear here.",
+      essence: "Dial in how your weeks would actually feel and the throughline will appear here.",
       passions: [], themes: [],
     };
   }
-
   const n1 = THEME[ranked[0]].noun;
   const n2 = ranked[1] ? THEME[ranked[1]].noun : null;
   const title = n2 ? `A life of ${n1} and ${n2}` : `A life of ${n1}`;
   const essence = n2
-    ? `The days you picked keep returning to the same things — ${n1} and ${n2}. That's the shape of your retirement: not a to-do list, but a life that makes room for what matters most to you.`
-    : `The days you picked keep returning to one thing above all — ${n1}. That's the heart of the retirement you're building toward.`;
-
+    ? `The way you'd spend your weeks keeps returning to the same things — ${n1} and ${n2}. That's the shape of your retirement: not a to-do list, but a life that makes room for what matters most to you.`
+    : `The way you'd spend your weeks keeps returning to one thing above all — ${n1}. That's the heart of the retirement you're building toward.`;
   const passions = ranked.slice(0, 4).map((c) => THEME[c].passion);
   const themes = ranked.slice(0, 4).map((c) => THEME[c].hash);
   return { title, essence, passions, themes };
+}
+
+/** Backward-compatible even-weight synthesis over a set of days. */
+export function synthesizeDays(days: PerfectDayItem[]): Synthesis {
+  const counts = new Map<ActivityCategory, number>();
+  for (const d of days) for (const id of allActivityIds(d)) {
+    const a = ACTIVITY_BY_ID[id];
+    if (a) counts.set(a.category, (counts.get(a.category) ?? 0) + 1);
+  }
+  return synthFromRanked([...counts.entries()].sort((a, b) => b[1] - a[1]).map(([c]) => c));
+}
+
+// ── Weighted blend (the Perfect-Day wizard) ───────────────────────────────────
+export const DAY_WEIGHT_LABELS = ["Not me", "Now & then", "Regularly", "Most days"];
+
+export type ThemeSlice = { category: ActivityCategory; weight: number; pct: number; color: string; label: string };
+
+/** Weighted category mix across the archetypes — each day's activities scaled by
+ *  how much of your weeks it makes up. Drives the live "blend" bar and reveal. */
+export function themeMixFromWeights(archetypes: PerfectDayItem[], weights: Record<string, number>): ThemeSlice[] {
+  const counts = new Map<ActivityCategory, number>();
+  for (const a of archetypes) {
+    const w = weights[a.id] ?? 0;
+    if (w <= 0) continue;
+    for (const id of allActivityIds(a)) {
+      const act = ACTIVITY_BY_ID[id];
+      if (act) counts.set(act.category, (counts.get(act.category) ?? 0) + w);
+    }
+  }
+  const total = [...counts.values()].reduce((s, v) => s + v, 0);
+  if (total === 0) return [];
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([category, weight]) => ({
+      category, weight, pct: Math.round((weight / total) * 100),
+      color: CATEGORY_COLOR[category], label: THEME[category].passion,
+    }));
+}
+
+/** The instant "what your retirement is about" read from a weighted blend. */
+export function synthesizeFromWeights(archetypes: PerfectDayItem[], weights: Record<string, number>): Synthesis {
+  return synthFromRanked(themeMixFromWeights(archetypes, weights).map((s) => s.category));
+}
+
+// ── Hobbies / unique pursuits (the Perfect-Year wizard) ────────────────────────
+/** The adventure catalog grouped by kind, for a browse-and-pick hobby step. */
+export function adventuresByCategory(): { category: AdventureCategory; icon: string; items: AdventureBlueprint[] }[] {
+  return YEAR_CATEGORIES.map(({ id, icon }) => ({
+    category: id, icon,
+    items: ADVENTURE_SEEDS.filter((s) => s.category === id).sort((a, b) => a.depthScore - b.depthScore),
+  }));
+}
+
+/** First sentence of a pursuit's "why", for compact cards. */
+export function shortWhy(seed: AdventureBlueprint): string {
+  const s = (seed.whyFactor || "").split(/(?<=[.!?])\s/)[0] ?? "";
+  return s.length > 130 ? s.slice(0, 127).trimEnd() + "…" : s;
+}
+
+/** Selected pursuits grouped by kind, for the portfolio-style reveal. */
+export function groupPursuits(ids: string[]): { category: AdventureCategory; icon: string; items: AdventureBlueprint[] }[] {
+  const byId = Object.fromEntries(ADVENTURE_SEEDS.map((s) => [s.id, s]));
+  const chosen = ids.map((id) => byId[id]).filter(Boolean) as AdventureBlueprint[];
+  return YEAR_CATEGORIES
+    .map(({ id, icon }) => ({ category: id, icon, items: chosen.filter((s) => s.category === id) }))
+    .filter((g) => g.items.length > 0);
 }
 
 // ── Perfect-Year experience kinds & placement ─────────────────────────────────

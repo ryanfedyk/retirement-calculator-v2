@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Plus, X, Sparkles, RotateCcw, Check, CalendarRange, Wand2, Compass } from "lucide-react";
 import { C } from "@/config/colors";
 import { ADVENTURE_SEEDS } from "@/data/adventureSeeds";
@@ -53,14 +53,10 @@ export default function PerfectYear() {
   }), [children, exitMonth, lifeEvents]);
   const rebuildYear = () => applySeed(seedPerfectYear(seedInputs));
 
-  // Guided-first: an empty year is walked through the wizard; a year with any
-  // experiences already placed opens straight in the editor. Decided once, after
-  // hydration, to avoid an SSR mismatch. `null` = deciding.
-  const [mode, setMode] = useState<"wizard" | "editor" | null>(null);
-  useEffect(() => {
-    const placed = Object.values(usePerfectYearStore.getState().plan).reduce((s, ids) => s + ids.length, 0);
-    setMode(placed > 0 ? "editor" : "wizard");
-  }, []);
+  // Guided-first: the wizard is the default experience for everyone (it resumes
+  // at your pursuits portfolio if you've already picked some). The month-by-month
+  // calendar editor is opt-in, reached from the reveal and via "Guide me".
+  const [mode, setMode] = useState<"wizard" | "editor">("wizard");
 
   // "Surprise me" — drop a random unplaced adventure onto a sensible month.
   const placedIds = useMemo(() => new Set(Object.values(plan).flat()), [plan]);
@@ -71,8 +67,6 @@ export default function PerfectYear() {
     add(new Date().getMonth(), pick.id);
   };
 
-  // Deciding whether to guide or edit — render nothing for the one frame it takes.
-  if (mode === null) return <div style={{ minHeight: 200 }} />;
   if (mode === "wizard") return <PerfectYearWizard onDone={() => setMode("editor")} />;
 
   return (

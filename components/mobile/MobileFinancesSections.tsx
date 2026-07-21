@@ -7,13 +7,15 @@ import { IRS_401K } from "@/engine/calculator";
 import TickerAutocomplete from "@/components/finance/TickerAutocomplete";
 import LinkedNumberField from "@/components/finance/LinkedNumberField";
 import PlanHistory from "@/components/finance/PlanHistory";
+import type { LivePrices } from "@/components/finance/FinancialDashboard";
 import { Field, Num, Two, Section, Toggle, TextInput, money, inputStyle, labelStyle } from "./sheetUI";
 
-type Holding = { id?: string; name: string; symbol: string; shares: number; expected_return?: number; [k: string]: unknown };
+type Holding = { id?: string; name: string; symbol: string; shares: number; expected_return?: number; current_price?: number; [k: string]: unknown };
 
 /** A single saved holding — tap the pencil to edit shares / expected return
- * inline (mobile previously only allowed delete + re-add). */
-function HoldingRow({ inv, onUpdate, onRemove }: { inv: Holding; onUpdate: (v: Holding) => void; onRemove: () => void }) {
+ * inline (mobile previously only allowed delete + re-add). Shows the holding's
+ * live dollar value (shares × latest price) on the right. */
+function HoldingRow({ inv, liveInfo, onUpdate, onRemove }: { inv: Holding; liveInfo?: LivePrices[string]; onUpdate: (v: Holding) => void; onRemove: () => void }) {
   const [editing, setEditing] = useState(false);
   const [shares, setShares] = useState(String(inv.shares));
   const [ret, setRet] = useState(inv.expected_return != null ? String(inv.expected_return) : "");
@@ -46,15 +48,34 @@ function HoldingRow({ inv, onUpdate, onRemove }: { inv: Holding; onUpdate: (v: H
     );
   }
 
+  const displayPrice = liveInfo?.price ?? inv.current_price ?? 0;
+  const totalValue = inv.shares * displayPrice;
+  const isLive = liveInfo?.source === "yahoo";
+
   return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", borderRadius: 10, background: C.bgCard, border: `1px solid ${C.borderSoft}`, marginBottom: 8 }}>
-      <div>
-        <div style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>{inv.symbol}</div>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "10px 12px", borderRadius: 10, background: C.bgCard, border: `1px solid ${C.borderSoft}`, marginBottom: 8 }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: C.ink, display: "flex", alignItems: "center", gap: 6 }}>
+          {inv.symbol}
+          {liveInfo && (
+            <span style={{ fontSize: 8, fontWeight: 700, padding: "1px 5px", borderRadius: 99, background: isLive ? C.tealWash : C.warmWash, color: isLive ? C.tealDark : C.warm, border: `1px solid ${isLive ? C.tealLight : C.warmLight}` }}>
+              {isLive ? "LIVE" : "DELAYED"}
+            </span>
+          )}
+        </div>
         <div style={{ fontSize: 11, color: C.inkSoft }}>
           {inv.shares.toLocaleString(undefined, { maximumFractionDigits: 3 })} sh{inv.expected_return != null ? ` · ${inv.expected_return}% return` : ""}
         </div>
       </div>
-      <div style={{ display: "flex", gap: 4 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+        <div style={{ textAlign: "right", marginRight: 2 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: C.ink, fontVariantNumeric: "tabular-nums" }}>
+            ${totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+          </div>
+          {displayPrice > 0 && (
+            <div style={{ fontSize: 10, color: C.inkFaint, fontVariantNumeric: "tabular-nums" }}>@${displayPrice.toFixed(2)}/sh</div>
+          )}
+        </div>
         <button onClick={() => setEditing(true)} aria-label={`Edit ${inv.symbol}`} style={{ background: "none", border: "none", cursor: "pointer", color: C.teal, padding: 6 }}><Pencil size={16} /></button>
         <button onClick={onRemove} aria-label={`Remove ${inv.symbol}`} style={{ background: "none", border: "none", cursor: "pointer", color: C.inkFaint, padding: 6 }}><Trash2 size={16} /></button>
       </div>
@@ -67,7 +88,7 @@ function HoldingRow({ inv, onUpdate, onRemove }: { inv: Holding; onUpdate: (v: H
 // shared **baseline** (they flow to every scenario unless overridden); the
 // balance sheet edits the global snapshot (identical across scenarios). Touch-
 // friendly twin of LeftPanel's `variant="finances"`.
-export default function MobileFinancesSections() {
+export default function MobileFinancesSections({ livePrices = {} }: { livePrices?: LivePrices }) {
   const { snapshot, config, profile, baseline, updateNestedSnapshot, updateBaseline, setEquityComp } = useFinancialStore();
   const kids = profile.children;
   const ip = baseline.income_profile;
@@ -239,7 +260,7 @@ export default function MobileFinancesSections() {
       {/* ── Portfolio Holdings ── */}
       <Section title="Portfolio Holdings" accent="#c4784e" {...sec("holdings")}>
         {(snapshot.other_investments || []).map((inv, idx) => (
-          <HoldingRow key={inv.id || idx} inv={inv as Holding}
+          <HoldingRow key={inv.id || idx} inv={inv as Holding} liveInfo={livePrices[inv.symbol.toUpperCase()]}
             onUpdate={updated => { const a = [...(snapshot.other_investments || [])]; a[idx] = updated as any; updateNestedSnapshot("other_investments", a as any); }}
             onRemove={() => { const a = [...(snapshot.other_investments || [])]; a.splice(idx, 1); updateNestedSnapshot("other_investments", a as any); }} />
         ))}

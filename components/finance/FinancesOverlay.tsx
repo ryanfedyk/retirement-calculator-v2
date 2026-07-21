@@ -36,7 +36,7 @@ export default function FinancesOverlay({ livePrices = {} }: { livePrices?: Live
         }
       >
         <div style={{ padding: "0 16px calc(28px + env(safe-area-inset-bottom))" }}>
-          <MobileFinancesSections />
+          <MobileFinancesSections livePrices={livePrices} />
           <button onClick={() => setOpen(false)} style={{ marginTop: 8, width: "100%", padding: "16px", borderRadius: 16, border: "none", background: C.teal, color: "white", fontSize: 15, fontWeight: 600, cursor: "pointer", boxShadow: `0 4px 16px ${C.teal}55` }}>
             Done
           </button>

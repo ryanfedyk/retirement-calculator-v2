@@ -20,6 +20,8 @@ describe("buildScenarioReport", () => {
     expect(text).toContain("FI_number     = net_need / 0.04");
     expect(text).toContain("monthly = (1 + r/100)^(1/12) − 1");
     expect(text).toContain("## 10. Results");
+    expect(text).toContain("## 12. Sensitivity");           // decision-variable stress table
+    expect(text).toContain("Valuation date");               // reconciliation timing note
   });
 
   it("reports an FI number that matches the engine's (25 × net need)", () => {

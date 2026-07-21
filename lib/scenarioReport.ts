@@ -77,19 +77,13 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
   p(`# Retirement plan: "${scenarioName}"`);
   p();
   p(
-    `This document describes a retirement projection — its inputs, the exact ` +
-      `equations used, and the resulting numbers — in enough detail to ` +
-      `independently verify the math. **All dollar figures are in today's ` +
-      `(real / inflation-adjusted) dollars unless stated otherwise.** The model ` +
-      `runs monthly from the present through age 100.`,
+    `Inputs, equations, and results of a monthly retirement projection (present → age 100). ` +
+      `**All figures in today's (real) dollars unless noted.**`,
   );
   p();
   p(
-    `> If you're an LLM reading this: please re-derive the headline results ` +
-      `(FI number, the year financial independence is reached, and ending net ` +
-      `worth) from the inputs and formulas below, and flag any place where your ` +
-      `calculation diverges from the "Results" section or where a modeling ` +
-      `assumption looks wrong.`,
+    `> LLM: re-derive the headline results (FI number, FI date, ending net worth) from the ` +
+      `inputs and formulas below, and flag any divergence from "Results" or any assumption that looks wrong.`,
   );
   p();
 
@@ -200,8 +194,8 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
   p(`**Reconciliation — the table above ties out exactly (as-entered / today).**`);
   p(`- Gross investable = cash+taxable ${usd(taxableStart)} + traditional ${usd(tradStart)} + Roth ${usd(ra.roth_ira)}${concValue > 0 ? ` + concentrated equity ${usd(concValue)}` : ""}${otherHoldingsRaw > 0 ? ` + other holdings ${usd(otherHoldingsRaw)}` : ""} = **${usd(rawGross)}**.`);
   p(`- Net worth (excl. home) = gross investable + 529 (${usd(eduStart)}) − consumer debt (${usd(debt)}) = **${usd(rawNet)}**.`);
-  p(`- **Valuation date.** The above are today's as-entered values and tie to the table exactly. The engine's projection starts here, but its **month-0 record** — used in §9–10 (Results, FI test) and the Monte Carlo — is one month in, reflecting a month of market growth, any contributions / RSU vesting while still working, and a mortgage payment. So those figures run slightly higher: net worth **${usd(rawNet)}** as-entered vs **${usd(today?.totalNetWorth ?? 0)}** at engine month-0; and the FI number uses the month-0 mortgage **${usd(engMortgage)}** rather than the as-entered **${usd(liab.mortgage_balance)}**. This is a timing convention, not a discrepancy.`);
-  p(`- The 529 is a household asset but excluded from spendable/FI assets; home equity (if any) is reported separately above and also excluded.`);
+  p(`- **Valuation date:** the above are as-entered (today) and tie to the table exactly. The engine's month-0 record (used in §9–10 & Monte Carlo) is one month in — a month of growth, contributions/vesting, and a mortgage payment — so runs slightly higher: net worth **${usd(rawNet)}** vs **${usd(today?.totalNetWorth ?? 0)}**; FI-number mortgage **${usd(engMortgage)}** vs as-entered **${usd(liab.mortgage_balance)}**. A timing convention, not a discrepancy.`);
+  p(`- 529 is a household asset but excluded from spendable/FI assets; home equity (if any) reported separately above and also excluded.`);
   p();
 
   // ── 3. Assumptions ──────────────────────────────────────────────────────────
@@ -283,7 +277,7 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
   const matchLine = matchRate > 0
     ? ` Employer 401(k) match: ${matchRate}% of ${(ip.employer_match_limit_pct ?? 0) > 0 ? `the first ${ip.employer_match_limit_pct}% of salary you contribute` : "all your contributions"}, added on top (not taxable income) and capped so deferral + match ≤ ${usd(IRS_401K.totalAdditions)} (IRS 415(c) combined limit).`
     : "";
-  p(`Salary in year *t* = base × (1 + real_raise)^t, where real_raise = Fisher(${pct(ip.income_growth_rate || 0)}). Your contributions while working: up to ${usd(ip.annual_401k_contribution ?? IRS_401K.employeeLimit)} pre-tax to the 401(k) (reduces income tax, not FICA; IRS ${IRS_401K.year} cap ${usd(IRS_401K.employeeLimit)} + ${usd(IRS_401K.catchup)} at ${IRS_401K.catchupAge}+), plus a ${usd(ip.annual_backdoor_roth ?? 7500)}/yr backdoor Roth.${matchLine}`);
+  p(`Salary_t = base × (1 + real_raise)^t, real_raise = Fisher(${pct(ip.income_growth_rate || 0)}). Contributions while working: ${usd(ip.annual_401k_contribution ?? IRS_401K.employeeLimit)} pre-tax 401(k) (cuts income tax not FICA; ${IRS_401K.year} cap ${usd(IRS_401K.employeeLimit)} +${usd(IRS_401K.catchup)} at ${IRS_401K.catchupAge}+) + ${usd(ip.annual_backdoor_roth ?? 7500)}/yr backdoor Roth.${matchLine}`);
   p();
 
   // ── 5. Spending ───────────────────────────────────────────────────────────────
@@ -294,14 +288,14 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
     const enSpend = sp.empty_nest_linked !== false ? sp.monthly_lifestyle * 0.85 : (sp.empty_nest_monthly_spend ?? sp.monthly_lifestyle * 0.85);
     p(`- Empty-nest spend from ${sp.empty_nest_year ?? "—"}: ${usd(enSpend)}/mo (${sp.empty_nest_linked !== false ? "−15% of lifestyle" : "custom"}).`);
   }
-  p(`- Self-paid healthcare basis: ${usd(sp.healthcare_premium)}/mo for the household (treated as the all-in premium; deductibles, copays, dental & vision are NOT modeled as separate lines, so this figure should be read as total healthcare spend, not just insurance premium), escalating at CPI + ${pct(ma.healthcare_inflation_premium ?? 2)} real per year. Out-of-pocket is $0 while employer-covered; pre-65 self-paid cost is floored at 50% of the full unsubsidized premium — a **user-side modeling assumption** (real health spending never hits $0 even with a large subsidy), NOT a property of the ACA itself.`);
+  p(`- Self-paid healthcare: ${usd(sp.healthcare_premium)}/mo (treat as **total** healthcare spend — premiums, deductibles, dental, vision — not just premium; they're not modeled as separate lines), rising at CPI + ${pct(ma.healthcare_inflation_premium ?? 2)} real/yr. $0 while employer-covered; pre-65 self-paid cost floored at 50% of the unsubsidized premium (a user-side assumption, not an ACA rule).`);
   if (isRent) {
     p(`- Rent: ${usd(sp.mortgage_payment)}/mo — a **perpetual** real expense (rises with inflation, never ends, no balance to amortize).`);
   } else {
     p(`- Mortgage payment: ${usd(sp.mortgage_payment)}/mo (nominal; deflated to real over time since it's a fixed contract). It ends at payoff, and the **remaining balance is added to the FI number** (see §9).`);
   }
   if (!isRent && (sp.sell_home_year ?? 0) > 0 && (liab.property_value ?? 0) > 0) {
-    p(`- **Home sale / downsize in ${sp.sell_home_year}:** the home (value ${usd(liab.property_value ?? 0)}) is sold. Net proceeds = value − remaining mortgage − ~6% selling costs − capital-gains tax (gain over cost basis ${usd(liab.property_cost_basis ?? liab.property_value ?? 0)}, minus the $500k/$250k §121 exclusion, taxed at 15%) become spendable cash. The mortgage clears, rental income stops, and housing becomes rent at ${usd(sp.rent_after_sale ?? 0)}/mo (perpetual) from then on.`);
+    p(`- **Home sale in ${sp.sell_home_year}:** proceeds = value ${usd(liab.property_value ?? 0)} − mortgage − ~6% costs − 15% cap-gains tax (gain over basis ${usd(liab.property_cost_basis ?? liab.property_value ?? 0)} less §121 $500k/$250k) → spendable cash. Mortgage clears, rental stops, housing → rent ${usd(sp.rent_after_sale ?? 0)}/mo thereafter.`);
   }
   if (sp.ltc_annual_cost) p(`- Long-term care: ${usd(sp.ltc_annual_cost)}/yr for ${sp.ltc_years ?? 3} years starting age ${sp.ltc_start_age ?? 80}.`);
   if (config.life_events?.length) {
@@ -315,9 +309,9 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
   p();
   p(`Taxes use 2025 federal brackets, FICA, NIIT, and the resident state's brackets. Key pieces:`);
   p();
-  p(`- **Federal ordinary income:** 2025 brackets for ${ta.filing_status} (10/12/22/24/32/35/37%) on income after the standard deduction (or itemized, if larger). Itemized here = deductible mortgage interest (capped at $750k of acquisition debt) + $10k SALT${ta.itemized_deductions ? ` + ${usd(ta.itemized_deductions)} other` : ""}.`);
-  p(`- **FICA:** 6.2% Social Security up to the 2025 wage base ($176,100) + 1.45% Medicare + 0.9% additional Medicare over the threshold. Applies to W-2 wages only (not rental, not 401k-reduced).`);
-  p(`- **State income tax:** resident state is **${ta.state_of_residence}**${ta.state_of_residence === "NY" ? " — modeled with NY State progressive brackets **plus NYC local resident tax** (~3.08–3.88%), both applied to ordinary income and capital gains (NY taxes gains as ordinary)" : ta.state_of_residence === "CA" ? " — modeled with CA progressive brackets (gains taxed as ordinary; includes the 1% >$1M mental-health surcharge)" : " (progressive/flat brackets per that state; gains taxed as ordinary; local/municipal taxes omitted outside NYC and MD counties)"}.`);
+  p(`- **Federal ordinary:** 2025 ${ta.filing_status} brackets (10/12/22/24/32/35/37%) after the standard deduction (or itemized: mortgage interest on ≤$750k debt + $10k SALT${ta.itemized_deductions ? ` + ${usd(ta.itemized_deductions)}` : ""}).`);
+  p(`- **FICA:** 6.2% SS to $176,100 + 1.45% Medicare + 0.9% over threshold; W-2 wages only.`);
+  p(`- **State tax: ${ta.state_of_residence}**${ta.state_of_residence === "NY" ? " — NY State brackets + NYC resident tax (~3.08–3.88%); gains taxed as ordinary" : ta.state_of_residence === "CA" ? " — CA brackets + 1% >$1M surcharge; gains taxed as ordinary" : " — state brackets; gains taxed as ordinary; local taxes omitted outside NYC/MD"}.`);
   p(`- **NIIT:** 3.8% on net investment income above the MAGI threshold (${ta.filing_status === "married_joint" ? "$250,000" : "$200,000"}).`);
   p(`- **Long-term capital gains:** 0/15/20% federal by income; embedded gains haircut at a 15% midpoint for the FI "spendable assets" test.`);
   p(`- The model distinguishes the **effective rate** (used to net down steady salary/rental) from the **marginal rate** (used for bonuses, RSU vesting, and the emergency-withdrawal rate = min(55%, marginal + 5%)).`);
@@ -355,13 +349,12 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
   // ── 8. Withdrawals, RMDs, healthcare subsidies, survivor ──────────────────────
   p(`## 8. Retirement mechanics`);
   p();
-  p(`- **Withdrawal waterfall** when monthly cash flow is negative: (1) taxable accounts — concentrated stock then diversified brokerage, taxing only the embedded gain, and **at the stacked long-term capital-gains rate** (0/15/20% on top of that year's ordinary income, plus NIIT/state) — *not* the ordinary rate, so a low-income retiree pays little on drawdown gains; (2) traditional/pre-tax — fully taxed as ordinary income (a flat **30%** is assumed *for this month-to-month cash-flow drawdown only*); (3) Roth **last** (tax-free, RMD-free, left to compound). This is a deliberately **simple, conservative** ordering (preserve Roth) — NOT a lifetime-tax-optimized strategy. A tax-aware plan would blend traditional withdrawals / Roth conversions up to a target bracket against the ACA cliff, IRMAA, and future RMDs; that optimization is not modeled.`);
-  p(`  - ⚠️ Do **not** confuse this 30% cash-flow rate with the **spendable-assets haircut** in §9. The balance-sheet valuation of pre-tax accounts uses the *effective* tax rate on the year's actual withdrawal need (typically ~8–15%, well below both this 30% and the marginal rate) — because you never liquidate the whole 401(k) in one year. The two rates serve different purposes and are intentionally different.`);
+  p(`- **Withdrawal waterfall** (cash flow negative): (1) taxable — concentrated then diversified, taxing only the embedded gain at the stacked **LTCG** rate (0/15/20% + NIIT/state, *not* the ordinary rate); (2) traditional — ordinary income (flat 30% assumed, monthly drawdown only); (3) Roth last. Simple/conservative ordering, **not** tax-optimized (no strategic Roth-conversion/bracket management). The 30% here is distinct from the §9 spendable haircut, which uses the ~8–15% *effective* rate on the year's actual need.`);
   const rmdStart = birthYear >= 1960 ? 75 : 73;
   p(`- **RMDs:** from age ${rmdStart} (SECURE 2.0), each year withdraws \`traditional_balance ÷ IRS_Uniform_Lifetime_divisor(age)\`, taxed as ordinary income; net proceeds move to cash.`);
   p(`- **Medicare/IRMAA:** at age ${config.medicare?.start_age ?? 65}, premiums of ${usd(config.medicare?.monthly_premium ?? 185)}/mo per adult apply, plus an IRMAA surcharge driven by MAGI from two years prior.`);
   if (config.tax_optimization?.enable_aca_optimization ?? true)
-    p(`- **ACA subsidies:** during pre-Medicare retirement/sabbatical, the self-paid premium is capped at an ARPA-style % of MAGI. The subsidy is computed on the **coverage year's OWN MAGI** (the correct basis — the premium tax credit reconciles on that year's actual income), not the prior year's. Since that year's MAGI depends on the withdrawals taken to fund spending, and those depend on the subsidy, the two are solved by **fixed-point iteration** (a first pass seeds each year's MAGI, later passes feed it back until it stabilizes) — this resolves the subsidy↔withdrawal circularity and, importantly, gives the correct subsidy in the **first retirement year**, when income drops sharply and a prior-year proxy would still see high wages and deny it. Household size for the Federal-Poverty-Line test is the actual household — ${ta.filing_status === "married_joint" ? 2 : 1} adult(s) + ${kids.filter((k) => thisYear - k.birthYear < 22).length} child(ren) on the plan today (it tapers as kids age out) — so keeping taxable income low yields larger subsidies. The modeled cost is then **floored at 50% of the full unsubsidized premium** so a large subsidy can't drive real health spending to $0.`);
+    p(`- **ACA subsidy** (pre-Medicare): premium capped at an ARPA-style % of the **coverage year's own MAGI** (the correct basis), solved by fixed-point iteration since MAGI↔withdrawals are circular — which fixes the first-retirement-year subsidy a prior-year proxy would deny. FPL household size = ${ta.filing_status === "married_joint" ? 2 : 1} adult(s) + ${kids.filter((k) => thisYear - k.birthYear < 22).length} kid(s), tapering as they age out. Net cost floored at 50% of the unsubsidized premium (a user-side assumption, not an ACA rule).`);
   if (config.tax_optimization?.enable_roth_conversion ?? true)
     p(`- **Roth conversions:** during a low-income sabbatical, traditional balances are converted up to the ${usd(config.tax_optimization?.roth_conversion_target_bracket ?? 206700)} taxable-income ceiling, paying tax now from cash.`);
   if (ta.filing_status === "married_joint" && (config.mortality?.first_death_age ?? 0) > 0) {
@@ -372,31 +365,25 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
   // ── 9. The FI test ────────────────────────────────────────────────────────────
   p(`## 9. Financial-independence test (the headline)`);
   p();
-  p(`**The headline FI date is a cash-flow survival test, not the Rule of 25.** For each candidate month the engine runs the *actual* retirement forward — stop working entirely that month, then draw from the portfolio to fund every modeled expense (mortgage until payoff, healthcare growth, college, taxes, RMDs), offset by Social Security and rental income as they begin — and keeps the earliest month whose assets never deplete before age 100. This is honest because real spending is **non-level**: the mortgage ends, guaranteed income starts, college is temporary, healthcare outpaces inflation, so a single perpetual-withdrawal target is rarely the exact portfolio a plan needs.`);
+  p(`**Headline FI = cash-flow survival, not the Rule of 25.** For each candidate month, retire fully and run the actual cash-flow to age 100 (mortgage-until-payoff, healthcare growth, college, taxes, RMDs; offset by SS/rental as they start); the earliest month whose balances never deplete is the FI date. This matters because real spending is non-level. The **FI Number (Rule of 25)** below is a *reference heuristic only* (drives the Progress bar), not the pass/fail test.`);
   p();
-  p(`The **FI Number (Rule of 25)** below is kept only as a familiar *reference* heuristic — the Progress-to-FI bar is measured against it — not as the pass/fail test.`);
-  p();
-  p(`**FI Number (Rule of 25 / 4% safe withdrawal rate), plus housing:**`);
+  p(`**FI Number (Rule of 25 / 4% SWR), plus housing:**`);
   p("```");
   p(`annual_need   = (lifestyle_monthly + self_paid_healthcare_monthly${isRent ? " + rent_monthly" : ""}) × 12`);
   p(`passive_net   = (rental_net + social_security_net) × 12`);
   p(`net_need      = max(0, annual_need − passive_net)`);
   p(`FI_number     = net_need / 0.04 ${isRent ? "" : "+ remaining_mortgage_balance"}   (25 × net_need${isRent ? "" : ", plus the lump to clear the mortgage"})`);
   p("```");
-  if (isRent) {
-    p(`Because this is a **renter**, rent is treated as a permanent expense and is *capitalized into* the FI number at 25× (it's inside \`annual_need\`); there is no mortgage balance to add.`);
-  } else {
-    p(`The recurring mortgage **payment** is deliberately **not** capitalized at 25× (it's finite). Instead the **remaining balance** is added as the lump needed to clear the house; as it amortizes to $0 that add-on shrinks to nothing, and once paid off the payment also drops out of expenses.`);
-  }
+  p(isRent
+    ? `Renter: rent is a permanent expense, capitalized into the FI number at 25× (inside \`annual_need\`); no mortgage balance to add.`
+    : `The finite mortgage **payment** is not ×25; instead the remaining **balance** is added as a payoff lump (shrinks to $0 as it amortizes, and the payment then drops out of expenses).`);
   p();
-  p(`**Estimated spendable value** of assets — used only for the Rule-of-25 reference metric, NOT the headline FI test (which is the cash-flow survival model, where every dollar of tax is computed exactly year by year). This is a rough *valuation* of illiquid/tax-deferred assets, not a precise after-tax figure:`);
+  p(`**Estimated spendable value** (reference metric only — the FI test above computes tax exactly year by year). A rough valuation of tax-deferred/illiquid assets, not a precise after-tax figure:`);
   p("```");
-  p(`spendable ≈ cash + roth`);
-  p(`          + traditional × (1 − effective_withdrawal_rate)`);
+  p(`spendable ≈ cash + roth + traditional × (1 − eff_withdrawal_rate)`);
   p(`          + taxable_holdings − 0.15 × embedded_unrealized_gains`);
   p("```");
-  p(`- The traditional term is an *estimate under one withdrawal assumption*, not a true market value — a $1M pre-tax account is worth more if drawn slowly at low rates (or Roth-converted in low-income years) than if liquidated in one high-tax year. \`effective_withdrawal_rate\` here is the **effective** (not marginal, not the §8 cash-flow 30%) rate on this year's net withdrawal need — usually ~8–15%.`);
-  p(`- \`embedded_unrealized_gains\` is summed **per lot** from each holding's own cost basis: \`Σ max(0, lot_value − lot_shares × lot_basis)\`. A holding with a **$0 basis** is therefore 100% gain and takes the full 15% haircut — the loop runs over every listed position, not a flat discount on the cash balance.`);
+  p(`\`eff_withdrawal_rate\` = effective (~8–15%) rate on the year's need, not marginal. \`embedded_gains\` summed per-lot from each holding's basis (a $0-basis lot ⇒ full 15% haircut). The traditional term is an estimate under one withdrawal path, not a market value.`);
   p(`The Rule-of-25 crossing (\`spendable ≥ FI_number\`, durable) is reported below as a reference point, but the **headline FI date is the cash-flow-survival month** described above.`);
   p();
 
@@ -448,22 +435,15 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
     const mc = runMonteCarlo(snapshot, config, live, { runs: input.monteCarloRuns ?? 2500 });
     p(`## 11. Sequence-of-returns risk (Monte Carlo)`);
     p();
-    p(`The deterministic path above compounds at a single **geometric** real return, \`toReal(${ma.market_return_rate} − ${ma.volatility_drag}) = ${round1(toReal(Math.max(0, ma.market_return_rate - ma.volatility_drag), infl))}%\`. Monte Carlo instead draws a random annual real return each year from a normal distribution, with its arithmetic mean calibrated so the long-run geometric return is *approximately* that same rate:`);
     const geoTarget = toReal(Math.max(0, ma.market_return_rate - ma.volatility_drag), infl);
     const sig = (ma.return_volatility ?? 15) / 100;
     const arithMean = geoTarget + (sig * sig / 2) * 100;
-    p("```");
-    p(`geometric target = ${round1(geoTarget)}% real   (= the deterministic rate)`);
-    p(`arithmetic mean  = geometric target + σ²/2 = ${round1(arithMean)}% real`);
-    p(`return ~ Normal(mean = ${round1(arithMean)}% real, σ = ${ma.return_volatility ?? 15}%)`);
-    p("```");
-    p(`The draws are **arithmetic**; variance drags the realized geometric mean down by ≈ σ²/2, so pinning the arithmetic mean to \`geometric target + σ²/2\` makes the paths compound to ~the geometric target. This is an **approximation** — the σ²/2 correction is exact only for continuously-compounded lognormal returns, whereas these are annual normal draws applied to a portfolio with mid-year cash flows — so the deterministic path lands *near*, not exactly on, the Monte Carlo median. (Earlier the MC drew a mean of \`toReal(${ma.market_return_rate})\` with no drag, which quietly made it materially more optimistic than the deterministic path — that larger inconsistency is fixed.)`);
-    p(`across ${mc.runs} independent lifetime simulations (returns randomized from today through age 100, so accumulation-phase sequence risk is captured, not just the retirement draw-down). "Success" = the actual investable account balances never deplete once retired (not the after-tax valuation) — the same depletion test the deterministic FI date uses.`);
+    p(`${mc.runs} lifetime sims, returns randomized from **today** to age 100 (so accumulation-phase sequence risk is included). Annual real return ~ Normal(mean ${round1(arithMean)}%, σ ${ma.return_volatility ?? 15}%), the mean set to \`geo_target ${round1(geoTarget)}% + σ²/2\` so paths compound to ~the deterministic geometric rate. This σ²/2 calibration is *approximate* (exact only for lognormal, not annual-normal draws with cash flows), so the deterministic path lands near, not exactly on, the MC median. "Success" = actual account balances never deplete in retirement (same test as the deterministic FI date).`);
     p();
     const failures = Math.round((1 - mc.successRate) * mc.runs);
     const lastBand = mc.bands[mc.bands.length - 1];
     if (failures === 0) {
-      p(`- **No failures in ${mc.runs} simulations** — every simulated market path funded the plan to age 100. This is *not* a proof of zero failure risk: 0 failures in ${mc.runs} trials is consistent with a true failure probability as high as ~${(300 / mc.runs).toFixed(2)}% at the 95% confidence level (rule of three) — the true rate could be anywhere from 0% up to roughly that bound.`);
+      p(`- **No failures in ${mc.runs} sims** — but 0/${mc.runs} isn't proof of zero risk: consistent with a true failure rate up to ~${(300 / mc.runs).toFixed(2)}% (95% CI, rule of three).`);
     } else {
       p(`- **${failures} of ${mc.runs} simulations failed** to fund the plan to age 100 — a ${((1 - mc.successRate) * 100).toFixed(1)}% failure rate (${(mc.successRate * 100).toFixed(1)}% success).`);
     }
@@ -476,7 +456,7 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
     // date. This answers "how sure am I?", not just "does the base case work?".
     const fiConf = findMonteCarloFiYears(snapshot, config, live, { runsPerYear: Math.min(250, input.monteCarloRuns ?? 250) });
     const seN = (100 * Math.sqrt(0.25 / Math.max(1, fiConf.runsPerYear))).toFixed(1); // worst-case SE
-    p(`**Confidence-graded FI date** — the earliest full-retirement year whose Monte Carlo success rate (fraction of ${fiConf.runsPerYear}-path runs that fund the plan to age 100) meets each probability. Each rate is a sample estimate (±~${seN} pts at ${fiConf.runsPerYear} sims/year — see the caveat below), so read the actual rates, not just the rounded thresholds:`);
+    p(`**Confidence-graded FI date** — earliest full-retirement year whose success rate meets each probability (${fiConf.runsPerYear} sims/year, ±~${seN} pts). Read the actual rates, not just the thresholds:`);
     p("```");
     p(`base case (deterministic median path): ${fiConf.baseYear ?? "not reached"}`);
     for (const t of fiConf.thresholds) {
@@ -488,7 +468,7 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
       for (const s of fiConf.scanned) p(`  ${s.year}: ${(s.successRate * 100).toFixed(1)}%`);
     }
     p("```");
-    p(`The base-case date assumes the single expected return every year; the higher-confidence dates require surviving progressively worse return *sequences*, so they land later. The gap between the base case and the 95% date is the real cost of sequence risk. **Caveat:** at ${fiConf.runsPerYear} sims/year the estimates near 99% are noisy — e.g. 248/${fiConf.runsPerYear} successes can't be cleanly distinguished from a true 99%. For a decision you'd re-run the boundary years at ≥10,000 sims; the actual rates above show how close each year is to the line.`);
+    p(`Higher-confidence dates survive worse return *sequences*, so land later; the base→95% gap is the cost of sequence risk. **Caveat:** near 99% these are noisy at ${fiConf.runsPerYear} sims/year — for a decision, re-run boundary years at ≥10,000 sims.`);
     p();
   }
 
@@ -500,7 +480,7 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
     p(`## 12. Sensitivity — what actually moves the FI date`);
     p();
     const baseFiYr = fiSurvival ? Number(fiSurvival.date.split(" ")[1]) : null;
-    p(`Base-case deterministic FI date: **${fiSurvival?.date ?? "not reached"}**. Each row re-runs the same cash-flow survival test with ONE assumption stressed, everything else held fixed — so you can see which variables the ${fiSurvival?.date ?? "FI"} date actually depends on. (Deterministic; pair with the Monte Carlo confidence dates above for sequence risk.)`);
+    p(`Each row re-runs the deterministic FI test with ONE assumption stressed (else fixed), showing which variables the **${fiSurvival?.date ?? "FI"}** date depends on. Pair with the Monte Carlo confidence dates for sequence risk.`);
     p();
     p(`| Stressed assumption | FI date | vs base |`);
     p(`|---|---|---|`);
@@ -533,21 +513,19 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
         findCashflowFiPoint(snapshot, { ...clone(), social_security: { ...ss, social_security_linked: false, monthly_amount: Math.round(baseSS * 0.75) } }, live) ?? undefined);
     }
     p();
-    p(`A row that barely moves the date is a variable the plan is robust to; a large shift — or "not reached" — flags a dependency worth de-risking before relying on the ${fiSurvival?.date ?? "base"} date. **Note:** the GOOG-crash row models a 50% lower price *today*; it does not model a crash timed exactly at retirement (a worse case the deterministic engine can't place — the Monte Carlo captures sequence risk instead).`);
+    p(`Small shift ⇒ robust to that variable; large shift or "not reached" ⇒ a dependency to de-risk. The crash row is a "50% lower **today**" proxy — a crash timed at retirement is worse and left to the Monte Carlo.`);
     p();
   }
 
   // ── 13. Known simplifications ─────────────────────────────────────────────────
   p(`## 13. Known simplifications (worth scrutinizing)`);
   p();
-  p(`- Runs entirely in today's dollars; nominal display just re-inflates the output.`);
-  p(`- Social Security is estimated from current salary as a proxy for the 35-year indexed average (override available).`);
-  p(`- Tax brackets (2025) and retirement-contribution limits (${IRS_401K.year}) are held constant in **real** dollars — i.e. assumed to keep tracking inflation — not frozen at their nominal values. A simplification, but a reasonable one for a real-dollar model.`);
+  p(`- Social Security estimated from current salary as a proxy for the 35-year indexed average (override available).`);
+  p(`- Tax brackets & contribution limits held constant in **real** dollars (assumed to track inflation), not frozen at nominal values.`);
   p(propertyValue > 0
-    ? `- The home's market value is tracked, but its equity is kept OUT of the headline net worth (reported separately as home equity / net worth incl. home) and out of spendable/FI assets since it isn't liquid.`
-    : `- No home value entered, so the home asset behind the mortgage isn't tracked and the mortgage is excluded from net worth.`);
-  p(`- Effective vs. marginal tax rates are computed per-year, not per-transaction lot.`);
-  p(`- The survivor transition (if enabled) continues on the primary's age/claim clock rather than each spouse's own mortality.`);
+    ? `- Home equity kept OUT of headline net worth and spendable/FI assets (reported separately); it isn't liquid.`
+    : `- No home value entered, so the mortgage is excluded from net worth.`);
+  p(`- Tax rates computed per-year, not per-lot. Survivor transition (if enabled) uses the primary's age/claim clock. GOOG modeled with its own return, uncorrelated with the diversified draw.`);
   p();
   p(`---`);
   p(`*Generated by Taper. Figures are planning estimates, not financial advice.*`);

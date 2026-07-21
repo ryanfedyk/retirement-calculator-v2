@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Plus, X, Sparkles, RotateCcw, Check, Loader2, Pencil, CalendarRange, ArrowRight, Wand2 } from "lucide-react";
+import { Plus, X, Sparkles, RotateCcw, Check, Loader2, Pencil, CalendarRange, ArrowRight, Wand2, Compass } from "lucide-react";
 import { C } from "@/config/colors";
 import { useUIStore } from "@/store/useUIStore";
 import { useFinancialStore } from "@/store/useFinancialStore";
@@ -12,6 +12,7 @@ import {
   type ActivityCategory, type DayBlock, type PerfectDayItem,
 } from "@/lib/perfectDay";
 import { seedPerfectDays } from "@/lib/perfectSeed";
+import PerfectDayWizard from "./PerfectDayWizard";
 
 const money = (n: number) => `$${Math.round(n).toLocaleString()}`;
 const CATEGORIES = Object.keys(CATEGORY_COLOR) as ActivityCategory[];
@@ -30,7 +31,7 @@ type Culmination = { title: string; essence: string; themes: string[]; passions:
  * really about — then seeds your Perfect Year. Lives in the Reclaim view on
  * desktop and mobile. The AI is proactive: reads surface on their own. */
 export default function PerfectDay({ onGoToYear }: { onGoToYear?: () => void } = {}) {
-  const { days, activeId, seeded, applySeed, add, remove, clear, addDay, removeDay, renameDay, setActive } = usePerfectDayStore();
+  const { days, activeId, applySeed, add, remove, clear, addDay, removeDay, renameDay, setActive } = usePerfectDayStore();
   const setFinancesOpen = useUIStore((s) => s.setFinancesOpen);
   const exitYear = useFinancialStore((s) => s.config.career_path.exit_year);
   const yearsToRetirement = exitYear ? Math.max(0, exitYear - new Date().getFullYear()) : null;
@@ -45,13 +46,14 @@ export default function PerfectDay({ onGoToYear }: { onGoToYear?: () => void } =
     hasPartner: filingStatus === "married_joint" || !!usePartnerIncome,
   }), [children, filingStatus, usePartnerIncome]);
   const rebuildDays = () => { const s = seedPerfectDays(seedInputs); applySeed(s.days, s.activeId); };
-  const seedTried = useRef(false);
+
+  // Guided-first: a new/empty user is walked through the wizard; anyone with days
+  // already built lands straight in the editor. Decided once, after hydration, so
+  // there's no SSR mismatch. `null` = deciding.
+  const [mode, setMode] = useState<"wizard" | "editor" | null>(null);
   useEffect(() => {
-    if (seedTried.current) return;
-    seedTried.current = true;
-    const pristine = days.length === 1 && [...days[0].blocks.morning, ...days[0].blocks.afternoon, ...days[0].blocks.evening].length === 0;
-    if (!seeded && pristine) rebuildDays();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const hasContent = usePerfectDayStore.getState().days.some((d) => allIdsOf(d).length > 0);
+    setMode(hasContent ? "editor" : "wizard");
   }, []);
 
   const activeDay = useMemo(() => days.find((d) => d.id === activeId) ?? days[0], [days, activeId]);
@@ -185,13 +187,23 @@ export default function PerfectDay({ onGoToYear }: { onGoToYear?: () => void } =
     setEditingId(null);
   };
 
+  // Deciding whether to guide or edit — render nothing for the one frame it takes.
+  if (mode === null) return <div style={{ minHeight: 200 }} />;
+  if (mode === "wizard") return <PerfectDayWizard onDone={() => setMode("editor")} onGoToYear={onGoToYear} />;
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
       {/* Intro */}
       <div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
           <Sparkles size={18} color={C.teal} />
           <h2 style={{ fontSize: 18, fontWeight: 800, color: C.ink, letterSpacing: "-0.01em" }}>Your perfect days</h2>
+          <button onClick={() => setMode("wizard")} title="Walk me through it again" style={{
+            marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 99,
+            border: `1px solid ${C.border}`, background: C.bgCard, color: C.inkMid, fontSize: 11.5, fontWeight: 700, cursor: "pointer",
+          }}>
+            <Compass size={13} /> Guide me
+          </button>
         </div>
         <p style={{ fontSize: 13, color: C.inkSoft, maxWidth: 640, lineHeight: 1.5 }}>
           This is headspace work, not a budget. Sketch a few different days you'd actually want to live — a slow one, an adventurous one, a creative one. The more you add, the more clearly the throughline shows: what your retirement is really about.

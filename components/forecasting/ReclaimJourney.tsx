@@ -11,12 +11,13 @@ import { ADVENTURE_SEEDS } from "@/data/adventureSeeds";
 import {
   dayArchetypes, dayVignette, themeMixFromWeights, synthesizeFromWeights, DAY_WEIGHT_LABELS,
   adventuresByCategory, shortWhy, placeAdventures, retirementArc,
-  filterPursuits, topInterestTags, type ArcSeasonKey,
+  filterPursuits, topInterestTags,
 } from "@/lib/perfectWizard";
 import type { AdventureBlueprint, AdventureCategory, CommitmentLevel, WhenToStart } from "@/types/horizon";
 import WizardShell from "./WizardShell";
 import PerfectDay from "./PerfectDay";
 import PerfectYear from "./PerfectYear";
+import RetirementArcTimeline, { SEASON_META } from "./RetirementArcTimeline";
 
 const VALID_CATS: AdventureCategory[] = ["Immersive Travel", "Creative Mastery", "Endurance/Active", "Slow Living"];
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 40);
@@ -46,13 +47,6 @@ const CAT_COLOR: Record<AdventureCategory, string> = {
   "Endurance/Active": "#4a8a5a",
   "Slow Living":      "#c4784e",
 };
-
-const SEASON_META: Record<ArcSeasonKey, { name: string; emoji: string; color: string; tint: string; blurb: string }> = {
-  open:  { name: "The Open Road", emoji: "🌄", color: "#3f9e86", tint: "#ecf6f2", blurb: "Do the big things while the body's game — travel far, move, say yes to everything." },
-  roots: { name: "Deep Roots",    emoji: "🌳", color: "#2d6b58", tint: "#e9f1ed", blurb: "Deepen your craft and the people around you — mastery, mentoring, community." },
-  still: { name: "Still Waters",   emoji: "🌅", color: "#c4784e", tint: "#f6ede6", blurb: "Presence and what you pass on — family, giving back, and unhurried days." },
-};
-const ORDER: ArcSeasonKey[] = ["open", "roots", "still"];
 
 type Stage = "intro" | "days" | "year" | "arc";
 
@@ -360,16 +354,10 @@ export default function ReclaimJourney() {
       onBack={() => setStage("year")}
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        {/* The flowing band */}
-        <div style={{ display: "flex", height: 20, borderRadius: 999, overflow: "hidden", boxShadow: "inset 0 1px 2px rgba(0,0,0,0.04)" }}>
-          {ORDER.map((k, i) => {
-            const m = SEASON_META[k];
-            const next = SEASON_META[ORDER[Math.min(2, i + 1)]];
-            return <div key={k} style={{ flex: 1, background: `linear-gradient(90deg, ${m.color}, ${next.color})` }} />;
-          })}
-        </div>
+        {/* The zoomable life timeline */}
+        <RetirementArcTimeline arc={arc} exitAge={exitAge} horizonAge={90} />
 
-        {/* Season cards */}
+        {/* Season cards — the readable detail beneath the timeline */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10 }}>
           {arc.map((s) => {
             const m = SEASON_META[s.key];

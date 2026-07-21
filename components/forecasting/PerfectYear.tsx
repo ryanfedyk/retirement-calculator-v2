@@ -4,6 +4,7 @@ import { Plus, X, Sparkles, RotateCcw, Check, CalendarRange, Wand2, ArrowLeft } 
 import { C } from "@/config/colors";
 import { ADVENTURE_SEEDS } from "@/data/adventureSeeds";
 import { usePerfectYearStore } from "@/store/usePerfectYearStore";
+import { useCustomPursuitStore } from "@/store/useCustomPursuitStore";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { seedPerfectYear } from "@/lib/perfectSeed";
 import type { AdventureBlueprint, AdventureCategory } from "@/types/horizon";
@@ -25,7 +26,6 @@ const CAT_META: Record<AdventureCategory, { color: string; icon: string }> = {
 };
 const CATEGORIES = Object.keys(CAT_META) as AdventureCategory[];
 
-const SEED_BY_ID: Record<string, AdventureBlueprint> = Object.fromEntries(ADVENTURE_SEEDS.map((s) => [s.id, s]));
 
 /**
  * Perfect Year — a 12-month canvas for the life you're building toward. Drop
@@ -36,6 +36,10 @@ const SEED_BY_ID: Record<string, AdventureBlueprint> = Object.fromEntries(ADVENT
 export default function PerfectYear({ onExit }: { onExit?: () => void } = {}) {
   const { plan, applySeed, add, remove, clear } = usePerfectYearStore();
   const [picker, setPicker] = useState<number | null>(null); // month index being added to
+
+  const customPursuits = useCustomPursuitStore((s) => s.pursuits);
+  const catalog = useMemo(() => [...ADVENTURE_SEEDS, ...customPursuits], [customPursuits]);
+  const SEED_BY_ID = useMemo(() => Object.fromEntries(catalog.map((s) => [s.id, s])) as Record<string, AdventureBlueprint>, [catalog]);
 
   const total = useMemo(() => Object.values(plan).reduce((s, ids) => s + ids.length, 0), [plan]);
 
@@ -55,7 +59,7 @@ export default function PerfectYear({ onExit }: { onExit?: () => void } = {}) {
   // "Surprise me" — drop a random unplaced adventure onto a sensible month.
   const placedIds = useMemo(() => new Set(Object.values(plan).flat()), [plan]);
   const surprise = () => {
-    const pool = ADVENTURE_SEEDS.filter((s) => !placedIds.has(s.id));
+    const pool = catalog.filter((s) => !placedIds.has(s.id));
     if (!pool.length) return;
     const pick = pool[Math.floor((total * 7 + pool.length) % pool.length)]; // deterministic-ish, no Math.random
     add(new Date().getMonth(), pick.id);
@@ -150,7 +154,7 @@ export default function PerfectYear({ onExit }: { onExit?: () => void } = {}) {
               </button>
             </div>
             {CATEGORIES.map((cat) => {
-              const items = ADVENTURE_SEEDS.filter((a) => a.category === cat);
+              const items = catalog.filter((a) => a.category === cat);
               return (
                 <div key={cat} style={{ marginBottom: 16 }}>
                   <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: CAT_META[cat].color, marginBottom: 8 }}>{CAT_META[cat].icon} {cat}</div>

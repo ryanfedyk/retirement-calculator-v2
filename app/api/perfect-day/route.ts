@@ -32,6 +32,51 @@ interface CulminationPayload {
   exitYear?: number | null;
 }
 
+interface IdeasPayload {
+  mode: "ideas";
+  /** Passion/theme labels from the user's day blend (e.g. "Adventure & travel"). */
+  themes?: string[];
+  /** Free-text interest the user typed while exploring (optional). */
+  interest?: string;
+  /** Concepts already in the catalog, so the AI proposes genuinely new ones. */
+  exclude?: string[];
+  count?: number;
+}
+
+/** Build the prompt for generating fresh, personalized retirement pursuits. */
+function ideasPrompt(p: IdeasPayload): string {
+  const n = Math.min(8, Math.max(3, p.count ?? 6));
+  const themes = (p.themes ?? []).filter(Boolean).join(", ");
+  const exclude = (p.exclude ?? []).slice(0, 60).join("; ");
+  return `
+You are a warm, imaginative retirement-life coach — NOT a financial advisor. You help people discover vivid, specific pursuits for their retirement: hobbies, crafts, journeys, and projects worth building a chapter of life around.
+
+Propose ${n} fresh, INSPIRING, concrete pursuits.
+${themes ? `Lean toward what this person seems to love: ${themes}.` : "Offer a diverse, surprising mix."}
+${p.interest ? `They're especially curious about: "${p.interest}". Make most ideas speak to that.` : ""}
+Each pursuit must be specific and evocative (a real, nameable thing to do — not "travel more" or "get healthy"). Avoid anything already covered here: ${exclude || "(none)"}.
+
+Classify each into EXACTLY ONE category from this set: "Immersive Travel", "Creative Mastery", "Endurance/Active", "Slow Living".
+Give a mix of categories. Avoid financial-planning advice.
+
+Return ONLY raw JSON in this exact shape (no markdown, no code fences):
+{
+  "ideas": [
+    {
+      "concept": "a specific, evocative pursuit name (max ~9 words)",
+      "category": "one of the four categories, exactly",
+      "commitment": "Micro-Prototype OR Macro-Adventure",
+      "whenToStart": "Now OR Phase 2+ OR Post-Retirement",
+      "depthScore": 1,
+      "whyFactor": "1-2 warm sentences on why this pursuit is meaningful and worth the time",
+      "microDoseAction": "one small, concrete first step they can take this week",
+      "tags": ["3-5 short lowercase interest tags"]
+    }
+  ]
+}
+`;
+}
+
 /** Build the prompt for a single-day reflection. */
 function singleDayPrompt(day: DayPayload): string {
   const dayText = day.blocks
@@ -114,11 +159,13 @@ export async function POST(req: Request) {
       );
     }
 
-    const body = (await req.json()) as DayPayload | CulminationPayload;
-    const isCulmination = (body as CulminationPayload).mode === "culmination";
-    const prompt = isCulmination
+    const body = (await req.json()) as DayPayload | CulminationPayload | IdeasPayload;
+    const mode = (body as { mode?: string }).mode;
+    const prompt = mode === "culmination"
       ? culminationPrompt(body as CulminationPayload)
-      : singleDayPrompt(body as DayPayload);
+      : mode === "ideas"
+        ? ideasPrompt(body as IdeasPayload)
+        : singleDayPrompt(body as DayPayload);
 
     let responseText = "";
     let lastErr: any = null;
@@ -155,9 +202,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Insight generation failed", detail: "Unexpected response format." }, { status: 502 });
     }
 
-    return isCulmination
+    return mode === "culmination"
       ? NextResponse.json({ culmination: parsed })
-      : NextResponse.json({ insight: parsed });
+      : mode === "ideas"
+        ? NextResponse.json({ ideas: (parsed?.ideas ?? parsed) })
+        : NextResponse.json({ insight: parsed });
   } catch (err: any) {
     console.error("Perfect Day insight error:", err.message);
     return NextResponse.json({ error: "Insight generation failed", detail: err.message }, { status: 500 });

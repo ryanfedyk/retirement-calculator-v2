@@ -1,20 +1,44 @@
 "use client";
 import { useMemo, useState } from "react";
-import { Sparkles, Check, Plus, ArrowLeft, Pencil, ArrowRight } from "lucide-react";
+import { Sparkles, Check, ArrowLeft, Pencil, ArrowRight, Search, Wand2, Loader2, X } from "lucide-react";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { usePerfectYearStore } from "@/store/usePerfectYearStore";
 import { useReclaimWizardStore } from "@/store/useReclaimWizardStore";
+import { useCustomPursuitStore } from "@/store/useCustomPursuitStore";
 import { type SeedInputs } from "@/lib/perfectSeed";
+import { ADVENTURE_SEEDS } from "@/data/adventureSeeds";
 import {
   dayArchetypes, dayVignette, themeMixFromWeights, synthesizeFromWeights, DAY_WEIGHT_LABELS,
-  adventuresByCategory, groupPursuits, shortWhy, placeAdventures, retirementArc,
-  type ArcSeasonKey,
+  adventuresByCategory, shortWhy, placeAdventures, retirementArc,
+  filterPursuits, topInterestTags, type ArcSeasonKey,
 } from "@/lib/perfectWizard";
-import type { AdventureCategory } from "@/types/horizon";
+import type { AdventureBlueprint, AdventureCategory, CommitmentLevel, WhenToStart } from "@/types/horizon";
 import WizardShell from "./WizardShell";
 import PerfectDay from "./PerfectDay";
 import PerfectYear from "./PerfectYear";
+
+const VALID_CATS: AdventureCategory[] = ["Immersive Travel", "Creative Mastery", "Endurance/Active", "Slow Living"];
+const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 40);
+
+/** Coerce raw AI JSON into safe AdventureBlueprints (validate the enums). */
+function normalizeIdeas(raw: unknown): AdventureBlueprint[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((r: Record<string, unknown>, i) => {
+    const category = (VALID_CATS as string[]).includes(String(r.category)) ? (r.category as AdventureCategory) : "Slow Living";
+    const commitment: CommitmentLevel = r.commitment === "Macro-Adventure" ? "Macro-Adventure" : "Micro-Prototype";
+    const whenToStart: WhenToStart = r.whenToStart === "Now" || r.whenToStart === "Phase 2+" || r.whenToStart === "Post-Retirement" ? (r.whenToStart as WhenToStart) : "Now";
+    const depth = Math.min(3, Math.max(1, Math.round(Number(r.depthScore) || 1))) as 1 | 2 | 3;
+    const concept = String(r.concept || "").trim();
+    return {
+      id: `ai-${slug(concept) || i}`,
+      concept, category, commitment, whenToStart, depthScore: depth,
+      whyFactor: String(r.whyFactor || "").trim(),
+      microDoseAction: String(r.microDoseAction || "").trim(),
+      tags: Array.isArray(r.tags) ? (r.tags as unknown[]).map(String).slice(0, 6) : [],
+    };
+  }).filter((p) => p.concept);
+}
 
 const CAT_COLOR: Record<AdventureCategory, string> = {
   "Immersive Travel": "#2d7a66",
@@ -62,17 +86,49 @@ export default function ReclaimJourney() {
   const mix = useMemo(() => themeMixFromWeights(archetypes, dayWeights), [archetypes, dayWeights]);
   const synthesis = useMemo(() => synthesizeFromWeights(archetypes, dayWeights), [archetypes, dayWeights]);
 
-  // Year pursuits
-  const plan = usePerfectYearStore((s) => s.plan);
+  // Year pursuits + merged catalog (curated + AI-generated)
   const applySeed = usePerfectYearStore((s) => s.applySeed);
-  const groups = useMemo(() => adventuresByCategory(), []);
+  const customPursuits = useCustomPursuitStore((s) => s.pursuits);
+  const addCustom = useCustomPursuitStore((s) => s.addMany);
+  const catalog = useMemo(() => [...ADVENTURE_SEEDS, ...customPursuits], [customPursuits]);
   const [pursuits, setPursuits] = useState<string[]>(() => Object.values(usePerfectYearStore.getState().plan).flat());
   const togglePursuit = (id: string) => setPursuits((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
   const commitPursuits = (ids: string[]) => applySeed(placeAdventures(ids));
 
+  // Explorer (search · interest tags · category · AI generation)
+  const [query, setQuery] = useState("");
+  const [tagFilter, setTagFilter] = useState<string[]>([]);
+  const [catFilter, setCatFilter] = useState<AdventureCategory | "all">("all");
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiDisabled, setAiDisabled] = useState(false);
+  const tags = useMemo(() => topInterestTags(catalog, 16), [catalog]);
+  const filtering = !!query.trim() || tagFilter.length > 0 || catFilter !== "all";
+  const results = useMemo(() => filterPursuits(catalog, { query, tags: tagFilter, category: catFilter }), [catalog, query, tagFilter, catFilter]);
+  const grouped = useMemo(() => adventuresByCategory(catalog), [catalog]);
+  const toggleTag = (t: string) => setTagFilter((f) => (f.includes(t) ? f.filter((x) => x !== t) : [...f, t]));
+
+  const generateIdeas = async () => {
+    if (aiGenerating) return;
+    setAiGenerating(true); setAiError(null);
+    try {
+      const res = await fetch("/api/perfect-day", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "ideas", themes: mix.map((m) => m.label), interest: query.trim() || undefined, exclude: catalog.map((c) => c.concept) }),
+      });
+      const data = await res.json();
+      if (!res.ok) { if (res.status === 503 || res.status === 401) setAiDisabled(true); throw new Error(data.detail || data.error || "Couldn't generate ideas."); }
+      const ideas = normalizeIdeas(data.ideas);
+      if (ideas.length) addCustom(ideas);
+      else setAiError("No new ideas came back — try again.");
+    } catch (e: unknown) {
+      setAiError(e instanceof Error ? e.message : "Couldn't generate ideas.");
+    } finally { setAiGenerating(false); }
+  };
+
   // Arc
   const exitAge = birthYear && exitYear ? Math.max(40, exitYear - birthYear) : null;
-  const arc = useMemo(() => retirementArc({ exitAge, mix, pursuitIds: pursuits }), [exitAge, mix, pursuits]);
+  const arc = useMemo(() => retirementArc({ exitAge, mix, pursuitIds: pursuits, catalog }), [exitAge, mix, pursuits, catalog]);
 
   // ── Fine-tune: full editors, one tap away ──────────────────────────────────
   if (fineTune === "days") {
@@ -175,52 +231,121 @@ export default function ReclaimJourney() {
     );
   }
 
-  // ── Step 2 · Year (pursuits) ──────────────────────────────────────────────────
+  // ── Step 2 · Year (pursuit explorer) ──────────────────────────────────────────
   if (stage === "year") {
+    const card = (s: AdventureBlueprint) => {
+      const on = pursuits.includes(s.id);
+      const tint = CAT_COLOR[s.category];
+      const isAI = s.id.startsWith("ai-");
+      return (
+        <button key={s.id} onClick={() => togglePursuit(s.id)} style={{
+          textAlign: "left", cursor: "pointer", padding: "12px 13px", borderRadius: 13,
+          border: `1.5px solid ${on ? tint : C.border}`, background: on ? `${tint}10` : C.bgCard,
+          display: "flex", gap: 10, alignItems: "flex-start", transition: "border-color 0.15s, background 0.15s",
+        }}>
+          <span style={{
+            flexShrink: 0, marginTop: 1, width: 20, height: 20, borderRadius: 6,
+            border: `1.5px solid ${on ? tint : C.border}`, background: on ? tint : "transparent",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>{on && <Check size={13} color="#fff" />}</span>
+          <span style={{ minWidth: 0 }}>
+            <span style={{ display: "block", fontSize: 13, fontWeight: 700, color: on ? tint : C.ink, lineHeight: 1.3 }}>
+              {s.concept}
+              {isAI && <span style={{ marginLeft: 6, fontSize: 8.5, fontWeight: 800, letterSpacing: "0.04em", color: "#7a5a9e", background: "#7a5a9e18", borderRadius: 5, padding: "1px 5px", verticalAlign: "middle" }}>AI</span>}
+            </span>
+            <span style={{ display: "block", fontSize: 11, color: C.inkSoft, marginTop: 3, lineHeight: 1.45 }}>{shortWhy(s)}</span>
+          </span>
+        </button>
+      );
+    };
+
     return (
       <WizardShell
         step={2} total={3} eyebrow="Step 2 · Your year"
         title="What will you build your year around?"
-        subtitle="The trips, crafts, and one-of-a-kind pursuits you never had time for. Pick anything that sparks something — a few is plenty."
+        subtitle="Explore the trips, crafts, and one-of-a-kind pursuits you never had time for — search, filter by what interests you, or have the AI dream up ideas. Pick anything that sparks something."
         onBack={() => setStage("days")}
         onNext={() => { commitPursuits(pursuits); setStage("arc"); }} nextLabel="Next: your arc"
         nextDisabled={pursuits.length === 0}
-        nextHint={pursuits.length === 0 ? "Pick at least one pursuit to continue." : undefined}
+        nextHint={pursuits.length === 0 ? "Pick at least one pursuit to continue." : `${pursuits.length} chosen`}
         onSkip={() => { commitPursuits(pursuits); setFineTune("year"); }} skipLabel="Time them on a calendar"
       >
-        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-          {groups.map((g) => (
-            <div key={g.category}>
-              <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 9 }}>
-                <span style={{ fontSize: 16 }}>{g.icon}</span>
-                <span style={{ fontSize: 12.5, fontWeight: 800, color: CAT_COLOR[g.category] }}>{g.category}</span>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 8 }}>
-                {g.items.map((s) => {
-                  const on = pursuits.includes(s.id);
-                  const tint = CAT_COLOR[g.category];
-                  return (
-                    <button key={s.id} onClick={() => togglePursuit(s.id)} style={{
-                      textAlign: "left", cursor: "pointer", padding: "12px 13px", borderRadius: 13,
-                      border: `1.5px solid ${on ? tint : C.border}`, background: on ? `${tint}10` : C.bgCard,
-                      display: "flex", gap: 10, alignItems: "flex-start", transition: "border-color 0.15s, background 0.15s",
-                    }}>
-                      <span style={{
-                        flexShrink: 0, marginTop: 1, width: 20, height: 20, borderRadius: 6,
-                        border: `1.5px solid ${on ? tint : C.border}`, background: on ? tint : "transparent",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                      }}>{on && <Check size={13} color="#fff" />}</span>
-                      <span style={{ minWidth: 0 }}>
-                        <span style={{ display: "block", fontSize: 13, fontWeight: 700, color: on ? tint : C.ink, lineHeight: 1.3 }}>{s.concept}</span>
-                        <span style={{ display: "block", fontSize: 11, color: C.inkSoft, marginTop: 3, lineHeight: 1.45 }}>{shortWhy(s)}</span>
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
+        {/* Search + AI */}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+          <div style={{ flex: "1 1 220px", position: "relative", display: "flex", alignItems: "center" }}>
+            <Search size={15} color={C.inkFaint} style={{ position: "absolute", left: 11 }} />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search pursuits & interests…"
+              style={{ width: "100%", boxSizing: "border-box", padding: "10px 32px 10px 32px", borderRadius: 11, border: `1px solid ${C.border}`, background: C.bgCard, color: C.ink, fontSize: 13, outline: "none" }} />
+            {query && (
+              <button onClick={() => setQuery("")} aria-label="Clear" style={{ position: "absolute", right: 8, background: "none", border: "none", cursor: "pointer", color: C.inkFaint, display: "flex" }}><X size={14} /></button>
+            )}
+          </div>
+          {!aiDisabled && (
+            <button onClick={generateIdeas} disabled={aiGenerating} style={{
+              display: "inline-flex", alignItems: "center", gap: 6, padding: "10px 14px", borderRadius: 11, border: `1px solid ${C.tealLight}`,
+              background: C.tealWash, color: C.tealDark, fontSize: 12.5, fontWeight: 700, cursor: aiGenerating ? "default" : "pointer", whiteSpace: "nowrap",
+            }}>
+              {aiGenerating ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
+              {aiGenerating ? "Dreaming up ideas…" : "Generate ideas for me"}
+            </button>
+          )}
         </div>
+        {aiError && <div style={{ fontSize: 11.5, color: C.warm, marginBottom: 8 }}>{aiError}</div>}
+        {aiDisabled && <div style={{ fontSize: 11.5, color: C.inkFaint, marginBottom: 8 }}>AI idea generation isn&apos;t configured — explore the curated catalog below.</div>}
+
+        {/* Category pills */}
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+          {(["all", ...VALID_CATS] as const).map((c) => {
+            const on = catFilter === c;
+            return (
+              <button key={c} onClick={() => setCatFilter(c)} style={{
+                padding: "6px 12px", borderRadius: 99, fontSize: 11.5, fontWeight: 700, cursor: "pointer",
+                border: `1px solid ${on ? C.teal : C.border}`, background: on ? C.teal : C.bgCard, color: on ? "#fff" : C.inkMid,
+              }}>{c === "all" ? "All" : c}</button>
+            );
+          })}
+        </div>
+
+        {/* Interest tag chips */}
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
+          {tags.map((t) => {
+            const on = tagFilter.includes(t);
+            return (
+              <button key={t} onClick={() => toggleTag(t)} style={{
+                padding: "4px 10px", borderRadius: 99, fontSize: 11, fontWeight: 600, cursor: "pointer",
+                border: `1px solid ${on ? C.tealDark : C.borderSoft}`, background: on ? C.tealWash : "transparent", color: on ? C.tealDark : C.inkSoft,
+              }}>#{t}</button>
+            );
+          })}
+          {(tagFilter.length > 0 || catFilter !== "all") && (
+            <button onClick={() => { setTagFilter([]); setCatFilter("all"); }} style={{ padding: "4px 10px", borderRadius: 99, fontSize: 11, fontWeight: 600, cursor: "pointer", border: "none", background: "none", color: C.inkFaint, textDecoration: "underline" }}>clear</button>
+          )}
+        </div>
+
+        {/* Results */}
+        {filtering ? (
+          results.length === 0 ? (
+            <div style={{ fontSize: 13, color: C.inkSoft, padding: "8px 0" }}>No pursuits match — try a different search{aiDisabled ? "." : ", or generate ideas above."}</div>
+          ) : (
+            <>
+              <div style={{ fontSize: 11, color: C.inkFaint, marginBottom: 8 }}>{results.length} match{results.length === 1 ? "" : "es"}</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 8 }}>{results.map(card)}</div>
+            </>
+          )
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+            {grouped.map((g) => (
+              <div key={g.category}>
+                <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 9 }}>
+                  <span style={{ fontSize: 16 }}>{g.icon}</span>
+                  <span style={{ fontSize: 12.5, fontWeight: 800, color: CAT_COLOR[g.category] }}>{g.category}</span>
+                  <span style={{ fontSize: 10.5, color: C.inkFaint }}>{g.items.length}</span>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 8 }}>{g.items.map(card)}</div>
+              </div>
+            ))}
+          </div>
+        )}
       </WizardShell>
     );
   }

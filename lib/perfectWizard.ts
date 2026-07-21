@@ -153,12 +153,13 @@ export function synthesizeFromWeights(archetypes: PerfectDayItem[], weights: Rec
   return synthFromRanked(themeMixFromWeights(archetypes, weights).map((s) => s.category));
 }
 
-// ── Hobbies / unique pursuits (the Perfect-Year wizard) ────────────────────────
-/** The adventure catalog grouped by kind, for a browse-and-pick hobby step. */
-export function adventuresByCategory(): { category: AdventureCategory; icon: string; items: AdventureBlueprint[] }[] {
+// ── Hobbies / unique pursuits (the Perfect-Year explorer) ──────────────────────
+/** The adventure catalog grouped by kind, for a browse-and-pick hobby step.
+ *  Pass a merged catalog (curated + AI-generated) to include custom pursuits. */
+export function adventuresByCategory(catalog: AdventureBlueprint[] = ADVENTURE_SEEDS): { category: AdventureCategory; icon: string; items: AdventureBlueprint[] }[] {
   return YEAR_CATEGORIES.map(({ id, icon }) => ({
     category: id, icon,
-    items: ADVENTURE_SEEDS.filter((s) => s.category === id).sort((a, b) => a.depthScore - b.depthScore),
+    items: catalog.filter((s) => s.category === id).sort((a, b) => a.depthScore - b.depthScore),
   }));
 }
 
@@ -169,12 +170,39 @@ export function shortWhy(seed: AdventureBlueprint): string {
 }
 
 /** Selected pursuits grouped by kind, for the portfolio-style reveal. */
-export function groupPursuits(ids: string[]): { category: AdventureCategory; icon: string; items: AdventureBlueprint[] }[] {
-  const byId = Object.fromEntries(ADVENTURE_SEEDS.map((s) => [s.id, s]));
+export function groupPursuits(ids: string[], catalog: AdventureBlueprint[] = ADVENTURE_SEEDS): { category: AdventureCategory; icon: string; items: AdventureBlueprint[] }[] {
+  const byId = Object.fromEntries(catalog.map((s) => [s.id, s]));
   const chosen = ids.map((id) => byId[id]).filter(Boolean) as AdventureBlueprint[];
   return YEAR_CATEGORIES
     .map(({ id, icon }) => ({ category: id, icon, items: chosen.filter((s) => s.category === id) }))
     .filter((g) => g.items.length > 0);
+}
+
+/** The most common interest tags across a catalog, for filter chips. */
+export function topInterestTags(catalog: AdventureBlueprint[] = ADVENTURE_SEEDS, n = 20): string[] {
+  const count = new Map<string, number>();
+  for (const s of catalog) for (const t of s.tags ?? []) count.set(t, (count.get(t) ?? 0) + 1);
+  return [...count.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, n).map(([t]) => t);
+}
+
+/** Search + tag + category filter over the catalog. Tags match ANY (widen, don't
+ *  narrow); the query matches concept, tags, why, and category. */
+export function filterPursuits(
+  catalog: AdventureBlueprint[],
+  opts: { query?: string; tags?: string[]; category?: AdventureCategory | "all" },
+): AdventureBlueprint[] {
+  const q = (opts.query ?? "").trim().toLowerCase();
+  const tags = opts.tags ?? [];
+  const cat = opts.category ?? "all";
+  return catalog.filter((s) => {
+    if (cat !== "all" && s.category !== cat) return false;
+    if (tags.length && !(s.tags ?? []).some((t) => tags.includes(t))) return false;
+    if (q) {
+      const hay = `${s.concept} ${s.category} ${(s.tags ?? []).join(" ")} ${s.whyFactor}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
 }
 
 // ── The Arc — the whole retirement as three warm seasons ───────────────────────
@@ -213,9 +241,10 @@ export function retirementArc(opts: {
   horizonAge?: number;
   mix: ThemeSlice[];
   pursuitIds: string[];
+  catalog?: AdventureBlueprint[];
 }): ArcSeason[] {
-  const { exitAge, horizonAge = 90, mix, pursuitIds } = opts;
-  const byId = Object.fromEntries(ADVENTURE_SEEDS.map((s) => [s.id, s]));
+  const { exitAge, horizonAge = 90, mix, pursuitIds, catalog = ADVENTURE_SEEDS } = opts;
+  const byId = Object.fromEntries(catalog.map((s) => [s.id, s]));
   const pursuits = pursuitIds.map((id) => byId[id]).filter(Boolean) as AdventureBlueprint[];
 
   const themeBy: Record<ArcSeasonKey, string[]> = { open: [], roots: [], still: [] };

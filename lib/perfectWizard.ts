@@ -177,6 +177,73 @@ export function groupPursuits(ids: string[]): { category: AdventureCategory; ico
     .filter((g) => g.items.length > 0);
 }
 
+// ── The Arc — the whole retirement as three warm seasons ───────────────────────
+// Retirement isn't one long flat stretch; energy and focus shift. We frame that
+// as an arc of three seasons (never as a countdown to an end): the far season is
+// about presence and legacy, a warm close. Pursuits and daily-life themes flow
+// into the season they most belong to; soft age bands ground it without dwelling
+// on the horizon.
+export type ArcSeasonKey = "open" | "roots" | "still";
+
+const PURSUIT_SEASON: Record<AdventureCategory, ArcSeasonKey> = {
+  "Immersive Travel": "open",
+  "Endurance/Active": "open",
+  "Creative Mastery": "roots",
+  "Slow Living":      "still",
+};
+const THEME_SEASON: Record<ActivityCategory, ArcSeasonKey> = {
+  Adventure: "open", Health: "open",
+  Learning: "roots", Purpose: "roots", Social: "roots",
+  Home: "still", Leisure: "still",
+};
+
+export type ArcSeason = {
+  key: ArcSeasonKey;
+  ageFrom: number | null;
+  ageTo: number | null;
+  /** Passion labels from the user's day blend that belong to this season. */
+  themeLabels: string[];
+  pursuits: AdventureBlueprint[];
+};
+
+/** Compose the arc from the user's day blend + chosen pursuits + (optional) real
+ *  ages. Order is always open → roots → still. */
+export function retirementArc(opts: {
+  exitAge: number | null;
+  horizonAge?: number;
+  mix: ThemeSlice[];
+  pursuitIds: string[];
+}): ArcSeason[] {
+  const { exitAge, horizonAge = 90, mix, pursuitIds } = opts;
+  const byId = Object.fromEntries(ADVENTURE_SEEDS.map((s) => [s.id, s]));
+  const pursuits = pursuitIds.map((id) => byId[id]).filter(Boolean) as AdventureBlueprint[];
+
+  const themeBy: Record<ArcSeasonKey, string[]> = { open: [], roots: [], still: [] };
+  for (const s of mix) {
+    const key = THEME_SEASON[s.category];
+    if (!themeBy[key].includes(s.label)) themeBy[key].push(s.label);
+  }
+  const pursuitBy: Record<ArcSeasonKey, AdventureBlueprint[]> = { open: [], roots: [], still: [] };
+  for (const p of pursuits) pursuitBy[PURSUIT_SEASON[p.category]].push(p);
+
+  // Soft age bands: split exit → horizon into thirds (only when ages are known).
+  let bands: Record<ArcSeasonKey, [number, number]> | null = null;
+  if (exitAge != null && horizonAge - exitAge >= 6) {
+    const span = horizonAge - exitAge;
+    const a = Math.round(exitAge + span / 3);
+    const b = Math.round(exitAge + (2 * span) / 3);
+    bands = { open: [exitAge, a], roots: [a, b], still: [b, horizonAge] };
+  }
+
+  return (["open", "roots", "still"] as ArcSeasonKey[]).map((key) => ({
+    key,
+    ageFrom: bands ? bands[key][0] : null,
+    ageTo: bands ? bands[key][1] : null,
+    themeLabels: themeBy[key],
+    pursuits: pursuitBy[key],
+  }));
+}
+
 // ── Perfect-Year experience kinds & placement ─────────────────────────────────
 export const YEAR_CATEGORIES: { id: AdventureCategory; icon: string; blurb: string }[] = [
   { id: "Immersive Travel", icon: "✈️", blurb: "Slow months in a new place, bucket-list regions, family trips." },

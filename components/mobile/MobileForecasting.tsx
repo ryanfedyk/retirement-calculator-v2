@@ -1,15 +1,14 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Anchor, Wind, CalendarRange, Sun } from "lucide-react";
+import { Anchor, Wind, Sparkles } from "lucide-react";
 import { C } from "@/config/colors";
 import { useRetirementDate } from "@/hooks/useRetirementDate";
 import MacroSeasonsTimeline from "@/components/MacroSeasonsTimeline";
 import ReclaimedTimeCalculator from "@/components/ReclaimedTimeCalculator";
-import PerfectYear from "@/components/forecasting/PerfectYear";
-import PerfectDay from "@/components/forecasting/PerfectDay";
+import ReclaimJourney from "@/components/forecasting/ReclaimJourney";
 import LifeEventsFab from "@/components/forecasting/LifeEventsFab";
 
-type Sub = "seasons" | "perfectday" | "reclaim" | "year";
+type Sub = "seasons" | "design" | "reclaim";
 
 function useCountdown(target: Date) {
   const [now, setNow] = useState(() => Date.now());
@@ -35,10 +34,9 @@ export default function MobileForecasting() {
   const summers = Math.max(0, exitYear - new Date().getFullYear());
 
   const subs: { id: Sub; label: string; icon: typeof Anchor }[] = [
-    { id: "seasons",    label: "Seasons",  icon: Anchor },
-    { id: "perfectday", label: "Day",      icon: Sun },
-    { id: "reclaim",    label: "Reclaim",  icon: Wind },
-    { id: "year",       label: "Year",     icon: CalendarRange },
+    { id: "seasons", label: "Seasons", icon: Anchor },
+    { id: "design",  label: "Design",  icon: Sparkles },
+    { id: "reclaim", label: "Reclaim", icon: Wind },
   ];
 
   return (
@@ -101,10 +99,9 @@ export default function MobileForecasting() {
 
       {/* Selected feature */}
       <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 20, padding: "18px 16px", overflowX: "hidden" }}>
-        {sub === "seasons"    && <MacroSeasonsTimeline />}
-        {sub === "perfectday" && <PerfectDay onGoToYear={() => setSub("year")} />}
-        {sub === "reclaim"    && <ReclaimedTimeCalculator />}
-        {sub === "year" && <PerfectYear />}
+        {sub === "seasons" && <MacroSeasonsTimeline />}
+        {sub === "design"  && <ReclaimJourney />}
+        {sub === "reclaim" && <ReclaimedTimeCalculator />}
       </div>
 
       {/* FAB to add life events — sits above the bottom tab bar */}

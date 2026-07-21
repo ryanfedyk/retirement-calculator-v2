@@ -39,7 +39,8 @@ export interface ScenarioReportInput {
   liveGoogPrice?: number;
   /** Run Monte Carlo (slower) and include the success-rate section. Default true. */
   includeMonteCarlo?: boolean;
-  /** Number of Monte Carlo simulations (default 4000). Lower it in tests for speed. */
+  /** Monte Carlo simulations for the main risk section (default 2500). Also caps the
+   *  per-year confidence-scan runs. Lower it in tests for speed. */
   monteCarloRuns?: number;
   /** ISO date string for the report header (the engine forbids Date.now()). */
   generatedAt?: string;
@@ -160,7 +161,7 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
   if (isRent) {
     p(`| Housing | Renter | rent is a perpetual expense (no mortgage balance) |`);
   } else {
-    p(`| Mortgage balance | ${usd(-liab.mortgage_balance)} | ${pct(liab.mortgage_interest_rate ?? 3.5)} fixed |`);
+    p(`| Mortgage balance | ${usd(-liab.mortgage_balance)} | ${pct(liab.mortgage_interest_rate || 3.5)} fixed (0/blank ⇒ 3.5% default) |`);
     if (propertyValue > 0) {
       p(`| Home / building value | ${usd(propertyValue)} | equity (value − mortgage = ${usd(propertyValue - liab.mortgage_balance)}) counts in net worth; NOT a spendable/FI asset |`);
     }
@@ -289,7 +290,7 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
     const enSpend = sp.empty_nest_linked !== false ? sp.monthly_lifestyle * 0.85 : (sp.empty_nest_monthly_spend ?? sp.monthly_lifestyle * 0.85);
     p(`- Empty-nest spend from ${sp.empty_nest_year ?? "—"}: ${usd(enSpend)}/mo (${sp.empty_nest_linked !== false ? "−15% of lifestyle" : "custom"}).`);
   }
-  p(`- Self-paid healthcare premium basis: ${usd(sp.healthcare_premium)}/mo for the household, escalating at CPI + ${pct(ma.healthcare_inflation_premium ?? 2)} real per year. Out-of-pocket is $0 while employer-covered; pre-65 self-paid cost is floored at 50% of the full unsubsidized premium (a generous ACA subsidy can lower the premium but never zeroes out real health spending).`);
+  p(`- Self-paid healthcare basis: ${usd(sp.healthcare_premium)}/mo for the household (treated as the all-in premium; deductibles, copays, dental & vision are NOT modeled as separate lines, so this figure should be read as total healthcare spend, not just insurance premium), escalating at CPI + ${pct(ma.healthcare_inflation_premium ?? 2)} real per year. Out-of-pocket is $0 while employer-covered; pre-65 self-paid cost is floored at 50% of the full unsubsidized premium — a **user-side modeling assumption** (real health spending never hits $0 even with a large subsidy), NOT a property of the ACA itself.`);
   if (isRent) {
     p(`- Rent: ${usd(sp.mortgage_payment)}/mo — a **perpetual** real expense (rises with inflation, never ends, no balance to amortize).`);
   } else {
@@ -350,7 +351,7 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
   // ── 8. Withdrawals, RMDs, healthcare subsidies, survivor ──────────────────────
   p(`## 8. Retirement mechanics`);
   p();
-  p(`- **Withdrawal waterfall** when monthly cash flow is negative: (1) taxable accounts — concentrated stock then diversified brokerage, taxing only the embedded gain, and **at the stacked long-term capital-gains rate** (0/15/20% on top of that year's ordinary income, plus NIIT/state) — *not* the ordinary rate, so a low-income retiree pays little on drawdown gains; (2) traditional/pre-tax — fully taxed as ordinary income (a flat **30%** is assumed *for this month-to-month cash-flow drawdown only*); (3) Roth **last** (tax-free, RMD-free, left to compound).`);
+  p(`- **Withdrawal waterfall** when monthly cash flow is negative: (1) taxable accounts — concentrated stock then diversified brokerage, taxing only the embedded gain, and **at the stacked long-term capital-gains rate** (0/15/20% on top of that year's ordinary income, plus NIIT/state) — *not* the ordinary rate, so a low-income retiree pays little on drawdown gains; (2) traditional/pre-tax — fully taxed as ordinary income (a flat **30%** is assumed *for this month-to-month cash-flow drawdown only*); (3) Roth **last** (tax-free, RMD-free, left to compound). This is a deliberately **simple, conservative** ordering (preserve Roth) — NOT a lifetime-tax-optimized strategy. A tax-aware plan would blend traditional withdrawals / Roth conversions up to a target bracket against the ACA cliff, IRMAA, and future RMDs; that optimization is not modeled.`);
   p(`  - ⚠️ Do **not** confuse this 30% cash-flow rate with the **spendable-assets haircut** in §9. The balance-sheet valuation of pre-tax accounts uses the *effective* tax rate on the year's actual withdrawal need (typically ~8–15%, well below both this 30% and the marginal rate) — because you never liquidate the whole 401(k) in one year. The two rates serve different purposes and are intentionally different.`);
   const rmdStart = birthYear >= 1960 ? 75 : 73;
   p(`- **RMDs:** from age ${rmdStart} (SECURE 2.0), each year withdraws \`traditional_balance ÷ IRS_Uniform_Lifetime_divisor(age)\`, taxed as ordinary income; net proceeds move to cash.`);
@@ -440,10 +441,10 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
 
   // ── 11. Monte Carlo ───────────────────────────────────────────────────────────
   if (input.includeMonteCarlo ?? true) {
-    const mc = runMonteCarlo(snapshot, config, live, { runs: input.monteCarloRuns ?? 4000 });
+    const mc = runMonteCarlo(snapshot, config, live, { runs: input.monteCarloRuns ?? 2500 });
     p(`## 11. Sequence-of-returns risk (Monte Carlo)`);
     p();
-    p(`The deterministic path above compounds at a single **geometric** real return, \`toReal(${ma.market_return_rate} − ${ma.volatility_drag}) = ${round1(toReal(Math.max(0, ma.market_return_rate - ma.volatility_drag), infl))}%\`. Monte Carlo instead draws a random annual real return each year from a normal distribution — and is calibrated so its paths compound to that SAME geometric return, so the two models can't disagree:`);
+    p(`The deterministic path above compounds at a single **geometric** real return, \`toReal(${ma.market_return_rate} − ${ma.volatility_drag}) = ${round1(toReal(Math.max(0, ma.market_return_rate - ma.volatility_drag), infl))}%\`. Monte Carlo instead draws a random annual real return each year from a normal distribution, with its arithmetic mean calibrated so the long-run geometric return is *approximately* that same rate:`);
     const geoTarget = toReal(Math.max(0, ma.market_return_rate - ma.volatility_drag), infl);
     const sig = (ma.return_volatility ?? 15) / 100;
     const arithMean = geoTarget + (sig * sig / 2) * 100;
@@ -452,13 +453,13 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
     p(`arithmetic mean  = geometric target + σ²/2 = ${round1(arithMean)}% real`);
     p(`return ~ Normal(mean = ${round1(arithMean)}% real, σ = ${ma.return_volatility ?? 15}%)`);
     p("```");
-    p(`The draws are **arithmetic**, but variance drags the realized geometric mean down by ≈ σ²/2 — so pinning the arithmetic mean to \`geometric target + σ²/2\` makes the drawn paths compound to the geometric target in expectation. The deterministic projection then lands on the Monte Carlo median. (Earlier the MC drew a mean of \`toReal(${ma.market_return_rate})\` with no drag, which quietly made it more optimistic than the deterministic path — that inconsistency is now fixed.)`);
-    p(`across ${mc.runs} independent lifetime simulations (returns randomized from today through age 100, so accumulation-phase sequence risk is captured, not just the retirement draw-down). "Success" = spendable assets never hit zero once retired.`);
+    p(`The draws are **arithmetic**; variance drags the realized geometric mean down by ≈ σ²/2, so pinning the arithmetic mean to \`geometric target + σ²/2\` makes the paths compound to ~the geometric target. This is an **approximation** — the σ²/2 correction is exact only for continuously-compounded lognormal returns, whereas these are annual normal draws applied to a portfolio with mid-year cash flows — so the deterministic path lands *near*, not exactly on, the Monte Carlo median. (Earlier the MC drew a mean of \`toReal(${ma.market_return_rate})\` with no drag, which quietly made it materially more optimistic than the deterministic path — that larger inconsistency is fixed.)`);
+    p(`across ${mc.runs} independent lifetime simulations (returns randomized from today through age 100, so accumulation-phase sequence risk is captured, not just the retirement draw-down). "Success" = the actual investable account balances never deplete once retired (not the after-tax valuation) — the same depletion test the deterministic FI date uses.`);
     p();
     const failures = Math.round((1 - mc.successRate) * mc.runs);
     const lastBand = mc.bands[mc.bands.length - 1];
     if (failures === 0) {
-      p(`- **No failures in ${mc.runs} simulations** — every simulated market path funded the plan to age 100. This is *not* a proof of zero failure risk: with 0 failures in ${mc.runs} trials the true failure rate could still be as high as ~${(300 / mc.runs).toFixed(2)}% at 95% confidence (rule of three).`);
+      p(`- **No failures in ${mc.runs} simulations** — every simulated market path funded the plan to age 100. This is *not* a proof of zero failure risk: 0 failures in ${mc.runs} trials is consistent with a true failure probability as high as ~${(300 / mc.runs).toFixed(2)}% at the 95% confidence level (rule of three) — the true rate could be anywhere from 0% up to roughly that bound.`);
     } else {
       p(`- **${failures} of ${mc.runs} simulations failed** to fund the plan to age 100 — a ${((1 - mc.successRate) * 100).toFixed(1)}% failure rate (${(mc.successRate * 100).toFixed(1)}% success).`);
     }
@@ -470,14 +471,20 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
     // 95 / 99% of simulated market paths, alongside the deterministic (median-path)
     // date. This answers "how sure am I?", not just "does the base case work?".
     const fiConf = findMonteCarloFiYears(snapshot, config, live, { runsPerYear: Math.min(250, input.monteCarloRuns ?? 250) });
-    p(`**Confidence-graded FI date** — earliest full-retirement year by probability of funding the plan to age 100 (≈ ±1 year, 250 sims/year):`);
+    const seN = (100 * Math.sqrt(0.25 / Math.max(1, fiConf.runsPerYear))).toFixed(1); // worst-case SE
+    p(`**Confidence-graded FI date** — the earliest full-retirement year whose Monte Carlo success rate (fraction of ${fiConf.runsPerYear}-path runs that fund the plan to age 100) meets each probability. Each rate is a sample estimate (±~${seN} pts at ${fiConf.runsPerYear} sims/year — see the caveat below), so read the actual rates, not just the rounded thresholds:`);
     p("```");
     p(`base case (deterministic median path): ${fiConf.baseYear ?? "not reached"}`);
     for (const t of fiConf.thresholds) {
-      p(`${Math.round(t.p * 100)}% of market paths succeed:   ${t.year ?? "not by age 100"}`);
+      p(`earliest year with ≥${Math.round(t.p * 100)}% success: ${t.year ?? "not within horizon"}`);
+    }
+    if (fiConf.scanned.length) {
+      p(``);
+      p(`actual success rate by exit year (retire at the START of that year):`);
+      for (const s of fiConf.scanned) p(`  ${s.year}: ${(s.successRate * 100).toFixed(1)}%`);
     }
     p("```");
-    p(`The base-case date assumes the single expected return every year; the ${fiConf.thresholds.map((t) => `${Math.round(t.p * 100)}%`).join(" / ")} dates require surviving progressively worse return *sequences*, so they land later. The gap between the base case and the 95% date is the real cost of sequence risk — often several years.`);
+    p(`The base-case date assumes the single expected return every year; the higher-confidence dates require surviving progressively worse return *sequences*, so they land later. The gap between the base case and the 95% date is the real cost of sequence risk. **Caveat:** at ${fiConf.runsPerYear} sims/year the estimates near 99% are noisy — e.g. 248/${fiConf.runsPerYear} successes can't be cleanly distinguished from a true 99%. For a decision you'd re-run the boundary years at ≥10,000 sims; the actual rates above show how close each year is to the line.`);
     p();
   }
 

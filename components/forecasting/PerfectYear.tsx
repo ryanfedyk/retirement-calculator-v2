@@ -1,13 +1,12 @@
 "use client";
 import { useMemo, useState } from "react";
-import { Plus, X, Sparkles, RotateCcw, Check, CalendarRange, Wand2, Compass } from "lucide-react";
+import { Plus, X, Sparkles, RotateCcw, Check, CalendarRange, Wand2, ArrowLeft } from "lucide-react";
 import { C } from "@/config/colors";
 import { ADVENTURE_SEEDS } from "@/data/adventureSeeds";
 import { usePerfectYearStore } from "@/store/usePerfectYearStore";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { seedPerfectYear } from "@/lib/perfectSeed";
 import type { AdventureBlueprint, AdventureCategory } from "@/types/horizon";
-import PerfectYearWizard from "./PerfectYearWizard";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -34,7 +33,7 @@ const SEED_BY_ID: Record<string, AdventureBlueprint> = Object.fromEntries(ADVENT
  * adventure catalog (travel, creative mastery, endurance, slow living) is the
  * palette. Replaces the standalone Adventure generator. Desktop + mobile.
  */
-export default function PerfectYear() {
+export default function PerfectYear({ onExit }: { onExit?: () => void } = {}) {
   const { plan, applySeed, add, remove, clear } = usePerfectYearStore();
   const [picker, setPicker] = useState<number | null>(null); // month index being added to
 
@@ -53,11 +52,6 @@ export default function PerfectYear() {
   }), [children, exitMonth, lifeEvents]);
   const rebuildYear = () => applySeed(seedPerfectYear(seedInputs));
 
-  // Guided-first: the wizard is the default experience for everyone (it resumes
-  // at your pursuits portfolio if you've already picked some). The month-by-month
-  // calendar editor is opt-in, reached from the reveal and via "Guide me".
-  const [mode, setMode] = useState<"wizard" | "editor">("wizard");
-
   // "Surprise me" — drop a random unplaced adventure onto a sensible month.
   const placedIds = useMemo(() => new Set(Object.values(plan).flat()), [plan]);
   const surprise = () => {
@@ -67,19 +61,19 @@ export default function PerfectYear() {
     add(new Date().getMonth(), pick.id);
   };
 
-  if (mode === "wizard") return <PerfectYearWizard onDone={() => setMode("editor")} />;
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
       {/* Intro */}
       <div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+          {onExit && (
+            <button onClick={onExit} title="Back to the journey" style={{ display: "inline-flex", alignItems: "center", gap: 5, background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 99, padding: "6px 12px", cursor: "pointer", color: C.inkMid, fontSize: 11.5, fontWeight: 700 }}>
+              <ArrowLeft size={13} /> Back
+            </button>
+          )}
           <CalendarRange size={18} color={C.teal} />
           <h2 style={{ fontSize: 18, fontWeight: 800, color: C.ink, letterSpacing: "-0.01em" }}>Your perfect year</h2>
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
-            <button onClick={() => setMode("wizard")} title="Walk me through it again" style={{ display: "inline-flex", alignItems: "center", gap: 5, background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 99, padding: "6px 12px", cursor: "pointer", color: C.inkMid, fontSize: 11.5, fontWeight: 700 }}>
-              <Compass size={13} /> Guide me
-            </button>
             <button onClick={rebuildYear} title="Draft a fresh year from your plan" style={{ display: "inline-flex", alignItems: "center", gap: 5, background: C.tealWash, border: `1px solid ${C.tealLight}`, borderRadius: 99, padding: "6px 12px", cursor: "pointer", color: C.tealDark, fontSize: 11.5, fontWeight: 700 }}>
               <Wand2 size={13} /> Rebuild for me
             </button>

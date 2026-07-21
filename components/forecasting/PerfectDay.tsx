@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Plus, X, Sparkles, RotateCcw, Check, Loader2, Pencil, CalendarRange, ArrowRight, Wand2, Compass } from "lucide-react";
+import { Plus, X, Sparkles, RotateCcw, Check, Loader2, Pencil, CalendarRange, ArrowRight, Wand2, ArrowLeft } from "lucide-react";
 import { C } from "@/config/colors";
 import { useUIStore } from "@/store/useUIStore";
 import { useFinancialStore } from "@/store/useFinancialStore";
@@ -12,7 +12,6 @@ import {
   type ActivityCategory, type DayBlock, type PerfectDayItem,
 } from "@/lib/perfectDay";
 import { seedPerfectDays } from "@/lib/perfectSeed";
-import PerfectDayWizard from "./PerfectDayWizard";
 
 const money = (n: number) => `$${Math.round(n).toLocaleString()}`;
 const CATEGORIES = Object.keys(CATEGORY_COLOR) as ActivityCategory[];
@@ -30,7 +29,7 @@ type Culmination = { title: string; essence: string; themes: string[]; passions:
  * per-day read, and an AI "culmination" that names what your retirement is
  * really about — then seeds your Perfect Year. Lives in the Reclaim view on
  * desktop and mobile. The AI is proactive: reads surface on their own. */
-export default function PerfectDay({ onGoToYear }: { onGoToYear?: () => void } = {}) {
+export default function PerfectDay({ onGoToYear, onExit }: { onGoToYear?: () => void; onExit?: () => void } = {}) {
   const { days, activeId, applySeed, add, remove, clear, addDay, removeDay, renameDay, setActive } = usePerfectDayStore();
   const setFinancesOpen = useUIStore((s) => s.setFinancesOpen);
   const exitYear = useFinancialStore((s) => s.config.career_path.exit_year);
@@ -47,10 +46,6 @@ export default function PerfectDay({ onGoToYear }: { onGoToYear?: () => void } =
   }), [children, filingStatus, usePartnerIncome]);
   const rebuildDays = () => { const s = seedPerfectDays(seedInputs); applySeed(s.days, s.activeId); };
 
-  // Guided-first: the wizard is the default experience for everyone (it resumes
-  // at your reveal if you've already set a blend). The detailed editor is opt-in,
-  // reached from the reveal and re-enterable via "Guide me".
-  const [mode, setMode] = useState<"wizard" | "editor">("wizard");
 
   const activeDay = useMemo(() => days.find((d) => d.id === activeId) ?? days[0], [days, activeId]);
   const allIds = useMemo(() => allIdsOf(activeDay), [activeDay]);
@@ -183,21 +178,21 @@ export default function PerfectDay({ onGoToYear }: { onGoToYear?: () => void } =
     setEditingId(null);
   };
 
-  if (mode === "wizard") return <PerfectDayWizard onDone={() => setMode("editor")} onGoToYear={onGoToYear} />;
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
       {/* Intro */}
       <div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+          {onExit && (
+            <button onClick={onExit} title="Back to the journey" style={{
+              display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 99,
+              border: `1px solid ${C.border}`, background: C.bgCard, color: C.inkMid, fontSize: 11.5, fontWeight: 700, cursor: "pointer",
+            }}>
+              <ArrowLeft size={13} /> Back
+            </button>
+          )}
           <Sparkles size={18} color={C.teal} />
           <h2 style={{ fontSize: 18, fontWeight: 800, color: C.ink, letterSpacing: "-0.01em" }}>Your perfect days</h2>
-          <button onClick={() => setMode("wizard")} title="Walk me through it again" style={{
-            marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 99,
-            border: `1px solid ${C.border}`, background: C.bgCard, color: C.inkMid, fontSize: 11.5, fontWeight: 700, cursor: "pointer",
-          }}>
-            <Compass size={13} /> Guide me
-          </button>
         </div>
         <p style={{ fontSize: 13, color: C.inkSoft, maxWidth: 640, lineHeight: 1.5 }}>
           This is headspace work, not a budget. Sketch a few different days you'd actually want to live — a slow one, an adventurous one, a creative one. The more you add, the more clearly the throughline shows: what your retirement is really about.

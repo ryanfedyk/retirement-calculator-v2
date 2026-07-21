@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
-import { Anchor, Wind, CalendarRange, Sun } from "lucide-react";
+import { Anchor, Wind, Sparkles } from "lucide-react";
 import { useHorizonProfile } from "@/config/horizonConfig";
 import { C } from "@/config/colors";
 import Header, { type AppView } from "@/components/Header";
@@ -15,9 +15,8 @@ import { useRetirementDate } from "@/hooks/useRetirementDate";
 import FlightMap             from "@/components/FlightMap";
 import MacroSeasonsTimeline  from "@/components/MacroSeasonsTimeline";
 import ReclaimedTimeCalculator from "@/components/ReclaimedTimeCalculator";
-import PerfectYear          from "@/components/forecasting/PerfectYear";
+import ReclaimJourney       from "@/components/forecasting/ReclaimJourney";
 import FinancialDashboard    from "@/components/finance/FinancialDashboard";
-import PerfectDay            from "@/components/forecasting/PerfectDay";
 import LifeEventsFab         from "@/components/forecasting/LifeEventsFab";
 import SettingsPanel         from "@/components/SettingsPanel";
 import ScenarioReportModal   from "@/components/ScenarioReportModal";
@@ -30,10 +29,9 @@ import { useBrowserBackNav } from "@/hooks/useBrowserBackNav";
 import { useMonthlyPlanSnapshot } from "@/hooks/useMonthlyPlanSnapshot";
 
 const NAV = [
-  { id: "seasons",    label: "Seasons",     icon: Anchor },
-  { id: "perfectday", label: "Perfect Day", icon: Sun },
-  { id: "reclaim",    label: "Reclaim",     icon: Wind },
-  { id: "year",       label: "Perfect Year", icon: CalendarRange },
+  { id: "seasons",    label: "Seasons",  icon: Anchor },
+  { id: "design",     label: "Design",   icon: Sparkles },
+  { id: "reclaim",    label: "Reclaim",  icon: Wind },
 ] as const;
 type NavId = typeof NAV[number]["id"];
 
@@ -169,9 +167,8 @@ export default function DashboardShell() {
           <main className="flex-1 px-8 py-12">
             <div className="max-w-7xl mx-auto">
               {tab === "seasons"    && <MacroSeasonsTimeline />}
-              {tab === "perfectday" && <PerfectDay onGoToYear={() => setTab("year")} />}
+              {tab === "design"     && <ReclaimJourney />}
               {tab === "reclaim"    && <ReclaimedTimeCalculator />}
-              {tab === "year" && <PerfectYear />}
             </div>
           </main>
 

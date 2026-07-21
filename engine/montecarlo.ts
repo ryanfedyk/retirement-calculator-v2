@@ -128,10 +128,15 @@ export function runMonteCarlo(
 
     const traj = runSimulation(snapshot, config, livePrice, path);
 
-    // Success = spendable assets never hit zero once retired.
+    // Success = the actual investable ACCOUNT balances never deplete once retired.
+    // Use gross investableAssets (real account balances the cash-flow engine draws
+    // from), NOT the after-tax spendable valuation — that's a valuation overlay, and
+    // failure means "couldn't fund an expense", i.e. the real balances ran out. This
+    // also matches assessPlan's deterministic depletion test, so the deterministic
+    // and Monte Carlo FI dates use one consistent definition of "ran out".
     let depleted = false;
     for (const p of traj) {
-      if (p.currentPhase === "RETIRED" && p.investableAfterTax <= 0) {
+      if (p.currentPhase === "RETIRED" && p.investableAssets <= 0) {
         depleted = true;
         break;
       }
@@ -177,6 +182,11 @@ export interface MonteCarloFiResult {
   baseYear: number | null;
   /** Earliest exit YEAR whose Monte Carlo success rate meets each probability. */
   thresholds: { p: number; year: number | null }[];
+  /** The actual success rate at each candidate exit year scanned — so the reader
+   *  sees 88% vs 97% vs 99.7%, not just which rounded threshold was crossed. */
+  scanned: { year: number; successRate: number }[];
+  /** Simulations run per candidate year (so the reported precision is auditable). */
+  runsPerYear: number;
 }
 
 /**
@@ -208,21 +218,24 @@ export function findMonteCarloFiYears(
   const baseYear = basePt ? Number(basePt.date.split(" ")[1]) : null;
 
   const results = probs.map((p) => ({ p, year: null as number | null }));
+  const scanned: { year: number; successRate: number }[] = [];
   // If the plan never reaches FI even on the deterministic median path, it can't
   // reach any confidence threshold either — skip the (potentially long) scan.
-  if (baseYear == null) return { baseYear: null, thresholds: results };
+  if (baseYear == null) return { baseYear: null, thresholds: results, scanned, runsPerYear: runs };
 
   // Scan upward from the base year, capped so a marginal plan that never reaches
-  // 99% doesn't scan decades.
-  const scanTo = Math.min(maxYear, baseYear + 35);
+  // 99% doesn't scan decades (and keeps report generation bounded). If a threshold
+  // isn't met within this window it's reported as "not within horizon".
+  const scanTo = Math.min(maxYear, baseYear + 15);
   for (let yr = Math.max(startYear, baseYear); yr <= scanTo; yr++) {
     const cfg: SimulationConfiguration = {
       ...structuredClone(config),
       career_path: { ...config.career_path, exit_year: yr, use_sabbatical: false, use_jump: false, use_bridge: false },
     };
     const { successRate } = runMonteCarlo(snapshot, cfg, livePrice, { runs, seed });
+    scanned.push({ year: yr, successRate });
     for (const r of results) if (r.year == null && successRate >= r.p) r.year = yr;
     if (results.every((r) => r.year != null)) break;
   }
-  return { baseYear, thresholds: results };
+  return { baseYear, thresholds: results, scanned, runsPerYear: runs };
 }

@@ -1,16 +1,17 @@
 "use client";
-import { useMemo, useState } from "react";
-import { Sparkles, Check, ArrowLeft, Pencil, ArrowRight, Search, Wand2, Loader2, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Check, ArrowLeft, Pencil, ArrowRight, Search, Wand2, Loader2, X, RotateCcw } from "lucide-react";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { usePerfectYearStore } from "@/store/usePerfectYearStore";
 import { useReclaimWizardStore } from "@/store/useReclaimWizardStore";
 import { useCustomPursuitStore } from "@/store/useCustomPursuitStore";
+import { usePerfectDayStore } from "@/store/usePerfectDayStore";
 import { type SeedInputs } from "@/lib/perfectSeed";
 import { ADVENTURE_SEEDS } from "@/data/adventureSeeds";
 import {
   dayArchetypes, dayVignette, themeMixFromWeights, synthesizeFromWeights, DAY_WEIGHT_LABELS,
-  adventuresByCategory, shortWhy, placeAdventures, retirementArc,
+  adventuresByCategory, shortWhy, placeAdventures, retirementArc, blendGapNote,
   filterPursuits, topInterestTags,
 } from "@/lib/perfectWizard";
 import type { AdventureBlueprint, AdventureCategory, CommitmentLevel, WhenToStart } from "@/types/horizon";
@@ -59,12 +60,21 @@ type Stage = "intro" | "days" | "year" | "arc";
  * for anyone who wants to fine-tune.
  */
 export default function ReclaimJourney() {
-  const [stage, setStage] = useState<Stage>("intro");
+  // Smart start: returning users (who already shaped a blend or picked pursuits)
+  // land straight on their arc, not the intro. Decided once, post-hydration.
+  const [stage, setStage] = useState<Stage | null>(null);
   const [fineTune, setFineTune] = useState<null | "days" | "year">(null);
+  const [confirmReset, setConfirmReset] = useState(false);
+  useEffect(() => {
+    const anyW = Object.values(useReclaimWizardStore.getState().dayWeights).some((v) => v > 0);
+    const anyP = Object.values(usePerfectYearStore.getState().plan).flat().length > 0;
+    setStage(anyW || anyP ? "arc" : "intro");
+  }, []);
 
   // Day blend
   const dayWeights = useReclaimWizardStore((s) => s.dayWeights);
   const setDayWeight = useReclaimWizardStore((s) => s.setDayWeight);
+  const resetDayWeights = useReclaimWizardStore((s) => s.resetDayWeights);
   const children = useFinancialStore((s) => s.profile.children);
   const filingStatus = useFinancialStore((s) => s.config.tax_assumptions.filing_status);
   const usePartnerIncome = useFinancialStore((s) => s.config.income_profile.use_partner_income);
@@ -82,8 +92,11 @@ export default function ReclaimJourney() {
 
   // Year pursuits + merged catalog (curated + AI-generated)
   const applySeed = usePerfectYearStore((s) => s.applySeed);
+  const clearYear = usePerfectYearStore((s) => s.clear);
   const customPursuits = useCustomPursuitStore((s) => s.pursuits);
   const addCustom = useCustomPursuitStore((s) => s.addMany);
+  const clearCustom = useCustomPursuitStore((s) => s.clear);
+  const resetDays = usePerfectDayStore((s) => s.reset);
   const catalog = useMemo(() => [...ADVENTURE_SEEDS, ...customPursuits], [customPursuits]);
   const [pursuits, setPursuits] = useState<string[]>(() => Object.values(usePerfectYearStore.getState().plan).flat());
   const togglePursuit = (id: string) => setPursuits((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
@@ -120,6 +133,24 @@ export default function ReclaimJourney() {
     } finally { setAiGenerating(false); }
   };
 
+  // Draft a whole starter journey to react to — a gentle default blend + one
+  // pursuit from each kind — so the arc is meaningful in a single tap.
+  const draftForMe = () => {
+    setDayWeight("arch-connected", 3);
+    setDayWeight("arch-yours", 2);
+    setDayWeight("arch-restful", 1);
+    const ids = grouped.map((g) => g.items[0]?.id).filter(Boolean) as string[];
+    setPursuits(ids); commitPursuits(ids);
+    setStage("arc");
+  };
+
+  // Reset the whole day / year / arc feature back to a blank slate.
+  const resetAll = () => {
+    resetDayWeights(); clearYear(); clearCustom(); resetDays();
+    setPursuits([]); setQuery(""); setTagFilter([]); setCatFilter("all"); setAiError(null); setAiDisabled(false);
+    setConfirmReset(false); setStage("intro");
+  };
+
   // Arc
   const exitAge = birthYear && exitYear ? Math.max(40, exitYear - birthYear) : null;
   const arc = useMemo(() => retirementArc({ exitAge, mix, pursuitIds: pursuits, catalog }), [exitAge, mix, pursuits, catalog]);
@@ -131,6 +162,8 @@ export default function ReclaimJourney() {
   if (fineTune === "year") {
     return <PerfectYear onExit={() => setFineTune(null)} />;
   }
+
+  if (stage === null) return <div style={{ minHeight: 200 }} />;
 
   // ── Intro ───────────────────────────────────────────────────────────────────
   if (stage === "intro") {
@@ -161,14 +194,21 @@ export default function ReclaimJourney() {
             </div>
           ))}
         </div>
-        <div>
+        <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
           <button onClick={() => setStage("days")} style={{
             display: "inline-flex", alignItems: "center", gap: 8, padding: "13px 22px", borderRadius: 13, border: "none",
             background: C.teal, color: "#fff", fontSize: 14.5, fontWeight: 700, cursor: "pointer", boxShadow: `0 5px 18px ${C.teal}44`,
           }}>
             Begin <ArrowRight size={16} />
           </button>
+          <button onClick={draftForMe} style={{
+            display: "inline-flex", alignItems: "center", gap: 7, padding: "13px 18px", borderRadius: 13,
+            border: `1px solid ${C.tealLight}`, background: C.tealWash, color: C.tealDark, fontSize: 13.5, fontWeight: 700, cursor: "pointer",
+          }}>
+            <Wand2 size={15} /> Draft one for me
+          </button>
         </div>
+        <div style={{ fontSize: 11.5, color: C.inkFaint, marginTop: -6 }}>New here? &ldquo;Draft one for me&rdquo; fills a starting arc you can shape — nothing to lose.</div>
       </div>
     );
   }
@@ -218,6 +258,10 @@ export default function ReclaimJourney() {
             </div>
             <div style={{ fontSize: 13.5, color: C.inkMid, marginTop: 11, lineHeight: 1.5 }}>
               This points to <strong style={{ color: C.tealDark }}>{synthesis.title.replace(/^A life of /, "a life of ")}</strong>.
+            </div>
+            <div style={{ display: "flex", gap: 7, marginTop: 8 }}>
+              <span style={{ fontSize: 14, lineHeight: 1.4 }}>💡</span>
+              <span style={{ fontSize: 12, color: C.inkSoft, lineHeight: 1.5 }}>{blendGapNote(mix)}</span>
             </div>
           </div>
         )}
@@ -354,6 +398,14 @@ export default function ReclaimJourney() {
       onBack={() => setStage("year")}
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {/* Throughline headline — ties the arc back to what the days revealed */}
+        {mix.length > 0 && (
+          <div style={{ borderRadius: 14, padding: "14px 18px", background: `linear-gradient(135deg, ${C.tealWash}, ${C.bgCard})`, border: `1px solid ${C.tealLight}` }}>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: C.tealDark, marginBottom: 3 }}>Your retirement looks like</div>
+            <div style={{ fontSize: 20, fontWeight: 300, color: C.ink, letterSpacing: "-0.015em" }}>{synthesis.title}</div>
+          </div>
+        )}
+
         {/* The zoomable life timeline */}
         <RetirementArcTimeline arc={arc} exitAge={exitAge} horizonAge={90} />
 
@@ -421,6 +473,21 @@ export default function ReclaimJourney() {
           <button onClick={() => { commitPursuits(pursuits); setFineTune("year"); }} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "none", border: "none", cursor: "pointer", color: C.inkMid, fontSize: 12.5, fontWeight: 600 }}>
             <Pencil size={13} /> Fine-tune year
           </button>
+        </div>
+
+        {/* Reset just this feature (distinct from the app-wide "Start over") */}
+        <div style={{ display: "flex", justifyContent: "center", marginTop: 2 }}>
+          {confirmReset ? (
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 10, fontSize: 12, color: C.inkSoft, flexWrap: "wrap", justifyContent: "center" }}>
+              Clear your days, pursuits &amp; arc and design from scratch?
+              <button onClick={resetAll} style={{ background: C.warm, color: "#fff", border: "none", borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Yes, reset</button>
+              <button onClick={() => setConfirmReset(false)} style={{ background: "none", border: "none", color: C.inkFaint, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Cancel</button>
+            </div>
+          ) : (
+            <button onClick={() => setConfirmReset(true)} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "none", border: "none", cursor: "pointer", color: C.inkFaint, fontSize: 11.5, fontWeight: 600 }}>
+              <RotateCcw size={12} /> Reset my design
+            </button>
+          )}
         </div>
       </div>
     </WizardShell>

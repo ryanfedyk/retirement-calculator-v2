@@ -153,6 +153,17 @@ export function synthesizeFromWeights(archetypes: PerfectDayItem[], weights: Rec
   return synthFromRanked(themeMixFromWeights(archetypes, weights).map((s) => s.category));
 }
 
+/** A short coaching line on what the blend is *missing* — the most useful
+ *  insight. Connection > purpose > movement, in priority order. */
+export function blendGapNote(mix: ThemeSlice[]): string {
+  if (mix.length === 0) return "";
+  const present = new Set(mix.map((m) => m.category));
+  if (!present.has("Social")) return "Lighter on connection — a standing weekly meetup or shared meal is what keeps retirement from getting lonely.";
+  if (!present.has("Purpose")) return "Room for more purpose — a project, mentoring, or volunteering gives the week an anchor beyond leisure.";
+  if (!present.has("Health")) return "Not much movement yet — daily activity is what sustains the energy to enjoy everything else for decades.";
+  return "Nicely balanced — movement, connection, and purpose are all in your weeks. That mix is what makes retirement feel full.";
+}
+
 // ── Hobbies / unique pursuits (the Perfect-Year explorer) ──────────────────────
 /** The adventure catalog grouped by kind, for a browse-and-pick hobby step.
  *  Pass a merged catalog (curated + AI-generated) to include custom pursuits. */

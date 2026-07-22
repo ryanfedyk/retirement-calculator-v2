@@ -139,9 +139,9 @@ export default function ReclaimJourney() {
   // Draft a whole starter journey to react to — a gentle default blend + one
   // pursuit from each kind — so the arc is meaningful in a single tap.
   const draftForMe = () => {
-    setDayWeight("arch-connected", 4);
-    setDayWeight("arch-adventure", 3);
-    setDayWeight("arch-restful", 3);
+    setDayWeight("arch-connected", 5);
+    setDayWeight("arch-adventure", 5);
+    setDayWeight("arch-restful", 4);
     const ids = grouped.map((g) => g.items[0]?.id).filter(Boolean) as string[];
     setPursuits(ids); commitPursuits(ids);
     setStage("arc");
@@ -244,14 +244,14 @@ export default function ReclaimJourney() {
 
   // ── Step 1 · Days (spread your week's blocks) ─────────────────────────────────
   if (stage === "days") {
-    const BUDGET = 10;
+    const BUDGET = 14;
     const placed = totalWeight;
     const remaining = Math.max(0, BUDGET - placed);
     return (
       <WizardShell
         step={1} total={3} eyebrow="Step 1 · Your days"
         title="How would your weeks actually feel?"
-        subtitle="A day can hold a few of these, so picture a whole week's worth of time — about ten blocks. Lean harder on what matters most; it's fine to leave some unplaced."
+        subtitle="A day can hold a few of these, so picture a whole week's worth of time — about fourteen blocks. Lean harder on what matters most; it's fine to leave some unplaced."
         onBack={() => setStage("intro")}
         onNext={() => setStage("year")} nextLabel="Next: your year"
         nextDisabled={placed === 0}
@@ -264,9 +264,9 @@ export default function ReclaimJourney() {
           <span style={{ fontSize: 12.5, fontWeight: 700, color: remaining === 0 ? C.tealDark : C.inkMid }}>
             {remaining === 0 ? `Your week is richly shaped — ${BUDGET} of ${BUDGET} placed` : `${placed} of ${BUDGET} placed${placed > 0 ? ` · ${remaining} left` : ""}`}
           </span>
-          <div style={{ display: "flex", gap: 3 }}>
+          <div style={{ display: "flex", gap: 2.5, flexShrink: 0 }}>
             {Array.from({ length: BUDGET }).map((_, i) => (
-              <span key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: i < placed ? C.teal : C.borderSoft }} />
+              <span key={i} style={{ width: 7, height: 7, borderRadius: "50%", background: i < placed ? C.teal : C.borderSoft }} />
             ))}
           </div>
         </div>
@@ -296,8 +296,8 @@ export default function ReclaimJourney() {
                   </div>
                 </div>
                 {/* emphasis bar for this kind */}
-                <div style={{ display: "flex", gap: 3, marginTop: 11 }}>
-                  {Array.from({ length: 10 }).map((_, i) => (
+                <div style={{ display: "flex", gap: 2, marginTop: 11 }}>
+                  {Array.from({ length: 14 }).map((_, i) => (
                     <span key={i} style={{ flex: 1, height: 5, borderRadius: 999, background: i < w ? C.teal : C.borderSoft }} />
                   ))}
                 </div>

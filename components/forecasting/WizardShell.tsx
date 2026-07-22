@@ -11,7 +11,7 @@ import { C } from "@/config/colors";
 export default function WizardShell({
   step, total, eyebrow, title, subtitle, children,
   onBack, onNext, nextLabel = "Continue", nextDisabled = false, nextHint,
-  onSkip, skipLabel = "I'll build it myself",
+  onSkip, skipLabel = "I'll build it myself", resetSlot,
 }: {
   step: number;               // 1-based
   total: number;
@@ -26,6 +26,7 @@ export default function WizardShell({
   nextHint?: string;          // small helper text below the primary button
   onSkip?: () => void;
   skipLabel?: string;
+  resetSlot?: React.ReactNode; // persistent "reset this feature" control, shown below the footer
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
@@ -92,6 +93,7 @@ export default function WizardShell({
       {nextHint && (
         <div style={{ fontSize: 11.5, color: C.inkFaint, marginTop: -8 }}>{nextHint}</div>
       )}
+      {resetSlot}
     </div>
   );
 }

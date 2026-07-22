@@ -151,6 +151,23 @@ export default function ReclaimJourney() {
     setConfirmReset(false); setStage("intro");
   };
 
+  // A persistent reset control, shown on every step of the flow.
+  const resetRow = (
+    <div style={{ display: "flex", justifyContent: "center", marginTop: 6, borderTop: `1px solid ${C.borderSoft}`, paddingTop: 12 }}>
+      {confirmReset ? (
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 10, fontSize: 12, color: C.inkSoft, flexWrap: "wrap", justifyContent: "center" }}>
+          Clear your days, pursuits &amp; arc and design from scratch?
+          <button onClick={resetAll} style={{ background: C.warm, color: "#fff", border: "none", borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Yes, reset</button>
+          <button onClick={() => setConfirmReset(false)} style={{ background: "none", border: "none", color: C.inkFaint, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Cancel</button>
+        </div>
+      ) : (
+        <button onClick={() => setConfirmReset(true)} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "none", border: "none", cursor: "pointer", color: C.inkFaint, fontSize: 11.5, fontWeight: 600 }}>
+          <RotateCcw size={12} /> Reset my design
+        </button>
+      )}
+    </div>
+  );
+
   // Arc
   const exitAge = birthYear && exitYear ? Math.max(40, exitYear - birthYear) : null;
   const arc = useMemo(() => retirementArc({ exitAge, mix, pursuitIds: pursuits, catalog }), [exitAge, mix, pursuits, catalog]);
@@ -178,19 +195,28 @@ export default function ReclaimJourney() {
             Three quiet steps — no budgets, no forms. We'll shape the <strong style={{ color: C.inkMid }}>days</strong> you want, gather the <strong style={{ color: C.inkMid }}>pursuits</strong> for your year, and then see the whole <strong style={{ color: C.inkMid }}>arc</strong> of it across the seasons ahead.
           </p>
         </div>
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+        {/* The path ahead — a quiet numbered stepper, not tappable cards. */}
+        <div style={{ display: "flex", flexDirection: "column" }}>
           {[
-            { n: "1", icon: "🎚️", t: "Your days", d: "Set the blend of days that feels like you." },
-            { n: "2", icon: "🎸", t: "Your year", d: "Pick the pursuits to build it around." },
-            { n: "3", icon: "🌅", t: "Your arc", d: "See it flow across the seasons ahead." },
-          ].map((c) => (
-            <div key={c.n} style={{ flex: "1 1 150px", background: C.bgCard, border: `1px solid ${C.borderSoft}`, borderRadius: 14, padding: "14px 15px" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span style={{ fontSize: 22, lineHeight: 1 }}>{c.icon}</span>
-                <span style={{ fontSize: 11, fontWeight: 800, color: C.tealLight }}>{c.n}</span>
+            { n: 1, icon: "🎚️", t: "Your days", d: "Set the blend of days that feels like you." },
+            { n: 2, icon: "🎸", t: "Your year", d: "Pick the pursuits to build it around." },
+            { n: 3, icon: "🌅", t: "Your arc", d: "See it flow across the seasons ahead." },
+          ].map((c, i) => (
+            <div key={c.n} style={{ display: "flex", gap: 14 }}>
+              {/* number + connector rail */}
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                <div style={{
+                  flexShrink: 0, width: 28, height: 28, borderRadius: "50%", background: C.tealWash, border: `1.5px solid ${C.tealLight}`,
+                  display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, color: C.tealDark,
+                }}>{c.n}</div>
+                {i < 2 && <div style={{ flex: 1, width: 2, minHeight: 20, background: C.borderSoft, margin: "4px 0" }} />}
               </div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: C.ink, marginTop: 9 }}>{c.t}</div>
-              <div style={{ fontSize: 11.5, color: C.inkSoft, marginTop: 3, lineHeight: 1.45 }}>{c.d}</div>
+              <div style={{ paddingBottom: i < 2 ? 18 : 0, paddingTop: 3 }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: C.ink, letterSpacing: "-0.01em" }}>
+                  <span style={{ marginRight: 7 }}>{c.icon}</span>{c.t}
+                </div>
+                <div style={{ fontSize: 12.5, color: C.inkSoft, marginTop: 2, lineHeight: 1.45 }}>{c.d}</div>
+              </div>
             </div>
           ))}
         </div>
@@ -225,6 +251,7 @@ export default function ReclaimJourney() {
         nextDisabled={totalWeight === 0}
         nextHint={totalWeight === 0 ? "Give at least one kind of day some weight to continue." : undefined}
         onSkip={() => setFineTune("days")} skipLabel="Fine-tune day by day"
+        resetSlot={resetRow}
       >
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {archetypes.map((a) => {
@@ -307,6 +334,7 @@ export default function ReclaimJourney() {
         nextDisabled={pursuits.length === 0}
         nextHint={pursuits.length === 0 ? "Pick at least one pursuit to continue." : `${pursuits.length} chosen`}
         onSkip={() => { commitPursuits(pursuits); setFineTune("year"); }} skipLabel="Time them on a calendar"
+        resetSlot={resetRow}
       >
         {/* Search + AI */}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
@@ -396,6 +424,7 @@ export default function ReclaimJourney() {
       title="Your retirement, one arc"
       subtitle="It won't be one long flat stretch — energy and focus shift. Here's how your days and pursuits flow across the seasons ahead."
       onBack={() => setStage("year")}
+      resetSlot={resetRow}
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         {/* Throughline headline — ties the arc back to what the days revealed */}
@@ -473,21 +502,6 @@ export default function ReclaimJourney() {
           <button onClick={() => { commitPursuits(pursuits); setFineTune("year"); }} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "none", border: "none", cursor: "pointer", color: C.inkMid, fontSize: 12.5, fontWeight: 600 }}>
             <Pencil size={13} /> Fine-tune year
           </button>
-        </div>
-
-        {/* Reset just this feature (distinct from the app-wide "Start over") */}
-        <div style={{ display: "flex", justifyContent: "center", marginTop: 2 }}>
-          {confirmReset ? (
-            <div style={{ display: "inline-flex", alignItems: "center", gap: 10, fontSize: 12, color: C.inkSoft, flexWrap: "wrap", justifyContent: "center" }}>
-              Clear your days, pursuits &amp; arc and design from scratch?
-              <button onClick={resetAll} style={{ background: C.warm, color: "#fff", border: "none", borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Yes, reset</button>
-              <button onClick={() => setConfirmReset(false)} style={{ background: "none", border: "none", color: C.inkFaint, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Cancel</button>
-            </div>
-          ) : (
-            <button onClick={() => setConfirmReset(true)} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "none", border: "none", cursor: "pointer", color: C.inkFaint, fontSize: 11.5, fontWeight: 600 }}>
-              <RotateCcw size={12} /> Reset my design
-            </button>
-          )}
         </div>
       </div>
     </WizardShell>

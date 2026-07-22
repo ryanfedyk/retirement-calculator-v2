@@ -22,8 +22,8 @@ const NOMINAL_EXIT = 55; // used only for layout when the real age is unknown
  * far end is legacy and presence, never a countdown.
  */
 export default function RetirementArcTimeline({
-  arc, exitAge, horizonAge = 90,
-}: { arc: ArcSeason[]; exitAge: number | null; horizonAge?: number }) {
+  arc, exitAge, horizonAge = 90, headline,
+}: { arc: ArcSeason[]; exitAge: number | null; horizonAge?: number; headline?: string }) {
   const showAges = exitAge != null;
   const start = exitAge ?? NOMINAL_EXIT;
   const years = Math.max(9, horizonAge - start);
@@ -36,7 +36,7 @@ export default function RetirementArcTimeline({
   const pxRef = useRef(pxPerYear);
   useEffect(() => { pxRef.current = pxPerYear; }, [pxPerYear]);
   const width = Math.round(years * pxPerYear) + PAD * 2;
-  const detailed = pxPerYear >= 34;                         // enough room for pin labels
+  const detailed = fullscreen || pxPerYear >= 34;           // first steps always show in the immersive view
   const clampPx = (v: number) => Math.min(MAX_PX, Math.max(MIN_PX, v));
 
   // Fit the whole arc to the current width (overview) — used on mount and by "Fit".
@@ -179,9 +179,22 @@ export default function RetirementArcTimeline({
                 position: "absolute", left, width: w, top: 0, bottom: 0, background: `linear-gradient(180deg, ${s.meta.tint}, ${s.meta.tint}44)`,
                 borderRight: `1px dashed ${C.border}`, cursor: "pointer",
               }}>
-                <div style={{ position: "sticky", left: 0, padding: "10px 12px", whiteSpace: "nowrap" }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 800, color: s.meta.color }}>{s.meta.emoji} {s.meta.name}</div>
-                  {showAges && <div style={{ fontSize: 10, fontWeight: 700, color: s.meta.color, opacity: 0.8 }}>{s.key === "still" ? `${s.from}+` : `${s.from}–${s.to}`}</div>}
+                <div style={{ position: "sticky", left: 0, padding: fullscreen ? "14px 14px" : "10px 12px", maxWidth: fullscreen ? Math.min(w - 12, 240) : undefined, whiteSpace: fullscreen ? "normal" : "nowrap" }}>
+                  <div style={{ fontSize: fullscreen ? 15 : 12.5, fontWeight: 800, color: s.meta.color }}>{s.meta.emoji} {s.meta.name}</div>
+                  {showAges && <div style={{ fontSize: fullscreen ? 11 : 10, fontWeight: 700, color: s.meta.color, opacity: 0.8 }}>{s.key === "still" ? `${s.from}+` : `${s.from}–${s.to}`}</div>}
+                  {fullscreen && (
+                    <>
+                      <div style={{ fontSize: 11.5, color: C.inkMid, lineHeight: 1.5, marginTop: 8 }}>{s.meta.blurb}</div>
+                      {s.themeLabels.length > 0 && (
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 9 }}>
+                          {s.themeLabels.map((t) => (
+                            <span key={t} style={{ fontSize: 10, fontWeight: 700, color: s.meta.color, background: "#ffffffcc", border: `1px solid ${s.meta.color}40`, borderRadius: 99, padding: "2px 8px" }}>{t}</span>
+                          ))}
+                        </div>
+                      )}
+                      {s.pursuits.length === 0 && <div style={{ fontSize: 10.5, color: C.inkFaint, fontStyle: "italic", marginTop: 9 }}>Open space — room to grow into.</div>}
+                    </>
+                  )}
                 </div>
               </div>
             );
@@ -194,8 +207,12 @@ export default function RetirementArcTimeline({
           {pins.map(({ p, age, color }, i) => {
             const x = xOf(age);
             const up = i % 2 === 0;
-            const lane = (i % 3) * 30; // stagger to reduce overlap
-            const chipY = up ? 26 + lane : TRACK_H - 26 - lane;
+            const lane = (i % 3) * (fullscreen ? 56 : 30); // stagger to reduce overlap
+            // In the immersive view, cluster labels around the baseline so the
+            // top of each column is free for its season story.
+            const chipY = fullscreen
+              ? (up ? TRACK_H / 2 - 96 - lane : TRACK_H / 2 + 44 + lane)
+              : (up ? 26 + lane : TRACK_H - 26 - lane);
             return (
               <div key={p.id + i} style={{ position: "absolute", left: x, top: 0, bottom: 0, width: 0 }}>
                 <div style={{ position: "absolute", top: chipY, left: 0, transform: "translateX(-50%)", maxWidth: detailed ? 160 : 120 }}>
@@ -234,8 +251,17 @@ export default function RetirementArcTimeline({
     return (
       <div style={{ position: "fixed", inset: 0, zIndex: 2000, background: C.bg, display: "flex", flexDirection: "column", gap: 8, padding: "10px 12px calc(10px + env(safe-area-inset-bottom))" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-          <div style={{ fontSize: 14, fontWeight: 800, color: C.ink, letterSpacing: "-0.01em" }}>Your retirement, one arc</div>
-          <button onClick={() => setFullscreen(false)} aria-label="Close fullscreen" style={{ ...btn, width: 36, height: 36 }}><X size={18} /></button>
+          <div style={{ minWidth: 0 }}>
+            {headline ? (
+              <>
+                <div style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: C.tealDark }}>Your retirement looks like</div>
+                <div style={{ fontSize: 17, fontWeight: 300, color: C.ink, letterSpacing: "-0.015em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{headline}</div>
+              </>
+            ) : (
+              <div style={{ fontSize: 14, fontWeight: 800, color: C.ink, letterSpacing: "-0.01em" }}>Your retirement, one arc</div>
+            )}
+          </div>
+          <button onClick={() => setFullscreen(false)} aria-label="Close fullscreen" style={{ ...btn, width: 36, height: 36, flexShrink: 0 }}><X size={18} /></button>
         </div>
         {content}
       </div>

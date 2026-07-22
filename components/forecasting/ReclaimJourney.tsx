@@ -504,8 +504,8 @@ export default function ReclaimJourney() {
           </div>
         )}
 
-        {/* The zoomable life timeline */}
-        <RetirementArcTimeline arc={arc} exitAge={exitAge} horizonAge={90} />
+        {/* The zoomable life timeline (fullscreen = an immersive, all-on-canvas view) */}
+        <RetirementArcTimeline arc={arc} exitAge={exitAge} horizonAge={90} headline={mix.length > 0 ? synthesis.title : undefined} />
 
         {/* Season cards — the readable detail beneath the timeline */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10 }}>

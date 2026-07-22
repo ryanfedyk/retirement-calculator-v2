@@ -31,34 +31,34 @@ const joinNames = (names: string[]): string => {
 export function dayArchetypes(inp: SeedInputs): PerfectDayItem[] {
   const kids = inp.childNames.length > 0;
   const names = joinNames(inp.childNames);
-  const connectedName = kids
-    ? `A day with ${names}`
-    : inp.hasPartner ? "A day with the people you love" : "A slow, connected day";
+  const connectedName = kids ? `Days with ${names}` : "Days with people you love";
 
+  // Five distinct *kinds* of day, each skewed to a different life dimension so
+  // that spending your week's days on one really means less of another.
   return [
     {
       id: "arch-connected", name: connectedName,
       blocks: {
-        morning:   ["coffeeritual", "walk"],
+        morning:   ["coffee"],
         afternoon: kids || inp.hasPartner ? ["grandkids", "cook"] : ["coffee", "cook"],
-        evening:   inp.hasPartner ? ["datenight", "shows"] : ["dinner", "shows"],
+        evening:   inp.hasPartner ? ["datenight", "dinner"] : ["dinner", "club"],
       },
     },
     {
-      id: "arch-yours", name: "A day that's yours",
-      blocks: { morning: ["walk", "read"], afternoon: ["passion", "hike"], evening: ["instrument", "journal"] },
+      id: "arch-adventure", name: "Days out in the world",
+      blocks: { morning: ["walk"], afternoon: ["hike", "daytrip"], evening: ["photo", "lunchout"] },
     },
     {
-      id: "arch-adventure", name: "An adventurous day",
-      blocks: { morning: ["hike"], afternoon: ["daytrip", "photo"], evening: ["lunchout", "journal"] },
+      id: "arch-craft", name: "Days making things",
+      blocks: { morning: ["read"], afternoon: ["create", "instrument"], evening: ["passion", "journal"] },
     },
     {
-      id: "arch-purpose", name: "A day of purpose",
-      blocks: { morning: ["walk", "coffeeritual"], afternoon: ["volunteer", "mentor"], evening: ["cook", "read"] },
+      id: "arch-purpose", name: "Days that give back",
+      blocks: { morning: ["walk"], afternoon: ["volunteer", "mentor"], evening: ["garden", "read"] },
     },
     {
-      id: "arch-restful", name: "A restful day",
-      blocks: { morning: ["coffeeritual", "yoga"], afternoon: ["read", "nap"], evening: ["spa", "shows"] },
+      id: "arch-restful", name: "Slow, restful days",
+      blocks: { morning: ["coffeeritual", "yoga"], afternoon: ["nap", "read"], evening: ["spa", "shows"] },
     },
   ];
 }

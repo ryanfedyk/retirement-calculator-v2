@@ -139,9 +139,9 @@ export default function ReclaimJourney() {
   // Draft a whole starter journey to react to — a gentle default blend + one
   // pursuit from each kind — so the arc is meaningful in a single tap.
   const draftForMe = () => {
-    setDayWeight("arch-connected", 3);
-    setDayWeight("arch-adventure", 2);
-    setDayWeight("arch-restful", 2);
+    setDayWeight("arch-connected", 4);
+    setDayWeight("arch-adventure", 3);
+    setDayWeight("arch-restful", 3);
     const ids = grouped.map((g) => g.items[0]?.id).filter(Boolean) as string[];
     setPursuits(ids); commitPursuits(ids);
     setStage("arc");
@@ -242,30 +242,31 @@ export default function ReclaimJourney() {
     );
   }
 
-  // ── Step 1 · Days (divide your week) ──────────────────────────────────────────
+  // ── Step 1 · Days (spread your week's blocks) ─────────────────────────────────
   if (stage === "days") {
+    const BUDGET = 10;
     const placed = totalWeight;
-    const remaining = Math.max(0, 7 - placed);
+    const remaining = Math.max(0, BUDGET - placed);
     return (
       <WizardShell
         step={1} total={3} eyebrow="Step 1 · Your days"
         title="How would your weeks actually feel?"
-        subtitle="A typical week has seven days. Divide them across the kinds of day that matter to you — you can't give everything the whole week, so this is where you choose what comes first."
+        subtitle="A day can hold a few of these, so picture a whole week's worth of time — about ten blocks. Lean harder on what matters most; it's fine to leave some unplaced."
         onBack={() => setStage("intro")}
         onNext={() => setStage("year")} nextLabel="Next: your year"
         nextDisabled={placed === 0}
-        nextHint={placed === 0 ? "Give at least one kind of day some days to continue." : remaining > 0 ? `${remaining} day${remaining === 1 ? "" : "s"} still to place` : undefined}
+        nextHint={placed === 0 ? "Give at least one kind some emphasis to continue." : undefined}
         onSkip={() => setFineTune("days")} skipLabel="Fine-tune day by day"
         resetSlot={resetRow}
       >
-        {/* Week budget */}
+        {/* Emphasis budget */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 12, padding: "10px 14px", borderRadius: 12, background: remaining === 0 ? C.tealWash : C.bgCard, border: `1px solid ${remaining === 0 ? C.tealLight : C.border}` }}>
           <span style={{ fontSize: 12.5, fontWeight: 700, color: remaining === 0 ? C.tealDark : C.inkMid }}>
-            {remaining === 0 ? "Your week is full — 7 of 7 days placed" : `${placed} of 7 days placed · ${remaining} left`}
+            {remaining === 0 ? `Your week is richly shaped — ${BUDGET} of ${BUDGET} placed` : `${placed} of ${BUDGET} placed${placed > 0 ? ` · ${remaining} left` : ""}`}
           </span>
-          <div style={{ display: "flex", gap: 4 }}>
-            {Array.from({ length: 7 }).map((_, i) => (
-              <span key={i} style={{ width: 9, height: 9, borderRadius: "50%", background: i < placed ? C.teal : C.borderSoft }} />
+          <div style={{ display: "flex", gap: 3 }}>
+            {Array.from({ length: BUDGET }).map((_, i) => (
+              <span key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: i < placed ? C.teal : C.borderSoft }} />
             ))}
           </div>
         </div>
@@ -289,14 +290,14 @@ export default function ReclaimJourney() {
                     <button aria-label={`Fewer ${a.name}`} onClick={() => w > 0 && setDayWeight(a.id, w - 1)} disabled={w <= 0} style={stepBtn(-1, w <= 0)}>−</button>
                     <div style={{ width: 52, textAlign: "center" }}>
                       <span style={{ fontSize: 18, fontWeight: 800, color: w > 0 ? C.tealDark : C.inkFaint, fontVariantNumeric: "tabular-nums" }}>{w}</span>
-                      <span style={{ fontSize: 10.5, color: C.inkFaint, display: "block", marginTop: -2 }}>{w === 1 ? "day" : "days"}</span>
+                      <span style={{ fontSize: 10.5, color: C.inkFaint, display: "block", marginTop: -2 }}>{w === 1 ? "block" : "blocks"}</span>
                     </div>
                     <button aria-label={`More ${a.name}`} onClick={() => remaining > 0 && setDayWeight(a.id, w + 1)} disabled={remaining <= 0} style={stepBtn(1, remaining <= 0)}>+</button>
                   </div>
                 </div>
-                {/* week dots for this kind */}
-                <div style={{ display: "flex", gap: 4, marginTop: 11 }}>
-                  {Array.from({ length: 7 }).map((_, i) => (
+                {/* emphasis bar for this kind */}
+                <div style={{ display: "flex", gap: 3, marginTop: 11 }}>
+                  {Array.from({ length: 10 }).map((_, i) => (
                     <span key={i} style={{ flex: 1, height: 5, borderRadius: 999, background: i < w ? C.teal : C.borderSoft }} />
                   ))}
                 </div>

@@ -180,6 +180,47 @@ export function shortWhy(seed: AdventureBlueprint): string {
   return s.length > 130 ? s.slice(0, 127).trimEnd() + "…" : s;
 }
 
+// ── Sub-themes — the "types of thing" within each kind, for a drill-down ───────
+// Selecting a sub-theme auto-populates the matching pursuits (curated tag sets),
+// so the user builds their year by choosing *types* rather than scanning a list.
+export const SUBTHEMES: Record<AdventureCategory, { label: string; emoji: string; tags: string[] }[]> = {
+  "Immersive Travel": [
+    { label: "Slow living abroad", emoji: "🫒", tags: ["slow travel", "slow living", "expat", "immersion", "mediterranean"] },
+    { label: "Bucket-list journeys", emoji: "🗺️", tags: ["bucket-list", "wilderness", "safari", "japan", "patagonia", "asia", "africa"] },
+    { label: "With the family", emoji: "👨‍👩‍👧", tags: ["family", "kids"] },
+    { label: "Roots & culture", emoji: "🧬", tags: ["heritage", "genealogy", "roots", "history", "food", "culinary", "culture"] },
+    { label: "On the road & water", emoji: "🚐", tags: ["road trip", "rv", "sailing", "islands", "driving", "coast", "americana"] },
+    { label: "Rest & reset", emoji: "🧘", tags: ["retreat", "silence", "meditation", "reset", "spiritual"] },
+  ],
+  "Creative Mastery": [
+    { label: "Music", emoji: "🎸", tags: ["music", "guitar", "piano", "jazz", "fingerstyle"] },
+    { label: "Writing", emoji: "✍️", tags: ["writing", "book", "memoir", "novel"] },
+    { label: "Visual arts", emoji: "🎨", tags: ["painting", "art", "pottery", "ceramics", "photography", "visual", "documentary"] },
+    { label: "Making & building", emoji: "🪵", tags: ["woodworking", "craft", "heirloom", "workshop"] },
+    { label: "Perform & share", emoji: "🎙️", tags: ["podcast", "comedy", "improv", "performance", "film"] },
+    { label: "Language", emoji: "🗣️", tags: ["language", "spanish"] },
+  ],
+  "Endurance/Active": [
+    { label: "Trails & peaks", emoji: "🏔️", tags: ["trail", "hiking", "marathon", "climbing", "mountaineering", "summit", "camino", "pilgrimage", "altitude"] },
+    { label: "On two wheels", emoji: "🚴", tags: ["cycling", "century"] },
+    { label: "In the water", emoji: "🌊", tags: ["surfing", "scuba", "diving", "cold water", "swim", "ocean", "water", "underwater"] },
+    { label: "Play & movement", emoji: "🤸", tags: ["pickleball", "tennis", "yoga", "dance", "mind-body", "breath"] },
+    { label: "Family adventures", emoji: "⛺", tags: ["backpacking", "ritual", "kids", "family"] },
+  ],
+  "Slow Living": [
+    { label: "Home & garden", emoji: "🌱", tags: ["garden", "bees", "renovation", "home", "nature", "seasonal", "foraging", "outdoors"] },
+    { label: "Rituals & rhythm", emoji: "🕯️", tags: ["ritual", "routine", "deceleration", "sunday", "cooking", "monthly", "analog"] },
+    { label: "Mind & spirit", emoji: "📖", tags: ["reading", "intellectual", "astronomy", "stars", "wonder", "night"] },
+    { label: "Give back & guide", emoji: "🤝", tags: ["volunteer", "service", "mentorship", "coaching", "advisory", "teaching", "purpose", "giving"] },
+    { label: "Legacy & belonging", emoji: "🏡", tags: ["legacy", "archive", "community", "belonging", "connection", "local"] },
+  ],
+};
+
+/** The pursuit ids in a kind whose tags intersect a sub-theme's tag set. */
+export function subthemePursuits(catalog: AdventureBlueprint[], category: AdventureCategory, tags: string[]): string[] {
+  return catalog.filter((s) => s.category === category && (s.tags ?? []).some((t) => tags.includes(t))).map((s) => s.id);
+}
+
 /** Selected pursuits grouped by kind, for the portfolio-style reveal. */
 export function groupPursuits(ids: string[], catalog: AdventureBlueprint[] = ADVENTURE_SEEDS): { category: AdventureCategory; icon: string; items: AdventureBlueprint[] }[] {
   const byId = Object.fromEntries(catalog.map((s) => [s.id, s]));

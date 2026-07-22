@@ -12,7 +12,7 @@ import { ADVENTURE_SEEDS } from "@/data/adventureSeeds";
 import {
   dayArchetypes, dayVignette, themeMixFromWeights, synthesizeFromWeights,
   adventuresByCategory, shortWhy, placeAdventures, retirementArc, blendGapNote,
-  filterPursuits, YEAR_CATEGORIES,
+  filterPursuits, YEAR_CATEGORIES, SUBTHEMES, subthemePursuits,
 } from "@/lib/perfectWizard";
 import type { AdventureBlueprint, AdventureCategory, CommitmentLevel, WhenToStart } from "@/types/horizon";
 import WizardShell from "./WizardShell";
@@ -353,11 +353,29 @@ export default function ReclaimJourney() {
       );
     };
 
+    // Toggle a whole set of pursuits at once (a sub-theme populates several).
+    const toggleSet = (ids: string[]) => {
+      if (!ids.length) return;
+      const anyOn = ids.some((id) => pursuits.includes(id));
+      setPursuits((p) => (anyOn ? p.filter((x) => !ids.includes(x)) : [...new Set([...p, ...ids])]));
+    };
+    const byId = Object.fromEntries(catalog.map((s) => [s.id, s]));
+    const pickChip = (id: string) => {
+      const s = byId[id]; if (!s) return null;
+      const tint = CAT_COLOR[s.category];
+      return (
+        <span key={id} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 8px 6px 11px", borderRadius: 99, background: `${tint}12`, border: `1px solid ${tint}40`, fontSize: 11.5, fontWeight: 600, color: C.inkMid, maxWidth: "100%" }}>
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 200 }} title={s.concept}>{s.concept}</span>
+          <button onClick={() => togglePursuit(id)} aria-label={`Remove ${s.concept}`} style={{ flexShrink: 0, display: "flex", background: "none", border: "none", cursor: "pointer", color: tint, padding: 0 }}><X size={13} /></button>
+        </span>
+      );
+    };
+
     return (
       <WizardShell
         step={2} total={3} eyebrow="Step 2 · Your year"
         title="What will you build your year around?"
-        subtitle="Start with the kinds of experience that pull at you — the pursuits inside them appear as you choose. Search anytime, or have the AI dream one up."
+        subtitle="Pick the kinds that pull at you, then tap the types you want — we'll fill in matching pursuits for you to keep or drop. Search or ask the AI anytime."
         onBack={() => setStage("days")}
         onNext={() => { commitPursuits(pursuits); setStage("arc"); }} nextLabel="Next: your arc"
         nextDisabled={pursuits.length === 0}
@@ -414,7 +432,7 @@ export default function ReclaimJourney() {
         {aiError && <div style={{ fontSize: 11.5, color: C.warm, marginBottom: 8 }}>{aiError}</div>}
         {aiDisabled && <div style={{ fontSize: 11.5, color: C.inkFaint, marginBottom: 8 }}>AI idea generation isn&apos;t configured — pick a kind above to explore the catalog.</div>}
 
-        {/* 3 · Results — only what the user asked to see (progressive disclosure) */}
+        {/* 3 · Drill down by type — tap a type to populate matching pursuits */}
         {query.trim() ? (
           searchResults.length === 0 ? (
             <div style={{ fontSize: 13, color: C.inkSoft, padding: "8px 0" }}>No pursuits match &ldquo;{query.trim()}&rdquo;{aiDisabled ? "." : " — try the AI above."}</div>
@@ -425,37 +443,63 @@ export default function ReclaimJourney() {
             </>
           )
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-            {/* Fresh AI ideas surface at the top so they're never buried */}
-            {customPursuits.length > 0 && (
-              <div>
-                <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 9 }}>
-                  <Wand2 size={15} color="#7a5a9e" />
-                  <span style={{ fontSize: 12.5, fontWeight: 800, color: "#7a5a9e" }}>Fresh ideas for you</span>
-                  <span style={{ fontSize: 10.5, color: C.inkFaint }}>{customPursuits.length}</span>
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 8 }}>{customPursuits.map(card)}</div>
-              </div>
-            )}
-
-            {interests.length === 0 ? (
-              <div style={{ fontSize: 13, color: C.inkSoft, lineHeight: 1.6, padding: "10px 14px", borderRadius: 12, background: C.bgCard, border: `1px dashed ${C.border}`, textAlign: "center" }}>
-                Pick a kind above to see its pursuits — or search everything.
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {interests.length === 0 && customPursuits.length === 0 ? (
+              <div style={{ fontSize: 13, color: C.inkSoft, lineHeight: 1.6, padding: "12px 14px", borderRadius: 12, background: C.bgCard, border: `1px dashed ${C.border}`, textAlign: "center" }}>
+                Pick a kind above to start — its types appear here, and tapping one fills in a few pursuits you can refine.
               </div>
             ) : (
-              grouped.filter((g) => interests.includes(g.category)).map((g) => {
-                const items = g.items.filter((it) => !it.id.startsWith("ai-"));
-                return (
-                  <div key={g.category}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 9 }}>
-                      <span style={{ fontSize: 16 }}>{g.icon}</span>
-                      <span style={{ fontSize: 12.5, fontWeight: 800, color: CAT_COLOR[g.category] }}>{g.category}</span>
-                      <span style={{ fontSize: 10.5, color: C.inkFaint }}>{items.length}</span>
+              <>
+                {/* One row of type-chips per selected kind */}
+                {YEAR_CATEGORIES.filter((c) => interests.includes(c.id)).map((c) => {
+                  const tint = CAT_COLOR[c.id];
+                  return (
+                    <div key={c.id}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8 }}>
+                        <span style={{ fontSize: 15 }}>{c.icon}</span>
+                        <span style={{ fontSize: 12, fontWeight: 800, color: tint }}>{c.id}</span>
+                        <span style={{ fontSize: 10.5, color: C.inkFaint }}>· tap a type to add</span>
+                      </div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+                        {SUBTHEMES[c.id].map((st) => {
+                          const ids = subthemePursuits(catalog, c.id, st.tags);
+                          if (!ids.length) return null;
+                          const chosen = ids.filter((id) => pursuits.includes(id)).length;
+                          const on = chosen > 0;
+                          return (
+                            <button key={st.label} onClick={() => toggleSet(ids)} style={{
+                              display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 13px", borderRadius: 12, cursor: "pointer", fontSize: 12.5, fontWeight: 700,
+                              border: `1.5px solid ${on ? tint : C.border}`, background: on ? `${tint}12` : C.bgCard, color: on ? tint : C.inkMid, transition: "all 0.12s",
+                            }}>
+                              <span>{st.emoji}</span>{st.label}
+                              <span style={{ fontSize: 10.5, fontWeight: 800, color: on ? "#fff" : C.inkFaint, background: on ? tint : C.borderSoft, borderRadius: 99, minWidth: 16, textAlign: "center", padding: "0 5px", lineHeight: "16px" }}>{on ? chosen : `+${ids.length}`}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 8 }}>{items.map(card)}</div>
+                  );
+                })}
+
+                {/* Fresh AI ideas — selectable individually */}
+                {customPursuits.length > 0 && (
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8 }}>
+                      <Wand2 size={14} color="#7a5a9e" />
+                      <span style={{ fontSize: 12, fontWeight: 800, color: "#7a5a9e" }}>Fresh ideas for you</span>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 8 }}>{customPursuits.map(card)}</div>
                   </div>
-                );
-              })
+                )}
+              </>
+            )}
+
+            {/* Your picks — the running selection, easy to refine */}
+            {pursuits.length > 0 && (
+              <div style={{ borderTop: `1px solid ${C.borderSoft}`, paddingTop: 13 }}>
+                <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase", color: C.tealDark, marginBottom: 9 }}>Your year so far · {pursuits.length}</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>{pursuits.map(pickChip)}</div>
+              </div>
             )}
           </div>
         )}

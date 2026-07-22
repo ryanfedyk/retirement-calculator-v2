@@ -12,7 +12,7 @@ import { ADVENTURE_SEEDS } from "@/data/adventureSeeds";
 import {
   dayArchetypes, dayVignette, themeMixFromWeights, synthesizeFromWeights,
   adventuresByCategory, shortWhy, placeAdventures, retirementArc, blendGapNote,
-  filterPursuits, topInterestTags,
+  filterPursuits, YEAR_CATEGORIES,
 } from "@/lib/perfectWizard";
 import type { AdventureBlueprint, AdventureCategory, CommitmentLevel, WhenToStart } from "@/types/horizon";
 import WizardShell from "./WizardShell";
@@ -102,18 +102,21 @@ export default function ReclaimJourney() {
   const togglePursuit = (id: string) => setPursuits((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
   const commitPursuits = (ids: string[]) => applySeed(placeAdventures(ids));
 
-  // Explorer (search · interest tags · category · AI generation)
+  // Explorer — progressive: pick broad interests first, then the pursuits within
+  // them appear (search is a global escape hatch). Seeded from any already-chosen
+  // pursuits so returning editors see relevant kinds expanded.
   const [query, setQuery] = useState("");
-  const [tagFilter, setTagFilter] = useState<string[]>([]);
-  const [catFilter, setCatFilter] = useState<AdventureCategory | "all">("all");
+  const [interests, setInterests] = useState<AdventureCategory[]>(() => {
+    const byId = Object.fromEntries(ADVENTURE_SEEDS.map((s) => [s.id, s]));
+    const chosen = Object.values(usePerfectYearStore.getState().plan).flat();
+    return [...new Set(chosen.map((id) => byId[id]?.category).filter(Boolean))] as AdventureCategory[];
+  });
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiDisabled, setAiDisabled] = useState(false);
-  const tags = useMemo(() => topInterestTags(catalog, 16), [catalog]);
-  const filtering = !!query.trim() || tagFilter.length > 0 || catFilter !== "all";
-  const results = useMemo(() => filterPursuits(catalog, { query, tags: tagFilter, category: catFilter }), [catalog, query, tagFilter, catFilter]);
   const grouped = useMemo(() => adventuresByCategory(catalog), [catalog]);
-  const toggleTag = (t: string) => setTagFilter((f) => (f.includes(t) ? f.filter((x) => x !== t) : [...f, t]));
+  const searchResults = useMemo(() => filterPursuits(catalog, { query }), [catalog, query]);
+  const toggleInterest = (c: AdventureCategory) => setInterests((f) => (f.includes(c) ? f.filter((x) => x !== c) : [...f, c]));
 
   const generateIdeas = async () => {
     if (aiGenerating) return;
@@ -147,7 +150,7 @@ export default function ReclaimJourney() {
   // Reset the whole day / year / arc feature back to a blank slate.
   const resetAll = () => {
     resetDayWeights(); clearYear(); clearCustom(); resetDays();
-    setPursuits([]); setQuery(""); setTagFilter([]); setCatFilter("all"); setAiError(null); setAiDisabled(false);
+    setPursuits([]); setQuery(""); setInterests([]); setAiError(null); setAiDisabled(false);
     setConfirmReset(false); setStage("intro");
   };
 
@@ -353,7 +356,7 @@ export default function ReclaimJourney() {
       <WizardShell
         step={2} total={3} eyebrow="Step 2 · Your year"
         title="What will you build your year around?"
-        subtitle="Explore the trips, crafts, and one-of-a-kind pursuits you never had time for — search, filter by what interests you, or have the AI dream up ideas. Pick anything that sparks something."
+        subtitle="Start with the kinds of experience that pull at you — the pursuits inside them appear as you choose. Search anytime, or have the AI dream one up."
         onBack={() => setStage("days")}
         onNext={() => { commitPursuits(pursuits); setStage("arc"); }} nextLabel="Next: your arc"
         nextDisabled={pursuits.length === 0}
@@ -361,11 +364,37 @@ export default function ReclaimJourney() {
         onSkip={() => { commitPursuits(pursuits); setFineTune("year"); }} skipLabel="Time them on a calendar"
         resetSlot={resetRow}
       >
-        {/* Search + AI */}
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+        {/* 1 · Broad interests — the entry point */}
+        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: C.inkFaint, marginBottom: 9 }}>Which kinds pull at you?</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 8, marginBottom: 16 }}>
+          {YEAR_CATEGORIES.map((c) => {
+            const on = interests.includes(c.id);
+            const tint = CAT_COLOR[c.id];
+            const chosenIn = pursuits.filter((id) => (catalog.find((s) => s.id === id)?.category) === c.id).length;
+            return (
+              <button key={c.id} onClick={() => toggleInterest(c.id)} style={{
+                textAlign: "left", cursor: "pointer", padding: "13px 14px", borderRadius: 14,
+                border: `1.5px solid ${on ? tint : C.border}`, background: on ? `${tint}12` : C.bgCard,
+                display: "flex", gap: 11, alignItems: "flex-start", transition: "border-color 0.15s, background 0.15s",
+              }}>
+                <span style={{ fontSize: 22, lineHeight: 1, flexShrink: 0 }}>{c.icon}</span>
+                <span style={{ minWidth: 0, flex: 1 }}>
+                  <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ fontSize: 13.5, fontWeight: 700, color: on ? tint : C.ink }}>{c.id}</span>
+                    {chosenIn > 0 && <span style={{ fontSize: 10, fontWeight: 800, color: "#fff", background: tint, borderRadius: 99, padding: "0 6px", lineHeight: "16px" }}>{chosenIn}</span>}
+                  </span>
+                  <span style={{ display: "block", fontSize: 11, color: C.inkSoft, marginTop: 3, lineHeight: 1.4 }}>{c.blurb}</span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* 2 · Search + AI (a global escape hatch, always available) */}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
           <div style={{ flex: "1 1 220px", position: "relative", display: "flex", alignItems: "center" }}>
             <Search size={15} color={C.inkFaint} style={{ position: "absolute", left: 11 }} />
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search pursuits & interests…"
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Or search everything…"
               style={{ width: "100%", boxSizing: "border-box", padding: "10px 32px 10px 32px", borderRadius: 11, border: `1px solid ${C.border}`, background: C.bgCard, color: C.ink, fontSize: 13, outline: "none" }} />
             {query && (
               <button onClick={() => setQuery("")} aria-label="Clear" style={{ position: "absolute", right: 8, background: "none", border: "none", cursor: "pointer", color: C.inkFaint, display: "flex" }}><X size={14} /></button>
@@ -382,59 +411,51 @@ export default function ReclaimJourney() {
           )}
         </div>
         {aiError && <div style={{ fontSize: 11.5, color: C.warm, marginBottom: 8 }}>{aiError}</div>}
-        {aiDisabled && <div style={{ fontSize: 11.5, color: C.inkFaint, marginBottom: 8 }}>AI idea generation isn&apos;t configured — explore the curated catalog below.</div>}
+        {aiDisabled && <div style={{ fontSize: 11.5, color: C.inkFaint, marginBottom: 8 }}>AI idea generation isn&apos;t configured — pick a kind above to explore the catalog.</div>}
 
-        {/* Category pills */}
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
-          {(["all", ...VALID_CATS] as const).map((c) => {
-            const on = catFilter === c;
-            return (
-              <button key={c} onClick={() => setCatFilter(c)} style={{
-                padding: "6px 12px", borderRadius: 99, fontSize: 11.5, fontWeight: 700, cursor: "pointer",
-                border: `1px solid ${on ? C.teal : C.border}`, background: on ? C.teal : C.bgCard, color: on ? "#fff" : C.inkMid,
-              }}>{c === "all" ? "All" : c}</button>
-            );
-          })}
-        </div>
-
-        {/* Interest tag chips */}
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
-          {tags.map((t) => {
-            const on = tagFilter.includes(t);
-            return (
-              <button key={t} onClick={() => toggleTag(t)} style={{
-                padding: "4px 10px", borderRadius: 99, fontSize: 11, fontWeight: 600, cursor: "pointer",
-                border: `1px solid ${on ? C.tealDark : C.borderSoft}`, background: on ? C.tealWash : "transparent", color: on ? C.tealDark : C.inkSoft,
-              }}>#{t}</button>
-            );
-          })}
-          {(tagFilter.length > 0 || catFilter !== "all") && (
-            <button onClick={() => { setTagFilter([]); setCatFilter("all"); }} style={{ padding: "4px 10px", borderRadius: 99, fontSize: 11, fontWeight: 600, cursor: "pointer", border: "none", background: "none", color: C.inkFaint, textDecoration: "underline" }}>clear</button>
-          )}
-        </div>
-
-        {/* Results */}
-        {filtering ? (
-          results.length === 0 ? (
-            <div style={{ fontSize: 13, color: C.inkSoft, padding: "8px 0" }}>No pursuits match — try a different search{aiDisabled ? "." : ", or generate ideas above."}</div>
+        {/* 3 · Results — only what the user asked to see (progressive disclosure) */}
+        {query.trim() ? (
+          searchResults.length === 0 ? (
+            <div style={{ fontSize: 13, color: C.inkSoft, padding: "8px 0" }}>No pursuits match &ldquo;{query.trim()}&rdquo;{aiDisabled ? "." : " — try the AI above."}</div>
           ) : (
             <>
-              <div style={{ fontSize: 11, color: C.inkFaint, marginBottom: 8 }}>{results.length} match{results.length === 1 ? "" : "es"}</div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 8 }}>{results.map(card)}</div>
+              <div style={{ fontSize: 11, color: C.inkFaint, marginBottom: 8 }}>{searchResults.length} match{searchResults.length === 1 ? "" : "es"}</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 8 }}>{searchResults.map(card)}</div>
             </>
           )
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-            {grouped.map((g) => (
-              <div key={g.category}>
+            {/* Fresh AI ideas surface at the top so they're never buried */}
+            {customPursuits.length > 0 && (
+              <div>
                 <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 9 }}>
-                  <span style={{ fontSize: 16 }}>{g.icon}</span>
-                  <span style={{ fontSize: 12.5, fontWeight: 800, color: CAT_COLOR[g.category] }}>{g.category}</span>
-                  <span style={{ fontSize: 10.5, color: C.inkFaint }}>{g.items.length}</span>
+                  <Wand2 size={15} color="#7a5a9e" />
+                  <span style={{ fontSize: 12.5, fontWeight: 800, color: "#7a5a9e" }}>Fresh ideas for you</span>
+                  <span style={{ fontSize: 10.5, color: C.inkFaint }}>{customPursuits.length}</span>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 8 }}>{g.items.map(card)}</div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 8 }}>{customPursuits.map(card)}</div>
               </div>
-            ))}
+            )}
+
+            {interests.length === 0 ? (
+              <div style={{ fontSize: 13, color: C.inkSoft, lineHeight: 1.6, padding: "10px 14px", borderRadius: 12, background: C.bgCard, border: `1px dashed ${C.border}`, textAlign: "center" }}>
+                Pick a kind above to see its pursuits — or search everything.
+              </div>
+            ) : (
+              grouped.filter((g) => interests.includes(g.category)).map((g) => {
+                const items = g.items.filter((it) => !it.id.startsWith("ai-"));
+                return (
+                  <div key={g.category}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 9 }}>
+                      <span style={{ fontSize: 16 }}>{g.icon}</span>
+                      <span style={{ fontSize: 12.5, fontWeight: 800, color: CAT_COLOR[g.category] }}>{g.category}</span>
+                      <span style={{ fontSize: 10.5, color: C.inkFaint }}>{items.length}</span>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 8 }}>{items.map(card)}</div>
+                  </div>
+                );
+              })
+            )}
           </div>
         )}
       </WizardShell>

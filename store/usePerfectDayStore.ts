@@ -34,6 +34,8 @@ type State = {
   setActive: (id: string) => void;
   /** Replace all days with a drafted set (auto-seed on empty, or "rebuild"). */
   applySeed: (days: PerfectDayItem[], activeId: string) => void;
+  /** Wipe back to a single blank day — for "start over". */
+  reset: () => void;
 };
 
 const mapActive = (s: State, fn: (d: PerfectDayItem) => PerfectDayItem) => ({
@@ -48,6 +50,7 @@ export const usePerfectDayStore = create<State>()(
       seeded: false,
 
       applySeed: (days, activeId) => set({ days, activeId, seeded: true }),
+      reset: () => set({ days: [freshDay(DEFAULT_DAY_ID, "My perfect day")], activeId: DEFAULT_DAY_ID, seeded: false }),
 
       add: (block, id) =>
         set((s) => mapActive(s, (d) =>

@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { Check, ArrowLeft, Pencil, ArrowRight, Search, Wand2, Loader2, X, RotateCcw } from "lucide-react";
+import { Check, ArrowLeft, Pencil, ArrowRight, Search, Wand2, Loader2, X, RotateCcw, ChevronDown } from "lucide-react";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { usePerfectYearStore } from "@/store/usePerfectYearStore";
@@ -102,21 +102,20 @@ export default function ReclaimJourney() {
   const togglePursuit = (id: string) => setPursuits((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
   const commitPursuits = (ids: string[]) => applySeed(placeAdventures(ids));
 
-  // Explorer — progressive: pick broad interests first, then the pursuits within
-  // them appear (search is a global escape hatch). Seeded from any already-chosen
-  // pursuits so returning editors see relevant kinds expanded.
+  // Explorer — an in-place accordion: open a kind and its types expand right
+  // there; tapping a type fills in matching pursuits. Search is a global escape
+  // hatch. Opens the kind of an already-chosen pursuit for returning editors.
   const [query, setQuery] = useState("");
-  const [interests, setInterests] = useState<AdventureCategory[]>(() => {
+  const [expandedKind, setExpandedKind] = useState<AdventureCategory | null>(() => {
     const byId = Object.fromEntries(ADVENTURE_SEEDS.map((s) => [s.id, s]));
     const chosen = Object.values(usePerfectYearStore.getState().plan).flat();
-    return [...new Set(chosen.map((id) => byId[id]?.category).filter(Boolean))] as AdventureCategory[];
+    return (chosen.map((id) => byId[id]?.category).filter(Boolean)[0] as AdventureCategory) ?? null;
   });
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiDisabled, setAiDisabled] = useState(false);
   const grouped = useMemo(() => adventuresByCategory(catalog), [catalog]);
   const searchResults = useMemo(() => filterPursuits(catalog, { query }), [catalog, query]);
-  const toggleInterest = (c: AdventureCategory) => setInterests((f) => (f.includes(c) ? f.filter((x) => x !== c) : [...f, c]));
 
   const generateIdeas = async () => {
     if (aiGenerating) return;
@@ -150,7 +149,7 @@ export default function ReclaimJourney() {
   // Reset the whole day / year / arc feature back to a blank slate.
   const resetAll = () => {
     resetDayWeights(); clearYear(); clearCustom(); resetDays();
-    setPursuits([]); setQuery(""); setInterests([]); setAiError(null); setAiDisabled(false);
+    setPursuits([]); setQuery(""); setExpandedKind(null); setAiError(null); setAiDisabled(false);
     setConfirmReset(false); setStage("intro");
   };
 
@@ -375,41 +374,15 @@ export default function ReclaimJourney() {
       <WizardShell
         step={2} total={3} eyebrow="Step 2 · Your year"
         title="What will you build your year around?"
-        subtitle="Pick the kinds that pull at you, then tap the types you want — we'll fill in matching pursuits for you to keep or drop. Search or ask the AI anytime."
+        subtitle="Open a kind and its types unfold right there — tap one and we'll fill in matching pursuits to keep or drop. Search or ask the AI anytime."
         onBack={() => setStage("days")}
         onNext={() => { commitPursuits(pursuits); setStage("arc"); }} nextLabel="Next: your arc"
         nextDisabled={pursuits.length === 0}
-        nextHint={pursuits.length === 0 ? "Pick at least one pursuit to continue." : `${pursuits.length} chosen`}
+        nextHint={pursuits.length === 0 ? "Open a kind and tap a type to continue." : `${pursuits.length} chosen`}
         onSkip={() => { commitPursuits(pursuits); setFineTune("year"); }} skipLabel="Time them on a calendar"
         resetSlot={resetRow}
       >
-        {/* 1 · Broad interests — the entry point */}
-        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: C.inkFaint, marginBottom: 9 }}>Which kinds pull at you?</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 8, marginBottom: 16 }}>
-          {YEAR_CATEGORIES.map((c) => {
-            const on = interests.includes(c.id);
-            const tint = CAT_COLOR[c.id];
-            const chosenIn = pursuits.filter((id) => (catalog.find((s) => s.id === id)?.category) === c.id).length;
-            return (
-              <button key={c.id} onClick={() => toggleInterest(c.id)} style={{
-                textAlign: "left", cursor: "pointer", padding: "13px 14px", borderRadius: 14,
-                border: `1.5px solid ${on ? tint : C.border}`, background: on ? `${tint}12` : C.bgCard,
-                display: "flex", gap: 11, alignItems: "flex-start", transition: "border-color 0.15s, background 0.15s",
-              }}>
-                <span style={{ fontSize: 22, lineHeight: 1, flexShrink: 0 }}>{c.icon}</span>
-                <span style={{ minWidth: 0, flex: 1 }}>
-                  <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <span style={{ fontSize: 13.5, fontWeight: 700, color: on ? tint : C.ink }}>{c.id}</span>
-                    {chosenIn > 0 && <span style={{ fontSize: 10, fontWeight: 800, color: "#fff", background: tint, borderRadius: 99, padding: "0 6px", lineHeight: "16px" }}>{chosenIn}</span>}
-                  </span>
-                  <span style={{ display: "block", fontSize: 11, color: C.inkSoft, marginTop: 3, lineHeight: 1.4 }}>{c.blurb}</span>
-                </span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* 2 · Search + AI (a global escape hatch, always available) */}
+        {/* Search + AI (a global escape hatch, always available) */}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
           <div style={{ flex: "1 1 220px", position: "relative", display: "flex", alignItems: "center" }}>
             <Search size={15} color={C.inkFaint} style={{ position: "absolute", left: 11 }} />
@@ -432,7 +405,7 @@ export default function ReclaimJourney() {
         {aiError && <div style={{ fontSize: 11.5, color: C.warm, marginBottom: 8 }}>{aiError}</div>}
         {aiDisabled && <div style={{ fontSize: 11.5, color: C.inkFaint, marginBottom: 8 }}>AI idea generation isn&apos;t configured — pick a kind above to explore the catalog.</div>}
 
-        {/* 3 · Drill down by type — tap a type to populate matching pursuits */}
+        {/* Search overrides the accordion with a flat, global result set */}
         {query.trim() ? (
           searchResults.length === 0 ? (
             <div style={{ fontSize: 13, color: C.inkSoft, padding: "8px 0" }}>No pursuits match &ldquo;{query.trim()}&rdquo;{aiDisabled ? "." : " — try the AI above."}</div>
@@ -443,23 +416,40 @@ export default function ReclaimJourney() {
             </>
           )
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {interests.length === 0 && customPursuits.length === 0 ? (
-              <div style={{ fontSize: 13, color: C.inkSoft, lineHeight: 1.6, padding: "12px 14px", borderRadius: 12, background: C.bgCard, border: `1px dashed ${C.border}`, textAlign: "center" }}>
-                Pick a kind above to start — its types appear here, and tapping one fills in a few pursuits you can refine.
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {/* Fresh AI ideas, when present, ride at the top */}
+            {customPursuits.length > 0 && (
+              <div style={{ borderRadius: 14, border: `1px solid #7a5a9e33`, background: "#7a5a9e08", padding: "12px 14px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 9 }}>
+                  <Wand2 size={14} color="#7a5a9e" />
+                  <span style={{ fontSize: 12, fontWeight: 800, color: "#7a5a9e" }}>Fresh ideas for you</span>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 8 }}>{customPursuits.map(card)}</div>
               </div>
-            ) : (
-              <>
-                {/* One row of type-chips per selected kind */}
-                {YEAR_CATEGORIES.filter((c) => interests.includes(c.id)).map((c) => {
-                  const tint = CAT_COLOR[c.id];
-                  return (
-                    <div key={c.id}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8 }}>
-                        <span style={{ fontSize: 15 }}>{c.icon}</span>
-                        <span style={{ fontSize: 12, fontWeight: 800, color: tint }}>{c.id}</span>
-                        <span style={{ fontSize: 10.5, color: C.inkFaint }}>· tap a type to add</span>
-                      </div>
+            )}
+
+            {/* Accordion — each kind opens in place to reveal its types + picks */}
+            {YEAR_CATEGORIES.map((c) => {
+              const tint = CAT_COLOR[c.id];
+              const open = expandedKind === c.id;
+              const chosenIds = pursuits.filter((id) => byId[id]?.category === c.id);
+              return (
+                <div key={c.id} style={{ borderRadius: 14, border: `1.5px solid ${open ? tint : C.border}`, background: open ? `${tint}08` : C.bgCard, overflow: "hidden", transition: "border-color 0.15s" }}>
+                  <button onClick={() => setExpandedKind(open ? null : c.id)} style={{ width: "100%", display: "flex", gap: 11, alignItems: "center", padding: "13px 14px", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}>
+                    <span style={{ fontSize: 22, lineHeight: 1, flexShrink: 0 }}>{c.icon}</span>
+                    <span style={{ minWidth: 0, flex: 1 }}>
+                      <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: open ? tint : C.ink }}>{c.id}</span>
+                        {chosenIds.length > 0 && <span style={{ fontSize: 10, fontWeight: 800, color: "#fff", background: tint, borderRadius: 99, padding: "0 6px", lineHeight: "16px" }}>{chosenIds.length}</span>}
+                      </span>
+                      {!open && <span style={{ display: "block", fontSize: 11, color: C.inkSoft, marginTop: 3, lineHeight: 1.4 }}>{c.blurb}</span>}
+                    </span>
+                    <ChevronDown size={18} color={open ? tint : C.inkFaint} style={{ flexShrink: 0, transform: open ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
+                  </button>
+
+                  {open && (
+                    <div style={{ padding: "0 14px 14px" }}>
+                      <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: C.inkFaint, marginBottom: 8 }}>Tap a type to add its pursuits</div>
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
                         {SUBTHEMES[c.id].map((st) => {
                           const ids = subthemePursuits(catalog, c.id, st.tags);
@@ -469,7 +459,7 @@ export default function ReclaimJourney() {
                           return (
                             <button key={st.label} onClick={() => toggleSet(ids)} style={{
                               display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 13px", borderRadius: 12, cursor: "pointer", fontSize: 12.5, fontWeight: 700,
-                              border: `1.5px solid ${on ? tint : C.border}`, background: on ? `${tint}12` : C.bgCard, color: on ? tint : C.inkMid, transition: "all 0.12s",
+                              border: `1.5px solid ${on ? tint : C.border}`, background: on ? `${tint}14` : C.bgCard, color: on ? tint : C.inkMid, transition: "all 0.12s",
                             }}>
                               <span>{st.emoji}</span>{st.label}
                               <span style={{ fontSize: 10.5, fontWeight: 800, color: on ? "#fff" : C.inkFaint, background: on ? tint : C.borderSoft, borderRadius: 99, minWidth: 16, textAlign: "center", padding: "0 5px", lineHeight: "16px" }}>{on ? chosen : `+${ids.length}`}</span>
@@ -477,30 +467,18 @@ export default function ReclaimJourney() {
                           );
                         })}
                       </div>
-                    </div>
-                  );
-                })}
 
-                {/* Fresh AI ideas — selectable individually */}
-                {customPursuits.length > 0 && (
-                  <div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8 }}>
-                      <Wand2 size={14} color="#7a5a9e" />
-                      <span style={{ fontSize: 12, fontWeight: 800, color: "#7a5a9e" }}>Fresh ideas for you</span>
+                      {chosenIds.length > 0 && (
+                        <div style={{ marginTop: 12 }}>
+                          <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: tint, marginBottom: 7 }}>In your year · {chosenIds.length}</div>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>{chosenIds.map(pickChip)}</div>
+                        </div>
+                      )}
                     </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 8 }}>{customPursuits.map(card)}</div>
-                  </div>
-                )}
-              </>
-            )}
-
-            {/* Your picks — the running selection, easy to refine */}
-            {pursuits.length > 0 && (
-              <div style={{ borderTop: `1px solid ${C.borderSoft}`, paddingTop: 13 }}>
-                <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase", color: C.tealDark, marginBottom: 9 }}>Your year so far · {pursuits.length}</div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>{pursuits.map(pickChip)}</div>
-              </div>
-            )}
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </WizardShell>

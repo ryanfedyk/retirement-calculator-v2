@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, ArrowLeft, Pencil, ArrowRight, Search, Wand2, Loader2, X, RotateCcw, ChevronDown } from "lucide-react";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
@@ -19,6 +19,7 @@ import WizardShell from "./WizardShell";
 import PerfectDay from "./PerfectDay";
 import PerfectYear from "./PerfectYear";
 import RetirementArcTimeline, { SEASON_META } from "./RetirementArcTimeline";
+import { R, SERIF, DAY_COLOR, presenceWord } from "./reclaimTheme";
 
 const VALID_CATS: AdventureCategory[] = ["Immersive Travel", "Creative Mastery", "Endurance/Active", "Slow Living"];
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 40);
@@ -65,6 +66,7 @@ export default function ReclaimJourney() {
   const [stage, setStage] = useState<Stage | null>(null);
   const [fineTune, setFineTune] = useState<null | "days" | "year">(null);
   const [confirmReset, setConfirmReset] = useState(false);
+  const dragRef = useRef<{ id: string; rect: DOMRect } | null>(null); // day drag-to-weight
   useEffect(() => {
     const anyW = Object.values(useReclaimWizardStore.getState().dayWeights).some((v) => v > 0);
     const anyP = Object.values(usePerfectYearStore.getState().plan).flat().length > 0;
@@ -86,7 +88,6 @@ export default function ReclaimJourney() {
     hasPartner: filingStatus === "married_joint" || !!usePartnerIncome,
   }), [children, filingStatus, usePartnerIncome]);
   const archetypes = useMemo(() => dayArchetypes(seedInputs), [seedInputs]);
-  const totalWeight = archetypes.reduce((s, a) => s + (dayWeights[a.id] ?? 0), 0);
   const mix = useMemo(() => themeMixFromWeights(archetypes, dayWeights), [archetypes, dayWeights]);
   const synthesis = useMemo(() => synthesizeFromWeights(archetypes, dayWeights), [archetypes, dayWeights]);
 
@@ -138,9 +139,9 @@ export default function ReclaimJourney() {
   // Draft a whole starter journey to react to — a gentle default blend + one
   // pursuit from each kind — so the arc is meaningful in a single tap.
   const draftForMe = () => {
-    setDayWeight("arch-connected", 5);
-    setDayWeight("arch-adventure", 5);
-    setDayWeight("arch-restful", 4);
+    setDayWeight("arch-connected", 85);
+    setDayWeight("arch-adventure", 55);
+    setDayWeight("arch-restful", 65);
     const ids = grouped.map((g) => g.items[0]?.id).filter(Boolean) as string[];
     setPursuits(ids); commitPursuits(ids);
     setStage("arc");
@@ -187,139 +188,118 @@ export default function ReclaimJourney() {
   // ── Intro ───────────────────────────────────────────────────────────────────
   if (stage === "intro") {
     return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
         <div>
-          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: C.tealDark, marginBottom: 8 }}>Design your retirement</div>
-          <h2 style={{ fontSize: 24, fontWeight: 300, color: C.ink, letterSpacing: "-0.015em", lineHeight: 1.2, margin: 0 }}>
-            Let's shape the life, not just the number.
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.22em", textTransform: "uppercase", color: R.accentInk, marginBottom: 12 }}>A studio for your next chapter</div>
+          <h2 style={{ fontFamily: SERIF, fontSize: "clamp(30px, 7vw, 44px)", fontWeight: 500, color: R.ink, letterSpacing: "-0.015em", lineHeight: 1.06, margin: 0, textWrap: "balance" }}>
+            Let&apos;s compose the life, not just the number.
           </h2>
-          <p style={{ fontSize: 13.5, color: C.inkSoft, lineHeight: 1.55, margin: "10px 0 0", maxWidth: 560 }}>
-            Three quiet steps — no budgets, no forms. We'll shape the <strong style={{ color: C.inkMid }}>days</strong> you want, gather the <strong style={{ color: C.inkMid }}>pursuits</strong> for your year, and then see the whole <strong style={{ color: C.inkMid }}>arc</strong> of it across the seasons ahead.
+          <p style={{ fontSize: 15, color: R.inkSoft, lineHeight: 1.6, margin: "16px 0 0", maxWidth: "50ch" }}>
+            No budgets, no forms — three quiet movements. Shape the <strong style={{ color: R.ink, fontWeight: 600 }}>days</strong> that feel like you, gather the <strong style={{ color: R.ink, fontWeight: 600 }}>pursuits</strong> for your year, then watch the whole <strong style={{ color: R.ink, fontWeight: 600 }}>arc</strong> of it settle across the seasons ahead.
           </p>
         </div>
-        {/* The path ahead — a quiet numbered stepper, not tappable cards. */}
+
+        {/* The three movements — a quiet numbered path, not tappable cards. */}
         <div style={{ display: "flex", flexDirection: "column" }}>
           {[
-            { n: 1, icon: "🎚️", t: "Your days", d: "Set the blend of days that feels like you." },
-            { n: 2, icon: "🎸", t: "Your year", d: "Pick the pursuits to build it around." },
-            { n: 3, icon: "🌅", t: "Your arc", d: "See it flow across the seasons ahead." },
+            { n: 1, t: "Your days", d: "How a good week actually feels." },
+            { n: 2, t: "Your year", d: "The pursuits worth reaching for." },
+            { n: 3, t: "Your arc", d: "The shape of it, across the seasons." },
           ].map((c, i) => (
-            <div key={c.n} style={{ display: "flex", gap: 14 }}>
-              {/* number + connector rail */}
+            <div key={c.n} style={{ display: "flex", gap: 15 }}>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
                 <div style={{
-                  flexShrink: 0, width: 28, height: 28, borderRadius: "50%", background: C.tealWash, border: `1.5px solid ${C.tealLight}`,
-                  display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, color: C.tealDark,
+                  flexShrink: 0, width: 30, height: 30, borderRadius: "50%", background: R.card, border: `1.5px solid ${R.accent}`,
+                  display: "flex", alignItems: "center", justifyContent: "center", fontFamily: SERIF, fontSize: 15, fontWeight: 600, color: R.accentInk,
                 }}>{c.n}</div>
-                {i < 2 && <div style={{ flex: 1, width: 2, minHeight: 20, background: C.borderSoft, margin: "4px 0" }} />}
+                {i < 2 && <div style={{ flex: 1, width: 2, minHeight: 22, background: R.line, margin: "5px 0" }} />}
               </div>
-              <div style={{ paddingBottom: i < 2 ? 18 : 0, paddingTop: 3 }}>
-                <div style={{ fontSize: 15, fontWeight: 700, color: C.ink, letterSpacing: "-0.01em" }}>
-                  <span style={{ marginRight: 7 }}>{c.icon}</span>{c.t}
-                </div>
-                <div style={{ fontSize: 12.5, color: C.inkSoft, marginTop: 2, lineHeight: 1.45 }}>{c.d}</div>
+              <div style={{ paddingBottom: i < 2 ? 20 : 0, paddingTop: 4 }}>
+                <div style={{ fontFamily: SERIF, fontSize: 18, fontWeight: 500, color: R.ink }}>{c.t}</div>
+                <div style={{ fontSize: 13, color: R.inkFaint, marginTop: 2, lineHeight: 1.45 }}>{c.d}</div>
               </div>
             </div>
           ))}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <button onClick={() => setStage("days")} style={{
-            display: "inline-flex", alignItems: "center", gap: 8, padding: "13px 22px", borderRadius: 13, border: "none",
-            background: C.teal, color: "#fff", fontSize: 14.5, fontWeight: 700, cursor: "pointer", boxShadow: `0 5px 18px ${C.teal}44`,
+            display: "inline-flex", alignItems: "center", gap: 8, padding: "14px 24px", borderRadius: 14, border: "none",
+            background: R.accent, color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer", boxShadow: `0 16px 32px -16px ${R.accent}`,
           }}>
             Begin <ArrowRight size={16} />
           </button>
           <button onClick={draftForMe} style={{
-            display: "inline-flex", alignItems: "center", gap: 7, padding: "13px 18px", borderRadius: 13,
-            border: `1px solid ${C.tealLight}`, background: C.tealWash, color: C.tealDark, fontSize: 13.5, fontWeight: 700, cursor: "pointer",
+            display: "inline-flex", alignItems: "center", gap: 7, padding: "14px 18px", borderRadius: 14,
+            border: `1px solid ${R.line}`, background: R.card, color: R.accentInk, fontSize: 13.5, fontWeight: 700, cursor: "pointer",
           }}>
             <Wand2 size={15} /> Draft one for me
           </button>
         </div>
-        <div style={{ fontSize: 11.5, color: C.inkFaint, marginTop: -6 }}>New here? &ldquo;Draft one for me&rdquo; fills a starting arc you can shape — nothing to lose.</div>
+        <div style={{ fontSize: 12, color: R.inkFaint, marginTop: -10 }}>New here? &ldquo;Draft one for me&rdquo; composes a starting arc you can shape — nothing to lose.</div>
       </div>
     );
   }
 
-  // ── Step 1 · Days (spread your week's blocks) ─────────────────────────────────
+  // ── Movement one · Your days (drag-to-weight) ─────────────────────────────────
   if (stage === "days") {
-    const BUDGET = 14;
-    const placed = totalWeight;
-    const remaining = Math.max(0, BUDGET - placed);
+    const total = archetypes.reduce((s, a) => s + (dayWeights[a.id] ?? 0), 0);
+    const weightFromX = (clientX: number, rect: DOMRect) => Math.round(Math.max(0, Math.min(1, (clientX - rect.left) / rect.width)) * 100);
     return (
       <WizardShell
-        step={1} total={3} eyebrow="Step 1 · Your days"
-        title="How would your weeks actually feel?"
-        subtitle="A day can hold a few of these, so picture a whole week's worth of time — about fourteen blocks. Lean harder on what matters most; it's fine to leave some unplaced."
+        step={1} total={3} eyebrow="Movement one · your days"
+        title="What does a good week feel like?"
+        subtitle="Not a schedule — a feeling. Drag to give each kind of day as much presence as it deserves. There's no wrong mix; the point is to notice where your heart leans."
         onBack={() => setStage("intro")}
         onNext={() => setStage("year")} nextLabel="Next: your year"
-        nextDisabled={placed === 0}
-        nextHint={placed === 0 ? "Give at least one kind some emphasis to continue." : undefined}
+        nextDisabled={total === 0}
+        nextHint={total === 0 ? "Give at least one kind of day some presence to continue." : undefined}
         onSkip={() => setFineTune("days")} skipLabel="Fine-tune day by day"
         resetSlot={resetRow}
       >
-        {/* Emphasis budget */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 12, padding: "10px 14px", borderRadius: 12, background: remaining === 0 ? C.tealWash : C.bgCard, border: `1px solid ${remaining === 0 ? C.tealLight : C.border}` }}>
-          <span style={{ fontSize: 12.5, fontWeight: 700, color: remaining === 0 ? C.tealDark : C.inkMid }}>
-            {remaining === 0 ? `Your week is richly shaped — ${BUDGET} of ${BUDGET} placed` : `${placed} of ${BUDGET} placed${placed > 0 ? ` · ${remaining} left` : ""}`}
-          </span>
-          <div style={{ display: "flex", gap: 2.5, flexShrink: 0 }}>
-            {Array.from({ length: BUDGET }).map((_, i) => (
-              <span key={i} style={{ width: 7, height: 7, borderRadius: "50%", background: i < placed ? C.teal : C.borderSoft }} />
-            ))}
-          </div>
+        {/* Week ribbon — the blend as one band of light */}
+        <div style={{ display: "flex", height: 18, borderRadius: 999, overflow: "hidden", marginBottom: 8, background: R.card, boxShadow: `inset 0 0 0 1px ${R.lineSoft}` }}>
+          {total === 0
+            ? <div style={{ width: "100%", background: R.lineSoft }} />
+            : archetypes.filter((a) => (dayWeights[a.id] ?? 0) > 0).map((a) => (
+                <div key={a.id} title={a.name} style={{ width: `${(dayWeights[a.id] ?? 0) / total * 100}%`, background: DAY_COLOR[a.id] ?? R.accent, transition: "width 0.15s linear" }} />
+              ))}
         </div>
+        <div style={{ minHeight: "1.4em", marginBottom: total === 0 ? 6 : 2 }}>
+          {mix.length > 0
+            ? <span style={{ fontFamily: SERIF, fontSize: "clamp(19px, 3.6vw, 24px)", color: R.ink, lineHeight: 1.3 }}>A life of {synthesis.title.replace(/^A life of /, "").split(" and ").map((n, i, arr) => <span key={n}><em style={{ fontStyle: "normal", color: R.accentInk }}>{n}</em>{i < arr.length - 1 ? " and " : ""}</span>)}.</span>
+            : <span style={{ fontFamily: SERIF, fontSize: "clamp(18px, 3.4vw, 22px)", color: R.inkFaint, lineHeight: 1.3 }}>Reach for the kinds of day that feel like you.</span>}
+        </div>
+        {mix.length > 0 && <div style={{ fontSize: 12.5, color: R.inkFaint, lineHeight: 1.5, marginBottom: 22 }}>{blendGapNote(mix)}</div>}
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {/* Presence sliders */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {archetypes.map((a) => {
             const w = dayWeights[a.id] ?? 0;
-            const stepBtn = (dir: 1 | -1, disabled: boolean) => ({
-              width: 32, height: 32, borderRadius: 9, cursor: disabled ? "default" : "pointer",
-              border: `1px solid ${C.border}`, background: disabled ? C.bg : C.bgCard, color: disabled ? C.inkFaint : C.inkMid,
-              fontSize: 18, fontWeight: 700, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center",
-            } as React.CSSProperties);
+            const kc = DAY_COLOR[a.id] ?? R.accent;
             return (
-              <div key={a.id} style={{ background: C.bgCard, border: `1px solid ${w > 0 ? C.tealLight : C.border}`, borderRadius: 14, padding: "13px 14px" }}>
-                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: w > 0 ? C.tealDark : C.ink }}>{a.name}</div>
-                    <div style={{ fontSize: 11.5, color: C.inkSoft, marginTop: 2, lineHeight: 1.4 }}>{dayVignette(a)}</div>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-                    <button aria-label={`Fewer ${a.name}`} onClick={() => w > 0 && setDayWeight(a.id, w - 1)} disabled={w <= 0} style={stepBtn(-1, w <= 0)}>−</button>
-                    <div style={{ width: 52, textAlign: "center" }}>
-                      <span style={{ fontSize: 18, fontWeight: 800, color: w > 0 ? C.tealDark : C.inkFaint, fontVariantNumeric: "tabular-nums" }}>{w}</span>
-                      <span style={{ fontSize: 10.5, color: C.inkFaint, display: "block", marginTop: -2 }}>{w === 1 ? "block" : "blocks"}</span>
-                    </div>
-                    <button aria-label={`More ${a.name}`} onClick={() => remaining > 0 && setDayWeight(a.id, w + 1)} disabled={remaining <= 0} style={stepBtn(1, remaining <= 0)}>+</button>
-                  </div>
+              <div key={a.id} style={{ background: R.card, border: `1px solid ${w > 0 ? `color-mix(in oklab, ${kc} 45%, ${R.line})` : R.line}`, borderRadius: 18, padding: "15px 16px 16px", transition: "border-color 0.2s" }}>
+                <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10 }}>
+                  <div style={{ fontFamily: SERIF, fontSize: 17, fontWeight: 500, color: R.ink }}>{a.name}</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: w > 0 ? kc : R.inkFaint, whiteSpace: "nowrap" }}>{presenceWord(w)}</div>
                 </div>
-                {/* emphasis bar for this kind */}
-                <div style={{ display: "flex", gap: 2, marginTop: 11 }}>
-                  {Array.from({ length: 14 }).map((_, i) => (
-                    <span key={i} style={{ flex: 1, height: 5, borderRadius: 999, background: i < w ? C.teal : C.borderSoft }} />
-                  ))}
+                <div style={{ fontSize: 12, color: R.inkFaint, margin: "3px 0 12px", lineHeight: 1.4 }}>{dayVignette(a)}</div>
+                <div
+                  role="slider" aria-label={`Presence of ${a.name}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={w} tabIndex={0}
+                  onPointerDown={(e) => { (e.target as HTMLElement).setPointerCapture?.(e.pointerId); const rect = e.currentTarget.getBoundingClientRect(); dragRef.current = { id: a.id, rect }; setDayWeight(a.id, weightFromX(e.clientX, rect)); }}
+                  onPointerMove={(e) => { const d = dragRef.current; if (d && d.id === a.id) setDayWeight(a.id, weightFromX(e.clientX, d.rect)); }}
+                  onPointerUp={() => { dragRef.current = null; }}
+                  onPointerCancel={() => { dragRef.current = null; }}
+                  onKeyDown={(e) => { if (e.key === "ArrowRight" || e.key === "ArrowUp") { e.preventDefault(); setDayWeight(a.id, Math.min(100, w + 10)); } if (e.key === "ArrowLeft" || e.key === "ArrowDown") { e.preventDefault(); setDayWeight(a.id, Math.max(0, w - 10)); } }}
+                  style={{ position: "relative", height: 16, borderRadius: 999, background: R.ground2, cursor: "ew-resize", touchAction: "none", outline: "none", boxShadow: "inset 0 1px 2px rgba(0,0,0,0.06)" }}
+                >
+                  <div style={{ position: "absolute", inset: 0, width: `${w}%`, borderRadius: 999, background: `linear-gradient(90deg, color-mix(in oklab, ${kc} 72%, #fff 10%), ${kc})`, transition: "width 0.1s linear" }} />
+                  <div style={{ position: "absolute", top: "50%", left: `${w}%`, width: 22, height: 22, borderRadius: "50%", background: R.card2, border: `2px solid ${kc}`, transform: "translate(-50%,-50%)", transition: "left 0.1s linear", boxShadow: "0 4px 10px -4px rgba(0,0,0,0.4)" }} />
                 </div>
               </div>
             );
           })}
         </div>
-
-        {/* Live blend + throughline */}
-        {mix.length > 0 && (
-          <div style={{ marginTop: 16, borderRadius: 14, padding: "14px 16px", background: `linear-gradient(135deg, ${C.tealWash}, ${C.bgCard})`, border: `1px solid ${C.tealLight}` }}>
-            <div style={{ display: "flex", height: 12, borderRadius: 999, overflow: "hidden" }}>
-              {mix.map((s) => <div key={s.category} style={{ width: `${s.pct}%`, background: s.color }} title={`${s.label} · ${s.pct}%`} />)}
-            </div>
-            <div style={{ fontSize: 13.5, color: C.inkMid, marginTop: 11, lineHeight: 1.5 }}>
-              This points to <strong style={{ color: C.tealDark }}>{synthesis.title.replace(/^A life of /, "a life of ")}</strong>.
-            </div>
-            <div style={{ display: "flex", gap: 7, marginTop: 8 }}>
-              <span style={{ fontSize: 14, lineHeight: 1.4 }}>💡</span>
-              <span style={{ fontSize: 12, color: C.inkSoft, lineHeight: 1.5 }}>{blendGapNote(mix)}</span>
-            </div>
-          </div>
-        )}
       </WizardShell>
     );
   }

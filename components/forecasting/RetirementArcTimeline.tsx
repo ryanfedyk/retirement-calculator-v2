@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Minus, Plus, Maximize2 } from "lucide-react";
+import { Minus, Plus, Maximize2, Expand, X } from "lucide-react";
 import { C } from "@/config/colors";
 import type { ArcSeason, ArcSeasonKey } from "@/lib/perfectWizard";
 
@@ -30,6 +30,8 @@ export default function RetirementArcTimeline({
 
   const MIN_PX = 6, MAX_PX = 64, PAD = 24;
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [fsHeight, setFsHeight] = useState(360);
   const [pxPerYear, setPxPerYear] = useState(20);          // zoom level
   const pxRef = useRef(pxPerYear);
   useEffect(() => { pxRef.current = pxPerYear; }, [pxPerYear]);
@@ -88,6 +90,26 @@ export default function RetirementArcTimeline({
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Fullscreen: lock the page, size the track to the viewport, and refit so the
+  // whole arc greets you — an immersive canvas you drag/pinch through, not a page.
+  useEffect(() => {
+    if (!fullscreen) return;
+    const calc = () => setFsHeight(Math.max(240, window.innerHeight - 148));
+    calc();
+    const prevBody = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("resize", calc);
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setFullscreen(false); };
+    window.addEventListener("keydown", onKey);
+    const r = requestAnimationFrame(() => fitZoom());
+    return () => {
+      document.body.style.overflow = prevBody;
+      window.removeEventListener("resize", calc);
+      window.removeEventListener("keydown", onKey);
+      cancelAnimationFrame(r);
+    };
+  }, [fullscreen]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const seasons = useMemo(() => arc.map((s) => {
     // Fall back to equal thirds for age spans when ages are unknown.
     const from = s.ageFrom ?? Math.round(start + (years / 3) * ARC_ORDER.indexOf(s.key));
@@ -121,10 +143,10 @@ export default function RetirementArcTimeline({
     return out;
   }, [start, horizonAge, pxPerYear]);
 
-  const TRACK_H = 210;
+  const TRACK_H = fullscreen ? fsHeight : 210;
 
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+  const content = (
+    <>
       {/* Zoom controls */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, rowGap: 8, flexWrap: "wrap" }}>
         <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: C.inkFaint }}>
@@ -140,11 +162,14 @@ export default function RetirementArcTimeline({
           <button onClick={() => zoom(-1)} aria-label="Zoom out" style={btn}><Minus size={14} /></button>
           <button onClick={() => zoom(1)} aria-label="Zoom in" style={btn}><Plus size={14} /></button>
           <button onClick={fitZoom} aria-label="Fit to width" style={btn}><Maximize2 size={13} /></button>
+          {!fullscreen && (
+            <button onClick={() => setFullscreen(true)} aria-label="Open fullscreen" title="Fullscreen" style={{ ...btn, borderColor: C.tealLight, background: C.tealWash, color: C.tealDark }}><Expand size={14} /></button>
+          )}
         </div>
       </div>
 
       {/* The scrollable timeline — horizontal pan is native; two-finger pinch zooms */}
-      <div ref={scrollRef} style={{ overflowX: "auto", overflowY: "hidden", borderRadius: 14, border: `1px solid ${C.borderSoft}`, background: C.bgCard, touchAction: "pan-x", WebkitOverflowScrolling: "touch", overscrollBehaviorX: "contain" }}>
+      <div ref={scrollRef} style={{ overflowX: "auto", overflowY: "hidden", borderRadius: fullscreen ? 12 : 14, border: `1px solid ${C.borderSoft}`, background: C.bgCard, touchAction: "pan-x", WebkitOverflowScrolling: "touch", overscrollBehaviorX: "contain", flex: fullscreen ? "1 1 auto" : undefined }}>
         <div style={{ position: "relative", width, minWidth: "100%", height: TRACK_H }}>
           {/* Season bands */}
           {seasons.map((s) => {
@@ -202,8 +227,21 @@ export default function RetirementArcTimeline({
       <div style={{ fontSize: 10.5, color: C.inkFaint, textAlign: "center" }}>
         Drag to pan · pinch or +/− to zoom · zoom in to read each pursuit and its first step
       </div>
-    </div>
+    </>
   );
+
+  if (fullscreen) {
+    return (
+      <div style={{ position: "fixed", inset: 0, zIndex: 2000, background: C.bg, display: "flex", flexDirection: "column", gap: 8, padding: "10px 12px calc(10px + env(safe-area-inset-bottom))" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+          <div style={{ fontSize: 14, fontWeight: 800, color: C.ink, letterSpacing: "-0.01em" }}>Your retirement, one arc</div>
+          <button onClick={() => setFullscreen(false)} aria-label="Close fullscreen" style={{ ...btn, width: 36, height: 36 }}><X size={18} /></button>
+        </div>
+        {content}
+      </div>
+    );
+  }
+  return <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>{content}</div>;
 }
 
 const btn: React.CSSProperties = {

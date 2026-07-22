@@ -10,7 +10,7 @@ import { usePerfectDayStore } from "@/store/usePerfectDayStore";
 import { type SeedInputs } from "@/lib/perfectSeed";
 import { ADVENTURE_SEEDS } from "@/data/adventureSeeds";
 import {
-  dayArchetypes, dayVignette, themeMixFromWeights, synthesizeFromWeights, DAY_WEIGHT_LABELS,
+  dayArchetypes, dayVignette, themeMixFromWeights, synthesizeFromWeights,
   adventuresByCategory, shortWhy, placeAdventures, retirementArc, blendGapNote,
   filterPursuits, topInterestTags,
 } from "@/lib/perfectWizard";
@@ -137,8 +137,8 @@ export default function ReclaimJourney() {
   // pursuit from each kind — so the arc is meaningful in a single tap.
   const draftForMe = () => {
     setDayWeight("arch-connected", 3);
-    setDayWeight("arch-yours", 2);
-    setDayWeight("arch-restful", 1);
+    setDayWeight("arch-adventure", 2);
+    setDayWeight("arch-restful", 2);
     const ids = grouped.map((g) => g.items[0]?.id).filter(Boolean) as string[];
     setPursuits(ids); commitPursuits(ids);
     setStage("arc");
@@ -239,38 +239,63 @@ export default function ReclaimJourney() {
     );
   }
 
-  // ── Step 1 · Days (weighted blend) ────────────────────────────────────────────
+  // ── Step 1 · Days (divide your week) ──────────────────────────────────────────
   if (stage === "days") {
+    const placed = totalWeight;
+    const remaining = Math.max(0, 7 - placed);
     return (
       <WizardShell
         step={1} total={3} eyebrow="Step 1 · Your days"
         title="How would your weeks actually feel?"
-        subtitle="Retirement is a mix. For each kind of day, set how much of your weeks it makes up — the blend updates as you go."
+        subtitle="A typical week has seven days. Divide them across the kinds of day that matter to you — you can't give everything the whole week, so this is where you choose what comes first."
         onBack={() => setStage("intro")}
         onNext={() => setStage("year")} nextLabel="Next: your year"
-        nextDisabled={totalWeight === 0}
-        nextHint={totalWeight === 0 ? "Give at least one kind of day some weight to continue." : undefined}
+        nextDisabled={placed === 0}
+        nextHint={placed === 0 ? "Give at least one kind of day some days to continue." : remaining > 0 ? `${remaining} day${remaining === 1 ? "" : "s"} still to place` : undefined}
         onSkip={() => setFineTune("days")} skipLabel="Fine-tune day by day"
         resetSlot={resetRow}
       >
+        {/* Week budget */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 12, padding: "10px 14px", borderRadius: 12, background: remaining === 0 ? C.tealWash : C.bgCard, border: `1px solid ${remaining === 0 ? C.tealLight : C.border}` }}>
+          <span style={{ fontSize: 12.5, fontWeight: 700, color: remaining === 0 ? C.tealDark : C.inkMid }}>
+            {remaining === 0 ? "Your week is full — 7 of 7 days placed" : `${placed} of 7 days placed · ${remaining} left`}
+          </span>
+          <div style={{ display: "flex", gap: 4 }}>
+            {Array.from({ length: 7 }).map((_, i) => (
+              <span key={i} style={{ width: 9, height: 9, borderRadius: "50%", background: i < placed ? C.teal : C.borderSoft }} />
+            ))}
+          </div>
+        </div>
+
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {archetypes.map((a) => {
             const w = dayWeights[a.id] ?? 0;
+            const stepBtn = (dir: 1 | -1, disabled: boolean) => ({
+              width: 32, height: 32, borderRadius: 9, cursor: disabled ? "default" : "pointer",
+              border: `1px solid ${C.border}`, background: disabled ? C.bg : C.bgCard, color: disabled ? C.inkFaint : C.inkMid,
+              fontSize: 18, fontWeight: 700, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center",
+            } as React.CSSProperties);
             return (
               <div key={a.id} style={{ background: C.bgCard, border: `1px solid ${w > 0 ? C.tealLight : C.border}`, borderRadius: 14, padding: "13px 14px" }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: w > 0 ? C.tealDark : C.ink }}>{a.name}</div>
-                <div style={{ fontSize: 11.5, color: C.inkSoft, marginTop: 2, marginBottom: 10, lineHeight: 1.4 }}>{dayVignette(a)}</div>
-                <div style={{ display: "flex", gap: 6 }}>
-                  {DAY_WEIGHT_LABELS.map((label, i) => {
-                    const on = w === i;
-                    return (
-                      <button key={label} onClick={() => setDayWeight(a.id, i)} style={{
-                        flex: 1, padding: "8px 4px", borderRadius: 9, cursor: "pointer", fontSize: 11.5, fontWeight: 700,
-                        border: `1px solid ${on ? C.teal : C.border}`, background: on ? C.teal : C.bg,
-                        color: on ? "#fff" : C.inkMid, transition: "all 0.12s",
-                      }}>{label}</button>
-                    );
-                  })}
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: w > 0 ? C.tealDark : C.ink }}>{a.name}</div>
+                    <div style={{ fontSize: 11.5, color: C.inkSoft, marginTop: 2, lineHeight: 1.4 }}>{dayVignette(a)}</div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                    <button aria-label={`Fewer ${a.name}`} onClick={() => w > 0 && setDayWeight(a.id, w - 1)} disabled={w <= 0} style={stepBtn(-1, w <= 0)}>−</button>
+                    <div style={{ width: 52, textAlign: "center" }}>
+                      <span style={{ fontSize: 18, fontWeight: 800, color: w > 0 ? C.tealDark : C.inkFaint, fontVariantNumeric: "tabular-nums" }}>{w}</span>
+                      <span style={{ fontSize: 10.5, color: C.inkFaint, display: "block", marginTop: -2 }}>{w === 1 ? "day" : "days"}</span>
+                    </div>
+                    <button aria-label={`More ${a.name}`} onClick={() => remaining > 0 && setDayWeight(a.id, w + 1)} disabled={remaining <= 0} style={stepBtn(1, remaining <= 0)}>+</button>
+                  </div>
+                </div>
+                {/* week dots for this kind */}
+                <div style={{ display: "flex", gap: 4, marginTop: 11 }}>
+                  {Array.from({ length: 7 }).map((_, i) => (
+                    <span key={i} style={{ flex: 1, height: 5, borderRadius: 999, background: i < w ? C.teal : C.borderSoft }} />
+                  ))}
                 </div>
               </div>
             );

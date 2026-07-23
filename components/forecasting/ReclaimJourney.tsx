@@ -161,18 +161,20 @@ export default function ReclaimJourney({ framed = false }: { framed?: boolean } 
     setConfirmReset(false); setStage("intro");
   };
 
-  // A persistent reset control, shown on every step of the flow.
+  // Reset control — a quiet item in the movement's overflow menu.
   const resetRow = (
-    <div style={{ display: "flex", justifyContent: "center", marginTop: 6, borderTop: `1px solid ${R.lineSoft}`, paddingTop: 12 }}>
+    <div style={{ borderTop: `1px solid ${R.lineSoft}`, marginTop: 4, paddingTop: 4 }}>
       {confirmReset ? (
-        <div style={{ display: "inline-flex", alignItems: "center", gap: 10, fontSize: 12, color: R.inkSoft, flexWrap: "wrap", justifyContent: "center" }}>
-          Clear your days, pursuits &amp; arc and design from scratch?
-          <button onClick={resetAll} style={{ background: R.clay, color: "#fff", border: "none", borderRadius: 9, padding: "6px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Yes, reset</button>
-          <button onClick={() => setConfirmReset(false)} style={{ background: "none", border: "none", color: R.inkFaint, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Cancel</button>
+        <div style={{ padding: "8px 12px" }}>
+          <div style={{ fontSize: 12.5, color: R.inkSoft, lineHeight: 1.45, marginBottom: 9 }}>Clear your days, pursuits &amp; arc and design from scratch?</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={resetAll} style={{ background: R.clay, color: "#fff", border: "none", borderRadius: 9, padding: "7px 13px", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>Yes, reset</button>
+            <button onClick={() => setConfirmReset(false)} style={{ background: "none", border: "none", color: R.inkFaint, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>Cancel</button>
+          </div>
         </div>
       ) : (
-        <button onClick={() => setConfirmReset(true)} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "none", border: "none", cursor: "pointer", color: R.inkFaint, fontSize: 11.5, fontWeight: 600 }}>
-          <RotateCcw size={12} /> Reset my design
+        <button onClick={() => setConfirmReset(true)} style={{ width: "100%", textAlign: "left", display: "inline-flex", alignItems: "center", gap: 7, background: "none", border: "none", cursor: "pointer", color: R.clay, fontSize: 13.5, fontWeight: 600, padding: "10px 12px", borderRadius: 9 }}>
+          <RotateCcw size={14} /> Reset my design
         </button>
       )}
     </div>
@@ -474,11 +476,12 @@ export default function ReclaimJourney({ framed = false }: { framed?: boolean } 
                           const on = chosen > 0;
                           return (
                             <button key={st.label} onClick={() => toggleSet(ids)} style={{
-                              display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 13, cursor: "pointer", fontSize: 12.5, fontWeight: 600,
-                              border: `1px solid ${on ? tint : R.line}`, background: on ? `color-mix(in oklab, ${tint} 12%, ${R.card})` : R.card, color: on ? R.accentInk : R.inkSoft, transition: "all 0.12s",
+                              display: "inline-flex", alignItems: "center", gap: 7, padding: "11px 14px", borderRadius: 13, cursor: "pointer", fontSize: 13, fontWeight: 700,
+                              border: `1.5px solid ${on ? tint : R.line}`, background: on ? `color-mix(in oklab, ${tint} 15%, ${R.card2})` : R.card2, color: on ? R.accentInk : R.ink,
+                              boxShadow: on ? `0 2px 8px -4px ${tint}` : "0 1px 2px rgba(20,30,26,0.05)", transition: "all 0.12s",
                             }}>
-                              <span>{st.emoji}</span>{st.label}
-                              <span style={{ fontSize: 10.5, fontWeight: 800, color: on ? "#fff" : R.inkFaint, background: on ? tint : R.lineSoft, borderRadius: 99, minWidth: 16, textAlign: "center", padding: "0 5px", lineHeight: "16px" }}>{on ? chosen : `+${ids.length}`}</span>
+                              <span style={{ fontSize: 14 }}>{st.emoji}</span>{st.label}
+                              <span style={{ fontSize: 10.5, fontWeight: 800, color: on ? "#fff" : R.inkFaint, background: on ? tint : R.lineSoft, borderRadius: 99, minWidth: 17, textAlign: "center", padding: "0 5px", lineHeight: "17px" }}>{on ? chosen : `+${ids.length}`}</span>
                             </button>
                           );
                         })}

@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import {
   ResponsiveContainer, ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip,
 } from "recharts";
-import { TrendingUp, Camera, Check } from "lucide-react";
+import { TrendingUp, Camera, Check, Trash2 } from "lucide-react";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { useRecordSnapshot } from "@/hooks/useRecordSnapshot";
 import type { LivePrices } from "./FinancialDashboard";
@@ -20,6 +20,16 @@ const fmtM = (n: number) => `$${(n / 1_000_000).toFixed(2)}M`;
 function ymLabel(ym: string): string {
   const [y, m] = ym.split("-").map(Number);
   return `${MONTHS[(m || 1) - 1]} '${String(y).slice(2)}`;
+}
+/** ms → "Jul '26" (axis tick). */
+function tickLabel(ms: number): string {
+  const d = new Date(ms);
+  return `${MONTHS[d.getMonth()]} '${String(d.getFullYear()).slice(2)}`;
+}
+/** ISO → "Jul 3, 2:14 PM" (tooltip / list). */
+function fmtWhen(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 /** "Aug 2029" → 2029.58 (fractional year, for plotting the FI date on an axis) */
 function fiFrac(fiDate: string | null): number | null {
@@ -38,31 +48,45 @@ function monthsBetween(a: string, b: string): number | null {
 }
 
 /**
- * Plan history — a monthly trail of the primary plan: net worth actuals (area,
- * left axis) and the projected FI date (line, right axis) together, so you can
- * watch your wealth climb and your FI target drift over time. Populated by the
- * monthly auto-snapshot; shows a gentle placeholder until enough points exist.
+ * Plan history — a trail of the primary plan: net worth actuals (area, left axis)
+ * and the projected FI date (line, right axis) plotted over time, so you can
+ * watch your wealth climb and your FI target drift. An automatic snapshot lands
+ * once a month; "Record snapshot" adds a distinct, timestamped capture on demand,
+ * so the trail can be as dense as you like. Shows a placeholder until ≥ 2 points.
  */
 export default function PlanHistory({ hideUntilTrend = false, livePrices }: { hideUntilTrend?: boolean; livePrices?: LivePrices } = {}) {
   const history = useFinancialStore((s) => s.planHistory);
   const holdingCount = useFinancialStore((s) => s.snapshot.other_investments?.length ?? 0);
+  const removeHistoryPoint = useFinancialStore((s) => s.removeHistoryPoint);
   const record = useRecordSnapshot(livePrices ?? {});
   const [saved, setSaved] = useState(false);
-  // Manual capture — refreshes THIS month's snapshot with the current finances
+  const [manageOpen, setManageOpen] = useState(false);
+
+  // Manual capture — a distinct, timestamped snapshot of the current finances
   // (and live prices). Only offered where prices are available; and if the plan
   // holds positions, only once live prices have arrived, so we never record a
   // snapshot that values every holding at $0.
   const pricesReady = Object.keys(livePrices ?? {}).length > 0;
   const canRecord = livePrices !== undefined && (holdingCount === 0 || pricesReady);
-  const doRecord = () => { if (record()) { setSaved(true); window.setTimeout(() => setSaved(false), 2200); } };
+  const doRecord = () => { if (record("manual")) { setSaved(true); window.setTimeout(() => setSaved(false), 2200); } };
 
+  // Oldest → newest by capture time (manual captures may fall between months).
+  const ordered = useMemo(
+    () => [...history].sort((a, b) => a.recordedAt.localeCompare(b.recordedAt)),
+    [history],
+  );
   const data = useMemo(
-    () => history.map((p) => ({
-      label: ymLabel(p.ym),
+    () => ordered.map((p) => ({
+      t: new Date(p.recordedAt).getTime(),
       netWorth: p.netWorth,
       fiFrac: fiFrac(p.fiDate),
       fiDate: p.fiDate,
+      manual: !!p.manual,
     })),
+    [ordered],
+  );
+  const manual = useMemo(
+    () => [...history].filter((p) => p.manual).sort((a, b) => b.recordedAt.localeCompare(a.recordedAt)),
     [history],
   );
 
@@ -74,16 +98,16 @@ export default function PlanHistory({ hideUntilTrend = false, livePrices }: { hi
     return [Math.floor(lo) - 0.25, Math.ceil(hi) + 0.25];
   }, [data]);
 
-  const latest = history[history.length - 1];
-  const first = history[0];
+  const latest = ordered[ordered.length - 1];
+  const first = ordered[0];
 
   // Drift of the projected FI date since the first recorded snapshot.
   const drift = useMemo(() => {
-    if (!first?.fiDate || !latest?.fiDate || history.length < 2) return null;
+    if (!first?.fiDate || !latest?.fiDate || ordered.length < 2) return null;
     const d = monthsBetween(first.fiDate, latest.fiDate);
     if (d == null) return null;
     return { months: d, since: ymLabel(first.ym) };
-  }, [first, latest, history.length]);
+  }, [first, latest, ordered.length]);
 
   const Header = (
     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
@@ -92,10 +116,10 @@ export default function PlanHistory({ hideUntilTrend = false, livePrices }: { hi
         Plan history
       </span>
       <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: C.inkFaint, background: C.bg, borderRadius: 5, padding: "2px 7px" }}>
-        monthly
+        {manual.length > 0 ? "monthly + on demand" : "monthly"}
       </span>
       {canRecord && (
-        <button onClick={doRecord} disabled={saved} title="Capture the current finances into this month's snapshot"
+        <button onClick={doRecord} disabled={saved} title="Capture the current finances as a new, dated snapshot"
           style={{
             marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 10px", borderRadius: 8,
             border: `1px solid ${saved ? C.teal : C.border}`, background: saved ? `${C.teal}14` : C.bgCard,
@@ -114,19 +138,19 @@ export default function PlanHistory({ hideUntilTrend = false, livePrices }: { hi
 
   // On surfaces that only want the chart once a trend exists (e.g. the main
   // trajectory view), render nothing until there are ≥ 2 points.
-  if (hideUntilTrend && history.length < 2) return null;
+  if (hideUntilTrend && ordered.length < 2) return null;
 
   // Nothing recorded yet (brand-new user) or exactly one snapshot: show a
   // friendly placeholder rather than an empty chart.
-  if (history.length < 2) {
+  if (ordered.length < 2) {
     return (
       <div style={shell}>
         {Header}
         <p style={{ fontSize: 12, lineHeight: 1.5, color: C.inkSoft, margin: 0 }}>
-          {history.length === 0 ? (
-            <>Taper takes a monthly snapshot of your net worth and projected FI date. Your first one is being recorded now — check back next month to see the trend build.</>
+          {ordered.length === 0 ? (
+            <>Taper snapshots your net worth and projected FI date each month{canRecord ? <> — or tap <b style={{ color: C.ink }}>Record snapshot</b> to capture one now</> : ""}. The trend line appears once a second point lands.</>
           ) : (
-            <>First snapshot recorded ({ymLabel(first.ym)}): net worth <b style={{ color: C.ink }}>{fmtUsd(latest.netWorth)}</b>, projected FI <b style={{ color: C.ink }}>{latest.fiDate ?? "not reached"}</b>. The trend line appears once next month is captured.</>
+            <>First snapshot recorded ({ymLabel(first.ym)}): net worth <b style={{ color: C.ink }}>{fmtUsd(latest.netWorth)}</b>, projected FI <b style={{ color: C.ink }}>{latest.fiDate ?? "not reached"}</b>. The trend line appears once a second is captured.</>
           )}
         </p>
       </div>
@@ -155,18 +179,28 @@ export default function PlanHistory({ hideUntilTrend = false, livePrices }: { hi
       <ResponsiveContainer width="100%" height={190}>
         <ComposedChart data={data} margin={{ top: 6, right: 4, bottom: 0, left: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke={C.borderSoft} vertical={false} />
-          <XAxis dataKey="label" tick={{ fontSize: 10, fill: C.inkFaint }} minTickGap={20} />
+          <XAxis dataKey="t" type="number" scale="time" domain={["dataMin", "dataMax"]}
+            tickFormatter={tickLabel} tick={{ fontSize: 10, fill: C.inkFaint }} minTickGap={44} />
           <YAxis yAxisId="nw" tickFormatter={(v) => `$${(v / 1_000_000).toFixed(1)}M`} tick={{ fontSize: 10, fill: C.inkFaint }} width={44} />
           <YAxis yAxisId="fi" orientation="right" domain={fiDomain} allowDecimals={false}
             tickFormatter={(v) => String(Math.round(v))} tick={{ fontSize: 10, fill: FI_COLOR }} width={34} />
           <Tooltip
             contentStyle={{ fontSize: 12, borderRadius: 8, border: `1px solid ${C.border}` }}
+            labelFormatter={((t: number) => fmtWhen(new Date(t).toISOString())) as never}
             formatter={((value: number, name: string, entry: { payload?: { fiDate?: string | null } }) =>
               name === "Projected FI"
                 ? [entry?.payload?.fiDate ?? "not reached", name]
                 : [fmtM(Number(value)), name]) as never}
           />
-          <Area yAxisId="nw" type="monotone" dataKey="netWorth" name="Net worth" stroke={NW_COLOR} fill={`${NW_COLOR}22`} strokeWidth={2} dot={false} isAnimationActive={false} />
+          <Area yAxisId="nw" type="monotone" dataKey="netWorth" name="Net worth" stroke={NW_COLOR} fill={`${NW_COLOR}22`} strokeWidth={2}
+            dot={(((props: { cx?: number; cy?: number; payload?: { manual?: boolean } }) => {
+              const { cx, cy, payload } = props;
+              if (cx == null || cy == null) return <g />;
+              return payload?.manual
+                ? <circle cx={cx} cy={cy} r={3.6} fill="#fff" stroke={NW_COLOR} strokeWidth={2} />
+                : <circle cx={cx} cy={cy} r={2} fill={NW_COLOR} />;
+            }) as never)}
+            isAnimationActive={false} />
           <Line yAxisId="fi" type="stepAfter" dataKey="fiFrac" name="Projected FI" stroke={FI_COLOR} strokeWidth={2} dot={{ r: 2, fill: FI_COLOR }} connectNulls isAnimationActive={false} />
         </ComposedChart>
       </ResponsiveContainer>
@@ -175,6 +209,30 @@ export default function PlanHistory({ hideUntilTrend = false, livePrices }: { hi
         <LegendDot color={NW_COLOR} label="Net worth" />
         <LegendDot color={FI_COLOR} label="Projected FI date" />
       </div>
+
+      {/* Manage the on-demand captures (delete a stray one). */}
+      {manual.length > 0 && (
+        <div style={{ marginTop: 10, borderTop: `1px solid ${C.borderSoft}`, paddingTop: 8 }}>
+          <button onClick={() => setManageOpen((o) => !o)} style={{ background: "none", border: "none", cursor: "pointer", color: C.inkMid, fontSize: 11, fontWeight: 700, padding: 0 }}>
+            {manual.length} on-demand snapshot{manual.length === 1 ? "" : "s"} · {manageOpen ? "hide" : "manage"}
+          </button>
+          {manageOpen && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 8 }}>
+              {manual.map((p) => (
+                <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11.5, color: C.inkSoft }}>
+                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#fff", border: `2px solid ${NW_COLOR}`, flexShrink: 0 }} />
+                  <span style={{ color: C.ink, fontWeight: 600 }}>{fmtWhen(p.recordedAt)}</span>
+                  <span>· {fmtUsd(p.netWorth)}</span>
+                  <button onClick={() => removeHistoryPoint(p.id)} aria-label="Delete snapshot" title="Delete this snapshot"
+                    style={{ marginLeft: "auto", display: "flex", background: "none", border: "none", cursor: "pointer", color: C.inkFaint, padding: 4 }}>
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

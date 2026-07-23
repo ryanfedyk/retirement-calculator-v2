@@ -53,14 +53,19 @@ export interface Scenario {
  *  show your real trajectory and how your FI target has drifted. Figures are in
  *  the model's real (today's) dollars as of the recording month. */
 export interface PlanHistoryPoint {
-  ym: string;             // "2026-07" — the month key (one point per calendar month)
+  id: string;             // stable key: "auto-2026-07" for the monthly point, a uuid for manual captures
+  ym: string;             // "2026-07" — the calendar month of capture
   recordedAt: string;     // ISO timestamp of capture
   netWorth: number;       // total net worth at capture
   spendable: number;      // after-tax spendable assets
   swrTarget: number;      // the FI Number at capture
   fiDate: string | null;  // projected FI date ("Mon YYYY"), or null if not reached
   scenarioName: string;   // the primary scenario this reflects
+  manual?: boolean;       // true for an on-demand capture (distinct point); auto monthly otherwise
 }
+
+/** Stable key for a history point — legacy points (pre-id) fall back to the month. */
+const historyKey = (p: Pick<PlanHistoryPoint, "id" | "ym">) => p.id || `auto-${p.ym}`;
 
 /** The persisted, cloud-syncable slice of state. */
 export interface HorizonState {
@@ -134,22 +139,29 @@ interface FinancialStore extends HorizonState {
    *  concentrated position), so a later quote outage doesn't value everything at
    *  $0 and wreck net worth / the FI date. Only writes changed prices. */
   cacheLivePrices: (prices: Record<string, number>) => void;
-  /** Append a snapshot of the primary plan for the current month (no-op if this
-   *  month is already recorded). Powers the plan-history view in Finances. */
-  recordHistoryPoint: (pt: Omit<PlanHistoryPoint, "ym" | "recordedAt">) => void;
+  /** Record/refresh the primary plan's snapshot for the CURRENT month (one point
+   *  per month). Powers the plan-history trail in Finances. */
+  recordHistoryPoint: (pt: Omit<PlanHistoryPoint, "id" | "ym" | "recordedAt" | "manual">) => void;
+  /** Append a DISTINCT, timestamped snapshot on demand (not deduped by month), so
+   *  the trail can be denser than monthly. */
+  addManualSnapshot: (pt: Omit<PlanHistoryPoint, "id" | "ym" | "recordedAt" | "manual">) => void;
+  /** Remove a history point by its id (used to drop a manual capture). */
+  removeHistoryPoint: (id: string) => void;
   resetToDefaults: () => void;
   hydrate: (state: Partial<HorizonState>) => void;
 }
 
-/** Union two history series by month key, keeping the earliest capture per month
- *  (so a device that recorded a month first wins) and sorting oldest → newest. */
+/** Union two history series by point id (monthly points share one id per month;
+ *  manual captures each have their own), keeping the earliest capture per id (so a
+ *  device that recorded it first wins) and sorting oldest → newest by time. */
 function mergeHistory(a: PlanHistoryPoint[], b: PlanHistoryPoint[]): PlanHistoryPoint[] {
-  const byMonth = new Map<string, PlanHistoryPoint>();
+  const byId = new Map<string, PlanHistoryPoint>();
   for (const p of [...a, ...b]) {
-    const existing = byMonth.get(p.ym);
-    if (!existing || p.recordedAt < existing.recordedAt) byMonth.set(p.ym, p);
+    const key = historyKey(p);
+    const existing = byId.get(key);
+    if (!existing || p.recordedAt < existing.recordedAt) byId.set(key, p);
   }
-  return Array.from(byMonth.values()).sort((x, y) => x.ym.localeCompare(y.ym)).slice(-240);
+  return Array.from(byId.values()).sort((x, y) => x.recordedAt.localeCompare(y.recordedAt)).slice(-240);
 }
 
 /** Keep config.children (consumed by the engine) in sync with profile.children.
@@ -517,19 +529,35 @@ export const useFinancialStore = create<FinancialStore>()(
         set((s) => {
           const now = new Date();
           const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-          const idx = s.planHistory.findIndex((h) => h.ym === ym);
+          const id = `auto-${ym}`;
+          // The auto point is one per month; find it (matching legacy points that
+          // predate ids by their month too), leaving any manual captures alone.
+          const idx = s.planHistory.findIndex((h) => historyKey(h) === id);
           // The current (in-progress) month refreshes to the latest values each
           // session — so a snapshot taken before prices loaded self-corrects —
           // while past months stay locked as recorded. Keep the original capture
           // time for the month.
           if (idx >= 0) {
             const next = s.planHistory.slice();
-            next[idx] = { ...pt, ym, recordedAt: s.planHistory[idx].recordedAt };
+            next[idx] = { ...pt, id, ym, manual: false, recordedAt: s.planHistory[idx].recordedAt };
             return { planHistory: next };
           }
-          const point: PlanHistoryPoint = { ...pt, ym, recordedAt: now.toISOString() };
+          const point: PlanHistoryPoint = { ...pt, id, ym, manual: false, recordedAt: now.toISOString() };
           return { planHistory: [...s.planHistory, point].slice(-240) };
         }),
+
+      addManualSnapshot: (pt) =>
+        set((s) => {
+          const now = new Date();
+          const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+          // A distinct, timestamped capture — never deduped by month, so you can
+          // build a denser-than-monthly trail on demand.
+          const point: PlanHistoryPoint = { ...pt, id: newId(), ym, manual: true, recordedAt: now.toISOString() };
+          return { planHistory: [...s.planHistory, point].slice(-240) };
+        }),
+
+      removeHistoryPoint: (id) =>
+        set((s) => ({ planHistory: s.planHistory.filter((h) => historyKey(h) !== id) })),
 
       resetToDefaults: () =>
         set(() => {

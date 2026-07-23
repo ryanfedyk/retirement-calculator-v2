@@ -1,6 +1,5 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
-import { Anchor, Wind, Sparkles } from "lucide-react";
 import { useHorizonProfile } from "@/config/horizonConfig";
 import { C } from "@/config/colors";
 import Header, { type AppView } from "@/components/Header";
@@ -13,9 +12,7 @@ import { useLivePrices }     from "@/hooks/useLivePrices";
 import MobileApp             from "@/components/mobile/MobileApp";
 import { useRetirementDate } from "@/hooks/useRetirementDate";
 import FlightMap             from "@/components/FlightMap";
-import MacroSeasonsTimeline  from "@/components/MacroSeasonsTimeline";
-import ReclaimedTimeCalculator from "@/components/ReclaimedTimeCalculator";
-import ReclaimJourney       from "@/components/forecasting/ReclaimJourney";
+import ForecastingHub        from "@/components/forecasting/ForecastingHub";
 import FinancialDashboard    from "@/components/finance/FinancialDashboard";
 import LifeEventsFab         from "@/components/forecasting/LifeEventsFab";
 import SettingsPanel         from "@/components/SettingsPanel";
@@ -28,15 +25,7 @@ import { decodeAnswers } from "@/lib/partnerAlignment";
 import { useBrowserBackNav } from "@/hooks/useBrowserBackNav";
 import { useMonthlyPlanSnapshot } from "@/hooks/useMonthlyPlanSnapshot";
 
-const NAV = [
-  { id: "seasons",    label: "Seasons",  icon: Anchor },
-  { id: "design",     label: "Design",   icon: Sparkles },
-  { id: "reclaim",    label: "Reclaim",  icon: Wind },
-] as const;
-type NavId = typeof NAV[number]["id"];
-
 export default function DashboardShell() {
-  const [tab,   setTab]   = useState<NavId>("seasons");
   const { retirementDate } = useRetirementDate();
   const { user } = useHorizonProfile();
   const { snapshot, config, activeScenarioId, primaryScenarioId, setActiveScenario } = useFinancialStore();
@@ -147,28 +136,10 @@ export default function DashboardShell() {
           <FlightMap />
           <LifeEventsFab />
 
-          {/* Nav */}
-          <nav style={{ background: C.bgCard, borderBottom: `1px solid ${C.border}` }} className="px-8">
-            <div className="max-w-7xl mx-auto flex">
-              {NAV.map(({ id, label, icon: Icon }) => (
-                <button key={id} onClick={() => setTab(id)}
-                        className="flex items-center gap-2 px-5 py-3.5 text-xs font-medium border-b-2 transition-all duration-200 cursor-pointer tracking-wide uppercase"
-                        style={{
-                          borderColor: tab === id ? C.teal : "transparent",
-                          color:       tab === id ? C.tealDark : C.inkSoft,
-                        }}>
-                  <Icon size={12} /> {label}
-                </button>
-              ))}
-            </div>
-          </nav>
-
-          {/* Main */}
+          {/* The three tools — each launches a focused, full-screen experience */}
           <main className="flex-1 px-8 py-12">
             <div className="max-w-7xl mx-auto">
-              {tab === "seasons"    && <MacroSeasonsTimeline />}
-              {tab === "design"     && <ReclaimJourney />}
-              {tab === "reclaim"    && <ReclaimedTimeCalculator />}
+              <ForecastingHub />
             </div>
           </main>
 

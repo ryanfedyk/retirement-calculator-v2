@@ -319,7 +319,7 @@ export default function MobileFinancial({ livePrices, onOpenConfig }: Props) {
       <ScenarioLevers onOpenEditor={onOpenConfig} livePrices={livePrices} retireWindow={retireWindow} bare />
 
       {/* Plan history — monthly net-worth + FI-date trail (only once a trend exists). */}
-      <PlanHistory hideUntilTrend />
+      <PlanHistory hideUntilTrend livePrices={livePrices} />
 
       {/* AI Coach — insight below the chart */}
       <AiAnalysis config={config} snapshot={snapshot} trajectory={traj} />

@@ -1,10 +1,12 @@
 "use client";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   ResponsiveContainer, ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip,
 } from "recharts";
-import { TrendingUp } from "lucide-react";
+import { TrendingUp, Camera, Check } from "lucide-react";
 import { useFinancialStore } from "@/store/useFinancialStore";
+import { useRecordSnapshot } from "@/hooks/useRecordSnapshot";
+import type { LivePrices } from "./FinancialDashboard";
 import { C } from "@/config/colors";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -41,8 +43,18 @@ function monthsBetween(a: string, b: string): number | null {
  * watch your wealth climb and your FI target drift over time. Populated by the
  * monthly auto-snapshot; shows a gentle placeholder until enough points exist.
  */
-export default function PlanHistory({ hideUntilTrend = false }: { hideUntilTrend?: boolean } = {}) {
+export default function PlanHistory({ hideUntilTrend = false, livePrices }: { hideUntilTrend?: boolean; livePrices?: LivePrices } = {}) {
   const history = useFinancialStore((s) => s.planHistory);
+  const holdingCount = useFinancialStore((s) => s.snapshot.other_investments?.length ?? 0);
+  const record = useRecordSnapshot(livePrices ?? {});
+  const [saved, setSaved] = useState(false);
+  // Manual capture — refreshes THIS month's snapshot with the current finances
+  // (and live prices). Only offered where prices are available; and if the plan
+  // holds positions, only once live prices have arrived, so we never record a
+  // snapshot that values every holding at $0.
+  const pricesReady = Object.keys(livePrices ?? {}).length > 0;
+  const canRecord = livePrices !== undefined && (holdingCount === 0 || pricesReady);
+  const doRecord = () => { if (record()) { setSaved(true); window.setTimeout(() => setSaved(false), 2200); } };
 
   const data = useMemo(
     () => history.map((p) => ({
@@ -82,6 +94,17 @@ export default function PlanHistory({ hideUntilTrend = false }: { hideUntilTrend
       <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: C.inkFaint, background: C.bg, borderRadius: 5, padding: "2px 7px" }}>
         monthly
       </span>
+      {canRecord && (
+        <button onClick={doRecord} disabled={saved} title="Capture the current finances into this month's snapshot"
+          style={{
+            marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 10px", borderRadius: 8,
+            border: `1px solid ${saved ? C.teal : C.border}`, background: saved ? `${C.teal}14` : C.bgCard,
+            color: saved ? C.tealDark : C.inkMid, fontSize: 11, fontWeight: 700, cursor: saved ? "default" : "pointer", whiteSpace: "nowrap",
+          }}>
+          {saved ? <Check size={13} /> : <Camera size={13} />}
+          {saved ? "Snapshot saved" : "Record snapshot"}
+        </button>
+      )}
     </div>
   );
 

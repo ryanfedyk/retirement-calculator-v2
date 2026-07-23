@@ -53,7 +53,7 @@ type Stage = "intro" | "days" | "year" | "arc";
  * presence & legacy), never a countdown; the detailed editors are one tap away
  * for anyone who wants to fine-tune.
  */
-export default function ReclaimJourney() {
+export default function ReclaimJourney({ framed = false }: { framed?: boolean } = {}) {
   // Smart start: returning users (who already shaped a blend or picked pursuits)
   // land straight on their arc, not the intro. Decided once, post-hydration.
   const [stage, setStage] = useState<Stage | null>(null);
@@ -66,17 +66,19 @@ export default function ReclaimJourney() {
     setStage(anyW || anyP ? "arc" : "intro");
   }, []);
 
-  // On mobile, the three movements become immersive full-screen sub-pages — the
-  // landing (intro) stays inline in the tab, but stepping into a movement takes
-  // over the phone so it's a screen sized to the viewport, not a long scroll.
+  // The three movements become immersive full-screen sub-pages: on mobile
+  // standalone, and always when `framed` (launched from the hub inside ToolStage,
+  // which supplies the outer frame). The landing/editors scroll; a movement pins
+  // its footer and fills the height. When framed, ToolStage owns the fixed
+  // overlay and the page-scroll lock, so we don't add our own.
   const isMobile = useIsMobile();
-  const immersive = isMobile && !fineTune && (stage === "days" || stage === "year" || stage === "arc");
+  const immersive = (framed || isMobile) && !fineTune && (stage === "days" || stage === "year" || stage === "arc");
   useEffect(() => {
-    if (!immersive) return;
+    if (!immersive || framed) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => { document.body.style.overflow = prev; };
-  }, [immersive]);
+  }, [immersive, framed]);
 
   // Day blend
   const dayWeights = useReclaimWizardStore((s) => s.dayWeights);
@@ -180,21 +182,13 @@ export default function ReclaimJourney() {
   const exitAge = birthYear && exitYear ? Math.max(40, exitYear - birthYear) : null;
   const arc = useMemo(() => retirementArc({ exitAge, mix, pursuitIds: pursuits, catalog }), [exitAge, mix, pursuits, catalog]);
 
-  // ── Fine-tune: full editors, one tap away ──────────────────────────────────
-  if (fineTune === "days") {
-    return <PerfectDay onExit={() => setFineTune(null)} onGoToYear={() => { setFineTune(null); setStage("year"); }} />;
-  }
-  if (fineTune === "year") {
-    return <PerfectYear onExit={() => setFineTune(null)} />;
-  }
-
-  if (stage === null) return <div style={{ minHeight: 200 }} />;
-
-  // In immersive mode a movement takes over the whole phone: a fixed canvas on
-  // the warm-grey ground, above the dashboard chrome and tab bar, sized to the
-  // dynamic viewport height with safe-area padding. Inline elsewhere.
-  const shell = (node: React.ReactNode) =>
-    immersive ? (
+  // In immersive mode a movement takes over the whole screen. Standalone
+  // (mobile) that's a fixed canvas on the warm-grey ground, sized to the dynamic
+  // viewport with safe-area padding. When `framed`, ToolStage already supplies
+  // that canvas, so we just fill the height it hands us. Inline elsewhere.
+  const shell = (node: React.ReactNode) => {
+    if (framed) return <div style={{ flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column" }}>{node}</div>;
+    return immersive ? (
       <div style={{
         position: "fixed", inset: 0, zIndex: 1500, background: R.ground,
         height: "100dvh", display: "flex", flexDirection: "column",
@@ -205,10 +199,28 @@ export default function ReclaimJourney() {
         {node}
       </div>
     ) : node;
+  };
+
+  // The non-immersive stages (intro, fine-tune editors) are plain content. When
+  // framed they still need to scroll within ToolStage's fixed-height body.
+  const framedScroll = (node: React.ReactNode) =>
+    framed ? (
+      <div style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", overflowX: "hidden", margin: "0 -2px", padding: "2px 2px 8px", WebkitOverflowScrolling: "touch", overscrollBehaviorY: "contain" }}>{node}</div>
+    ) : node;
+
+  // ── Fine-tune: full editors, one tap away ──────────────────────────────────
+  if (fineTune === "days") {
+    return framedScroll(<PerfectDay onExit={() => setFineTune(null)} onGoToYear={() => { setFineTune(null); setStage("year"); }} />);
+  }
+  if (fineTune === "year") {
+    return framedScroll(<PerfectYear onExit={() => setFineTune(null)} />);
+  }
+
+  if (stage === null) return <div style={{ minHeight: 200 }} />;
 
   // ── Intro ───────────────────────────────────────────────────────────────────
   if (stage === "intro") {
-    return (
+    return framedScroll(
       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.22em", textTransform: "uppercase", color: R.accentInk, marginBottom: 12 }}>A studio for your next chapter</div>
@@ -268,7 +280,7 @@ export default function ReclaimJourney() {
     const weightFromX = (clientX: number, rect: DOMRect) => Math.round(Math.max(0, Math.min(1, (clientX - rect.left) / rect.width)) * 100);
     return shell(
       <WizardShell
-        immersive={immersive} onExit={() => setStage("intro")}
+        immersive={immersive} onExit={framed ? undefined : () => setStage("intro")}
         step={1} total={3} eyebrow="Movement one · your days"
         title="What does a good week feel like?"
         subtitle="Not a schedule — a feeling. Drag to give each kind of day as much presence as it deserves. There's no wrong mix; the point is to notice where your heart leans."
@@ -375,7 +387,7 @@ export default function ReclaimJourney() {
 
     return shell(
       <WizardShell
-        immersive={immersive} onExit={() => setStage("intro")}
+        immersive={immersive} onExit={framed ? undefined : () => setStage("intro")}
         step={2} total={3} eyebrow="Movement two · your year"
         title="Which worlds will your year hold?"
         subtitle="Open a world and its paths unfold right there — tap one and its pursuits gather below to keep or set down. Search or ask for fresh ideas anytime."
@@ -493,7 +505,7 @@ export default function ReclaimJourney() {
   const anyContent = mix.length > 0 || pursuits.length > 0;
   return shell(
     <WizardShell
-      immersive={immersive} onExit={() => setStage("intro")}
+      immersive={immersive} onExit={framed ? undefined : () => setStage("intro")}
       step={3} total={3} eyebrow="Movement three · your arc"
       title="The whole arc, across the seasons"
       subtitle="It won't be one long flat stretch — energy and focus shift. Here's how your days and pursuits flow across the seasons ahead."

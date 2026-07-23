@@ -1,14 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Anchor, Wind, Sparkles } from "lucide-react";
 import { C } from "@/config/colors";
 import { useRetirementDate } from "@/hooks/useRetirementDate";
-import MacroSeasonsTimeline from "@/components/MacroSeasonsTimeline";
-import ReclaimedTimeCalculator from "@/components/ReclaimedTimeCalculator";
-import ReclaimJourney from "@/components/forecasting/ReclaimJourney";
+import ForecastingHub from "@/components/forecasting/ForecastingHub";
 import LifeEventsFab from "@/components/forecasting/LifeEventsFab";
-
-type Sub = "seasons" | "design" | "reclaim";
 
 function useCountdown(target: Date) {
   const [now, setNow] = useState(() => Date.now());
@@ -28,16 +23,9 @@ function useCountdown(target: Date) {
 export default function MobileForecasting() {
   const { retirementDate, exitYear } = useRetirementDate();
   const { days, hours, mins, secs } = useCountdown(retirementDate);
-  const [sub, setSub] = useState<Sub>("seasons");
 
   const months = Math.floor(days / 30.44);
   const summers = Math.max(0, exitYear - new Date().getFullYear());
-
-  const subs: { id: Sub; label: string; icon: typeof Anchor }[] = [
-    { id: "seasons", label: "Seasons", icon: Anchor },
-    { id: "design",  label: "Design",  icon: Sparkles },
-    { id: "reclaim", label: "Reclaim", icon: Wind },
-  ];
 
   return (
     <div style={{ padding: "16px 16px 8px", display: "flex", flexDirection: "column", gap: 16 }}>
@@ -79,30 +67,8 @@ export default function MobileForecasting() {
         ))}
       </div>
 
-      {/* Sub-feature switcher */}
-      <div style={{ display: "flex", gap: 6, background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 16, padding: 5 }}>
-        {subs.map(({ id, label, icon: Icon }) => {
-          const active = sub === id;
-          return (
-            <button key={id} onClick={() => setSub(id)} style={{
-              flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
-              padding: "9px 0", borderRadius: 11, border: "none", cursor: "pointer",
-              background: active ? C.teal : "transparent",
-              color: active ? "white" : C.inkSoft, transition: "all 0.18s",
-            }}>
-              <Icon size={16} strokeWidth={active ? 2.4 : 1.8} />
-              <span style={{ fontSize: 10, fontWeight: active ? 700 : 500 }}>{label}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Selected feature */}
-      <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 20, padding: "18px 16px", overflowX: "hidden" }}>
-        {sub === "seasons" && <MacroSeasonsTimeline />}
-        {sub === "design"  && <ReclaimJourney />}
-        {sub === "reclaim" && <ReclaimedTimeCalculator />}
-      </div>
+      {/* The three tools — each launches a focused, full-screen experience */}
+      <ForecastingHub />
 
       {/* FAB to add life events — sits above the bottom tab bar */}
       <LifeEventsFab bottomOffset={96} />

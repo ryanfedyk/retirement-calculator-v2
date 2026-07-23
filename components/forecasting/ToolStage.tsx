@@ -42,18 +42,18 @@ export default function ToolStage({
     }}>
       <style>{"@keyframes toolstage-rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}"}</style>
 
-      {/* Pinned title bar */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0, paddingBottom: 14 }}>
-        <div style={{ minWidth: 0, flex: 1 }}>
+      {/* Pinned title bar — kept slim so the tool has the height */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0, paddingBottom: fill ? 10 : 12 }}>
+        <div style={{ minWidth: 0, flex: 1, display: "flex", alignItems: "baseline", gap: 8 }}>
+          <span style={{ fontFamily: SERIF, fontSize: "clamp(17px, 4.5vw, 21px)", fontWeight: 500, color: R.ink, letterSpacing: "-0.01em", lineHeight: 1.1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</span>
           {eyebrow && (
-            <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", color: R.accentInk, marginBottom: 3 }}>{eyebrow}</div>
+            <span style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: R.inkFaint, flexShrink: 0 }}>{eyebrow}</span>
           )}
-          <div style={{ fontFamily: SERIF, fontSize: "clamp(21px, 5.5vw, 27px)", fontWeight: 500, color: R.ink, letterSpacing: "-0.01em", lineHeight: 1.1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>
         </div>
         <button onClick={onClose} aria-label="Close" style={{
-          flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", width: 38, height: 38, borderRadius: "50%",
+          flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", width: 34, height: 34, borderRadius: "50%",
           border: `1px solid ${R.line}`, background: R.card, color: R.inkSoft, cursor: "pointer",
-        }}><X size={18} /></button>
+        }}><X size={17} /></button>
       </div>
 
       {/* Body */}

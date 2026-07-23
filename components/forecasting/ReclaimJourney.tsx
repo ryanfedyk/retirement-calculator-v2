@@ -474,11 +474,12 @@ export default function ReclaimJourney({ framed = false }: { framed?: boolean } 
                           const on = chosen > 0;
                           return (
                             <button key={st.label} onClick={() => toggleSet(ids)} style={{
-                              display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 13, cursor: "pointer", fontSize: 12.5, fontWeight: 600,
-                              border: `1px solid ${on ? tint : R.line}`, background: on ? `color-mix(in oklab, ${tint} 12%, ${R.card})` : R.card, color: on ? R.accentInk : R.inkSoft, transition: "all 0.12s",
+                              display: "inline-flex", alignItems: "center", gap: 7, padding: "11px 14px", borderRadius: 13, cursor: "pointer", fontSize: 13, fontWeight: 700,
+                              border: `1.5px solid ${on ? tint : R.line}`, background: on ? `color-mix(in oklab, ${tint} 15%, ${R.card2})` : R.card2, color: on ? R.accentInk : R.ink,
+                              boxShadow: on ? `0 2px 8px -4px ${tint}` : "0 1px 2px rgba(20,30,26,0.05)", transition: "all 0.12s",
                             }}>
-                              <span>{st.emoji}</span>{st.label}
-                              <span style={{ fontSize: 10.5, fontWeight: 800, color: on ? "#fff" : R.inkFaint, background: on ? tint : R.lineSoft, borderRadius: 99, minWidth: 16, textAlign: "center", padding: "0 5px", lineHeight: "16px" }}>{on ? chosen : `+${ids.length}`}</span>
+                              <span style={{ fontSize: 14 }}>{st.emoji}</span>{st.label}
+                              <span style={{ fontSize: 10.5, fontWeight: 800, color: on ? "#fff" : R.inkFaint, background: on ? tint : R.lineSoft, borderRadius: 99, minWidth: 17, textAlign: "center", padding: "0 5px", lineHeight: "17px" }}>{on ? chosen : `+${ids.length}`}</span>
                             </button>
                           );
                         })}

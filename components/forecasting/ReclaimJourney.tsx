@@ -19,7 +19,7 @@ import WizardShell from "./WizardShell";
 import PerfectDay from "./PerfectDay";
 import PerfectYear from "./PerfectYear";
 import RetirementArcTimeline, { SEASON_META } from "./RetirementArcTimeline";
-import { R, SERIF, DAY_COLOR, presenceWord } from "./reclaimTheme";
+import { R, SERIF, DAY_COLOR, YEAR_COLOR, presenceWord } from "./reclaimTheme";
 
 const VALID_CATS: AdventureCategory[] = ["Immersive Travel", "Creative Mastery", "Endurance/Active", "Slow Living"];
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 40);
@@ -42,13 +42,6 @@ function normalizeIdeas(raw: unknown): AdventureBlueprint[] {
     };
   }).filter((p) => p.concept);
 }
-
-const CAT_COLOR: Record<AdventureCategory, string> = {
-  "Immersive Travel": "#2d7a66",
-  "Creative Mastery": "#7a5a9e",
-  "Endurance/Active": "#4a8a5a",
-  "Slow Living":      "#c4784e",
-};
 
 type Stage = "intro" | "days" | "year" | "arc";
 
@@ -304,35 +297,36 @@ export default function ReclaimJourney() {
     );
   }
 
-  // ── Step 2 · Year (pursuit explorer) ──────────────────────────────────────────
+  // ── Movement two · Your year (worlds unfurl and gather) ───────────────────────
   if (stage === "year") {
     const card = (s: AdventureBlueprint) => {
       const on = pursuits.includes(s.id);
-      const tint = CAT_COLOR[s.category];
+      const tint = YEAR_COLOR[s.category] ?? R.accent;
       const isAI = s.id.startsWith("ai-");
       return (
         <button key={s.id} onClick={() => togglePursuit(s.id)} style={{
-          textAlign: "left", cursor: "pointer", padding: "12px 13px", borderRadius: 13,
-          border: `1.5px solid ${on ? tint : C.border}`, background: on ? `${tint}10` : C.bgCard,
+          textAlign: "left", cursor: "pointer", padding: "12px 13px", borderRadius: 14,
+          border: `1px solid ${on ? `color-mix(in oklab, ${tint} 55%, ${R.line})` : R.line}`,
+          background: on ? `color-mix(in oklab, ${tint} 8%, ${R.card})` : R.card,
           display: "flex", gap: 10, alignItems: "flex-start", transition: "border-color 0.15s, background 0.15s",
         }}>
           <span style={{
-            flexShrink: 0, marginTop: 1, width: 20, height: 20, borderRadius: 6,
-            border: `1.5px solid ${on ? tint : C.border}`, background: on ? tint : "transparent",
-            display: "flex", alignItems: "center", justifyContent: "center",
+            flexShrink: 0, marginTop: 1, width: 20, height: 20, borderRadius: 7,
+            border: `1.5px solid ${on ? tint : R.line}`, background: on ? tint : "transparent",
+            display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.15s",
           }}>{on && <Check size={13} color="#fff" />}</span>
           <span style={{ minWidth: 0 }}>
-            <span style={{ display: "block", fontSize: 13, fontWeight: 700, color: on ? tint : C.ink, lineHeight: 1.3 }}>
+            <span style={{ display: "block", fontFamily: SERIF, fontSize: 15, fontWeight: 500, color: on ? R.accentInk : R.ink, lineHeight: 1.25 }}>
               {s.concept}
-              {isAI && <span style={{ marginLeft: 6, fontSize: 8.5, fontWeight: 800, letterSpacing: "0.04em", color: "#7a5a9e", background: "#7a5a9e18", borderRadius: 5, padding: "1px 5px", verticalAlign: "middle" }}>AI</span>}
+              {isAI && <span style={{ marginLeft: 6, fontFamily: "inherit", fontSize: 8.5, fontWeight: 800, letterSpacing: "0.04em", color: R.plum, background: `color-mix(in oklab, ${R.plum} 12%, transparent)`, borderRadius: 5, padding: "1px 5px", verticalAlign: "middle" }}>AI</span>}
             </span>
-            <span style={{ display: "block", fontSize: 11, color: C.inkSoft, marginTop: 3, lineHeight: 1.45 }}>{shortWhy(s)}</span>
+            <span style={{ display: "block", fontSize: 11.5, color: R.inkSoft, marginTop: 3, lineHeight: 1.45 }}>{shortWhy(s)}</span>
           </span>
         </button>
       );
     };
 
-    // Toggle a whole set of pursuits at once (a sub-theme populates several).
+    // Toggle a whole set of pursuits at once (a path gathers several at once).
     const toggleSet = (ids: string[]) => {
       if (!ids.length) return;
       const anyOn = ids.some((id) => pursuits.includes(id));
@@ -341,9 +335,9 @@ export default function ReclaimJourney() {
     const byId = Object.fromEntries(catalog.map((s) => [s.id, s]));
     const pickChip = (id: string) => {
       const s = byId[id]; if (!s) return null;
-      const tint = CAT_COLOR[s.category];
+      const tint = YEAR_COLOR[s.category] ?? R.accent;
       return (
-        <span key={id} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 8px 6px 11px", borderRadius: 99, background: `${tint}12`, border: `1px solid ${tint}40`, fontSize: 11.5, fontWeight: 600, color: C.inkMid, maxWidth: "100%" }}>
+        <span key={id} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 8px 6px 12px", borderRadius: 99, background: `color-mix(in oklab, ${tint} 12%, ${R.card})`, border: `1px solid color-mix(in oklab, ${tint} 40%, ${R.line})`, fontSize: 12, fontWeight: 600, color: R.ink, maxWidth: "100%" }}>
           <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 200 }} title={s.concept}>{s.concept}</span>
           <button onClick={() => togglePursuit(id)} aria-label={`Remove ${s.concept}`} style={{ flexShrink: 0, display: "flex", background: "none", border: "none", cursor: "pointer", color: tint, padding: 0 }}><X size={13} /></button>
         </span>
@@ -352,85 +346,85 @@ export default function ReclaimJourney() {
 
     return (
       <WizardShell
-        step={2} total={3} eyebrow="Step 2 · Your year"
-        title="What will you build your year around?"
-        subtitle="Open a kind and its types unfold right there — tap one and we'll fill in matching pursuits to keep or drop. Search or ask the AI anytime."
+        step={2} total={3} eyebrow="Movement two · your year"
+        title="Which worlds will your year hold?"
+        subtitle="Open a world and its paths unfold right there — tap one and its pursuits gather below to keep or set down. Search or ask for fresh ideas anytime."
         onBack={() => setStage("days")}
         onNext={() => { commitPursuits(pursuits); setStage("arc"); }} nextLabel="Next: your arc"
         nextDisabled={pursuits.length === 0}
-        nextHint={pursuits.length === 0 ? "Open a kind and tap a type to continue." : `${pursuits.length} chosen`}
+        nextHint={pursuits.length === 0 ? "Open a world and tap a path to continue." : `${pursuits.length} gathered`}
         onSkip={() => { commitPursuits(pursuits); setFineTune("year"); }} skipLabel="Time them on a calendar"
         resetSlot={resetRow}
       >
         {/* Search + AI (a global escape hatch, always available) */}
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
           <div style={{ flex: "1 1 220px", position: "relative", display: "flex", alignItems: "center" }}>
-            <Search size={15} color={C.inkFaint} style={{ position: "absolute", left: 11 }} />
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Or search everything…"
-              style={{ width: "100%", boxSizing: "border-box", padding: "10px 32px 10px 32px", borderRadius: 11, border: `1px solid ${C.border}`, background: C.bgCard, color: C.ink, fontSize: 13, outline: "none" }} />
+            <Search size={15} color={R.inkFaint} style={{ position: "absolute", left: 12 }} />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Or search every world…"
+              style={{ width: "100%", boxSizing: "border-box", padding: "11px 32px 11px 34px", borderRadius: 13, border: `1px solid ${R.line}`, background: R.card, color: R.ink, fontSize: 13.5, outline: "none" }} />
             {query && (
-              <button onClick={() => setQuery("")} aria-label="Clear" style={{ position: "absolute", right: 8, background: "none", border: "none", cursor: "pointer", color: C.inkFaint, display: "flex" }}><X size={14} /></button>
+              <button onClick={() => setQuery("")} aria-label="Clear" style={{ position: "absolute", right: 8, background: "none", border: "none", cursor: "pointer", color: R.inkFaint, display: "flex" }}><X size={14} /></button>
             )}
           </div>
           {!aiDisabled && (
             <button onClick={generateIdeas} disabled={aiGenerating} style={{
-              display: "inline-flex", alignItems: "center", gap: 6, padding: "10px 14px", borderRadius: 11, border: `1px solid ${C.tealLight}`,
-              background: C.tealWash, color: C.tealDark, fontSize: 12.5, fontWeight: 700, cursor: aiGenerating ? "default" : "pointer", whiteSpace: "nowrap",
+              display: "inline-flex", alignItems: "center", gap: 6, padding: "11px 15px", borderRadius: 13, border: `1px solid color-mix(in oklab, ${R.accent} 35%, ${R.line})`,
+              background: `color-mix(in oklab, ${R.accent} 9%, ${R.card})`, color: R.accentInk, fontSize: 12.5, fontWeight: 700, cursor: aiGenerating ? "default" : "pointer", whiteSpace: "nowrap",
             }}>
               {aiGenerating ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
-              {aiGenerating ? "Dreaming up ideas…" : "Generate ideas for me"}
+              {aiGenerating ? "Dreaming up ideas…" : "Dream some up"}
             </button>
           )}
         </div>
-        {aiError && <div style={{ fontSize: 11.5, color: C.warm, marginBottom: 8 }}>{aiError}</div>}
-        {aiDisabled && <div style={{ fontSize: 11.5, color: C.inkFaint, marginBottom: 8 }}>AI idea generation isn&apos;t configured — pick a kind above to explore the catalog.</div>}
+        {aiError && <div style={{ fontSize: 11.5, color: R.clay, marginBottom: 8 }}>{aiError}</div>}
+        {aiDisabled && <div style={{ fontSize: 11.5, color: R.inkFaint, marginBottom: 8 }}>Idea generation isn&apos;t configured — open a world below to explore its pursuits.</div>}
 
-        {/* Search overrides the accordion with a flat, global result set */}
+        {/* Search overrides the worlds with a flat, global result set */}
         {query.trim() ? (
           searchResults.length === 0 ? (
-            <div style={{ fontSize: 13, color: C.inkSoft, padding: "8px 0" }}>No pursuits match &ldquo;{query.trim()}&rdquo;{aiDisabled ? "." : " — try the AI above."}</div>
+            <div style={{ fontSize: 13, color: R.inkSoft, padding: "8px 0" }}>Nothing matches &ldquo;{query.trim()}&rdquo;{aiDisabled ? "." : " — try dreaming some up above."}</div>
           ) : (
             <>
-              <div style={{ fontSize: 11, color: C.inkFaint, marginBottom: 8 }}>{searchResults.length} match{searchResults.length === 1 ? "" : "es"}</div>
+              <div style={{ fontSize: 11, color: R.inkFaint, marginBottom: 8 }}>{searchResults.length} match{searchResults.length === 1 ? "" : "es"}</div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 8 }}>{searchResults.map(card)}</div>
             </>
           )
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {/* Fresh AI ideas, when present, ride at the top */}
             {customPursuits.length > 0 && (
-              <div style={{ borderRadius: 14, border: `1px solid #7a5a9e33`, background: "#7a5a9e08", padding: "12px 14px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 9 }}>
-                  <Wand2 size={14} color="#7a5a9e" />
-                  <span style={{ fontSize: 12, fontWeight: 800, color: "#7a5a9e" }}>Fresh ideas for you</span>
+              <div style={{ borderRadius: 16, border: `1px solid color-mix(in oklab, ${R.plum} 30%, ${R.line})`, background: `color-mix(in oklab, ${R.plum} 6%, ${R.card})`, padding: "13px 15px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 10 }}>
+                  <Wand2 size={14} color={R.plum} />
+                  <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: R.plum }}>Dreamed up for you</span>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 8 }}>{customPursuits.map(card)}</div>
               </div>
             )}
 
-            {/* Accordion — each kind opens in place to reveal its types + picks */}
+            {/* Worlds — each unfurls in place to reveal its paths + gathered pursuits */}
             {YEAR_CATEGORIES.map((c) => {
-              const tint = CAT_COLOR[c.id];
+              const tint = YEAR_COLOR[c.id] ?? R.accent;
               const open = expandedKind === c.id;
               const chosenIds = pursuits.filter((id) => byId[id]?.category === c.id);
               return (
-                <div key={c.id} style={{ borderRadius: 14, border: `1.5px solid ${open ? tint : C.border}`, background: open ? `${tint}08` : C.bgCard, overflow: "hidden", transition: "border-color 0.15s" }}>
-                  <button onClick={() => setExpandedKind(open ? null : c.id)} style={{ width: "100%", display: "flex", gap: 11, alignItems: "center", padding: "13px 14px", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}>
-                    <span style={{ fontSize: 22, lineHeight: 1, flexShrink: 0 }}>{c.icon}</span>
+                <div key={c.id} style={{ borderRadius: 18, border: `1px solid ${open ? `color-mix(in oklab, ${tint} 50%, ${R.line})` : R.line}`, background: open ? `color-mix(in oklab, ${tint} 6%, ${R.card})` : R.card, overflow: "hidden", transition: "border-color 0.2s, background 0.2s" }}>
+                  <button onClick={() => setExpandedKind(open ? null : c.id)} style={{ width: "100%", display: "flex", gap: 13, alignItems: "center", padding: "15px 16px", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}>
+                    <span style={{ fontSize: 23, lineHeight: 1, flexShrink: 0 }}>{c.icon}</span>
                     <span style={{ minWidth: 0, flex: 1 }}>
-                      <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <span style={{ fontSize: 14, fontWeight: 700, color: open ? tint : C.ink }}>{c.id}</span>
-                        {chosenIds.length > 0 && <span style={{ fontSize: 10, fontWeight: 800, color: "#fff", background: tint, borderRadius: 99, padding: "0 6px", lineHeight: "16px" }}>{chosenIds.length}</span>}
+                      <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontFamily: SERIF, fontSize: 18, fontWeight: 500, color: open ? R.accentInk : R.ink }}>{c.id}</span>
+                        {chosenIds.length > 0 && <span style={{ fontSize: 10, fontWeight: 800, color: "#fff", background: tint, borderRadius: 99, padding: "1px 7px", lineHeight: "16px" }}>{chosenIds.length}</span>}
                       </span>
-                      {!open && <span style={{ display: "block", fontSize: 11, color: C.inkSoft, marginTop: 3, lineHeight: 1.4 }}>{c.blurb}</span>}
+                      {!open && <span style={{ display: "block", fontSize: 12, color: R.inkFaint, marginTop: 3, lineHeight: 1.45 }}>{c.blurb}</span>}
                     </span>
-                    <ChevronDown size={18} color={open ? tint : C.inkFaint} style={{ flexShrink: 0, transform: open ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
+                    <ChevronDown size={19} color={open ? tint : R.inkFaint} style={{ flexShrink: 0, transform: open ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
                   </button>
 
                   {open && (
-                    <div style={{ padding: "0 14px 14px" }}>
-                      <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: C.inkFaint, marginBottom: 8 }}>Tap a type to add its pursuits</div>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+                    <div style={{ padding: "0 16px 16px" }}>
+                      <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: R.inkFaint, marginBottom: 9 }}>Tap a path to gather its pursuits</div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                         {SUBTHEMES[c.id].map((st) => {
                           const ids = subthemePursuits(catalog, c.id, st.tags);
                           if (!ids.length) return null;
@@ -438,19 +432,19 @@ export default function ReclaimJourney() {
                           const on = chosen > 0;
                           return (
                             <button key={st.label} onClick={() => toggleSet(ids)} style={{
-                              display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 13px", borderRadius: 12, cursor: "pointer", fontSize: 12.5, fontWeight: 700,
-                              border: `1.5px solid ${on ? tint : C.border}`, background: on ? `${tint}14` : C.bgCard, color: on ? tint : C.inkMid, transition: "all 0.12s",
+                              display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 13, cursor: "pointer", fontSize: 12.5, fontWeight: 600,
+                              border: `1px solid ${on ? tint : R.line}`, background: on ? `color-mix(in oklab, ${tint} 12%, ${R.card})` : R.card, color: on ? R.accentInk : R.inkSoft, transition: "all 0.12s",
                             }}>
                               <span>{st.emoji}</span>{st.label}
-                              <span style={{ fontSize: 10.5, fontWeight: 800, color: on ? "#fff" : C.inkFaint, background: on ? tint : C.borderSoft, borderRadius: 99, minWidth: 16, textAlign: "center", padding: "0 5px", lineHeight: "16px" }}>{on ? chosen : `+${ids.length}`}</span>
+                              <span style={{ fontSize: 10.5, fontWeight: 800, color: on ? "#fff" : R.inkFaint, background: on ? tint : R.lineSoft, borderRadius: 99, minWidth: 16, textAlign: "center", padding: "0 5px", lineHeight: "16px" }}>{on ? chosen : `+${ids.length}`}</span>
                             </button>
                           );
                         })}
                       </div>
 
                       {chosenIds.length > 0 && (
-                        <div style={{ marginTop: 12 }}>
-                          <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: tint, marginBottom: 7 }}>In your year · {chosenIds.length}</div>
+                        <div style={{ marginTop: 14 }}>
+                          <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: tint, marginBottom: 8 }}>Gathered · {chosenIds.length}</div>
                           <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>{chosenIds.map(pickChip)}</div>
                         </div>
                       )}

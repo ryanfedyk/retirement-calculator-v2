@@ -39,6 +39,14 @@ export const DAY_COLOR: Record<string, string> = {
   "arch-restful":   R.gold,
 };
 
+/** Colour per year "world" (the pursuit categories), drawn from the landscape. */
+export const YEAR_COLOR: Record<string, string> = {
+  "Immersive Travel": R.sky,
+  "Creative Mastery": R.plum,
+  "Endurance/Active": R.field,
+  "Slow Living":      R.gold,
+};
+
 /** A word for a kind's presence, from its 0–100 weight. */
 export function presenceWord(w: number): string {
   return w <= 0 ? "not for me" : w < 34 ? "a little" : w < 70 ? "often" : "this is me";

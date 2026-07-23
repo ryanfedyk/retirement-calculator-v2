@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, ArrowLeft, Pencil, ArrowRight, Search, Wand2, Loader2, X, RotateCcw, ChevronDown } from "lucide-react";
+import { Check, ArrowLeft, Pencil, ArrowRight, Search, Wand2, Loader2, X, RotateCcw } from "lucide-react";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { usePerfectYearStore } from "@/store/usePerfectYearStore";
@@ -446,58 +446,67 @@ export default function ReclaimJourney({ framed = false }: { framed?: boolean } 
               </div>
             )}
 
-            {/* Worlds — each unfurls in place to reveal its paths + gathered pursuits */}
-            {YEAR_CATEGORIES.map((c) => {
-              const tint = YEAR_COLOR[c.id] ?? R.accent;
-              const open = expandedKind === c.id;
-              const chosenIds = pursuits.filter((id) => byId[id]?.category === c.id);
-              return (
-                <div key={c.id} style={{ borderRadius: 18, border: `1px solid ${open ? `color-mix(in oklab, ${tint} 50%, ${R.line})` : R.line}`, background: open ? `color-mix(in oklab, ${tint} 6%, ${R.card})` : R.card, overflow: "hidden", transition: "border-color 0.2s, background 0.2s" }}>
-                  <button onClick={() => setExpandedKind(open ? null : c.id)} style={{ width: "100%", display: "flex", gap: 13, alignItems: "center", padding: "15px 16px", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}>
-                    <span style={{ fontSize: 23, lineHeight: 1, flexShrink: 0 }}>{c.icon}</span>
-                    <span style={{ minWidth: 0, flex: 1 }}>
-                      <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ fontFamily: SERIF, fontSize: 18, fontWeight: 500, color: open ? R.accentInk : R.ink }}>{c.id}</span>
-                        {chosenIds.length > 0 && <span style={{ fontSize: 10, fontWeight: 800, color: "#fff", background: tint, borderRadius: 99, padding: "1px 7px", lineHeight: "16px" }}>{chosenIds.length}</span>}
-                      </span>
-                      {!open && <span style={{ display: "block", fontSize: 12, color: R.inkFaint, marginTop: 3, lineHeight: 1.45 }}>{c.blurb}</span>}
-                    </span>
-                    <ChevronDown size={19} color={open ? tint : R.inkFaint} style={{ flexShrink: 0, transform: open ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
+            {/* Worlds — a grid of large tiles; tap one to reveal its paths below */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(158px, 1fr))", gap: 10 }}>
+              {YEAR_CATEGORIES.map((c) => {
+                const tint = YEAR_COLOR[c.id] ?? R.accent;
+                const open = expandedKind === c.id;
+                const chosenIds = pursuits.filter((id) => byId[id]?.category === c.id);
+                return (
+                  <button key={c.id} onClick={() => setExpandedKind(open ? null : c.id)} style={{
+                    position: "relative", aspectRatio: "1 / 1", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", gap: 9,
+                    padding: "16px 12px", borderRadius: 22, cursor: "pointer",
+                    border: `1.5px solid ${open ? tint : `color-mix(in oklab, ${tint} 24%, ${R.line})`}`,
+                    background: open ? `color-mix(in oklab, ${tint} 12%, ${R.card2})` : R.card2,
+                    boxShadow: open ? `0 8px 22px -10px ${tint}` : "0 1px 3px rgba(20,30,26,0.06)", transition: "all 0.15s",
+                  }}>
+                    {chosenIds.length > 0 && (
+                      <span style={{ position: "absolute", top: 10, right: 10, fontSize: 11, fontWeight: 800, color: "#fff", background: tint, borderRadius: 99, minWidth: 20, textAlign: "center", padding: "1px 6px", lineHeight: "18px" }}>{chosenIds.length}</span>
+                    )}
+                    <span style={{ fontSize: 36, lineHeight: 1 }}>{c.icon}</span>
+                    <span style={{ fontFamily: SERIF, fontSize: 17, fontWeight: 500, color: open ? R.accentInk : R.ink, lineHeight: 1.12 }}>{c.id}</span>
+                    <span style={{ fontSize: 11, color: R.inkFaint, lineHeight: 1.35 }}>{c.blurb}</span>
                   </button>
+                );
+              })}
+            </div>
 
-                  {open && (
-                    <div style={{ padding: "0 16px 16px" }}>
-                      <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: R.inkFaint, marginBottom: 9 }}>Tap a path to gather its pursuits</div>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                        {SUBTHEMES[c.id].map((st) => {
-                          const ids = subthemePursuits(catalog, c.id, st.tags);
-                          if (!ids.length) return null;
-                          const chosen = ids.filter((id) => pursuits.includes(id)).length;
-                          const on = chosen > 0;
-                          return (
-                            <button key={st.label} onClick={() => toggleSet(ids)} style={{
-                              display: "inline-flex", alignItems: "center", gap: 7, padding: "11px 14px", borderRadius: 13, cursor: "pointer", fontSize: 13, fontWeight: 700,
-                              border: `1.5px solid ${on ? tint : R.line}`, background: on ? `color-mix(in oklab, ${tint} 15%, ${R.card2})` : R.card2, color: on ? R.accentInk : R.ink,
-                              boxShadow: on ? `0 2px 8px -4px ${tint}` : "0 1px 2px rgba(20,30,26,0.05)", transition: "all 0.12s",
-                            }}>
-                              <span style={{ fontSize: 14 }}>{st.emoji}</span>{st.label}
-                              <span style={{ fontSize: 10.5, fontWeight: 800, color: on ? "#fff" : R.inkFaint, background: on ? tint : R.lineSoft, borderRadius: 99, minWidth: 17, textAlign: "center", padding: "0 5px", lineHeight: "17px" }}>{on ? chosen : `+${ids.length}`}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
+            {/* The open world's paths — larger square tiles, then what's gathered */}
+            {expandedKind && (() => {
+              const tint = YEAR_COLOR[expandedKind] ?? R.accent;
+              const chosenIds = pursuits.filter((id) => byId[id]?.category === expandedKind);
+              return (
+                <div style={{ borderRadius: 20, border: `1px solid color-mix(in oklab, ${tint} 30%, ${R.line})`, background: `color-mix(in oklab, ${tint} 5%, ${R.card})`, padding: "14px 14px 16px" }}>
+                  <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: R.inkFaint, marginBottom: 10 }}>Tap a path to gather its pursuits</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(158px, 1fr))", gap: 10 }}>
+                    {SUBTHEMES[expandedKind].map((st) => {
+                      const ids = subthemePursuits(catalog, expandedKind, st.tags);
+                      if (!ids.length) return null;
+                      const chosen = ids.filter((id) => pursuits.includes(id)).length;
+                      const on = chosen > 0;
+                      return (
+                        <button key={st.label} onClick={() => toggleSet(ids)} style={{
+                          position: "relative", aspectRatio: "1 / 1", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", gap: 9, padding: "12px 10px", borderRadius: 16, cursor: "pointer",
+                          border: `1.5px solid ${on ? tint : R.line}`, background: on ? `color-mix(in oklab, ${tint} 14%, ${R.card2})` : R.card2, color: on ? R.accentInk : R.ink,
+                          boxShadow: on ? `0 4px 12px -6px ${tint}` : "0 1px 2px rgba(20,30,26,0.05)", transition: "all 0.12s",
+                        }}>
+                          <span style={{ position: "absolute", top: 8, right: 8, fontSize: 10, fontWeight: 800, color: on ? "#fff" : R.inkFaint, background: on ? tint : R.lineSoft, borderRadius: 99, minWidth: 18, textAlign: "center", padding: "1px 5px", lineHeight: "16px" }}>{on ? chosen : `+${ids.length}`}</span>
+                          <span style={{ fontSize: 28, lineHeight: 1 }}>{st.emoji}</span>
+                          <span style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.2 }}>{st.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
 
-                      {chosenIds.length > 0 && (
-                        <div style={{ marginTop: 14 }}>
-                          <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: tint, marginBottom: 8 }}>Gathered · {chosenIds.length}</div>
-                          <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>{chosenIds.map(pickChip)}</div>
-                        </div>
-                      )}
+                  {chosenIds.length > 0 && (
+                    <div style={{ marginTop: 14 }}>
+                      <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: tint, marginBottom: 8 }}>Gathered · {chosenIds.length}</div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>{chosenIds.map(pickChip)}</div>
                     </div>
                   )}
                 </div>
               );
-            })}
+            })()}
           </div>
         )}
       </WizardShell>

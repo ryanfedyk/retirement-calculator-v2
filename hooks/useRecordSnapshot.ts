@@ -1,7 +1,7 @@
 "use client";
 import { useCallback } from "react";
 import { useFinancialStore } from "@/store/useFinancialStore";
-import { runSimulation, findIndependencePoint } from "@/engine/calculator";
+import { runSimulationConverged, findCashflowFiPoint, assessPlan } from "@/engine/calculator";
 import type { LivePrices } from "@/components/finance/FinancialDashboard";
 
 /**
@@ -13,6 +13,11 @@ import type { LivePrices } from "@/components/finance/FinancialDashboard";
  * Holdings carry `current_price: 0`; their real prices (and the concentrated RSU
  * position's) come only from the live-quote fetch, so we enrich with `livePrices`
  * before simulating — otherwise every holding would value to $0.
+ *
+ * The net worth / spendable / FI Number / FI date are computed EXACTLY as the
+ * Trajectory summary cards do — the converged run (runSimulationConverged), the
+ * cash-flow FI point (findCashflowFiPoint), and the same "on-track" gating — so a
+ * recorded snapshot always matches what the card shows for the primary plan.
  *
  * Returns `record(mode)`: "month" refreshes the current month's point (the
  * automatic trail); "manual" appends a distinct, timestamped capture. Returns
@@ -40,15 +45,17 @@ export function useRecordSnapshot(livePrices: LivePrices) {
       }),
     };
 
-    const points = runSimulation(enriched, primary.config, concPrice);
-    const today = points[0];
+    // Match the Trajectory card: converged run, cash-flow FI, on-track gating.
+    const traj = runSimulationConverged(enriched, primary.config, concPrice);
+    const today = traj[0];
     if (!today) return false;
-    const fi = findIndependencePoint(points);
+    const fiPoint = findCashflowFiPoint(enriched, primary.config, concPrice, traj);
+    const onTrack = assessPlan(traj).health === "on-track";
     const pt = {
       netWorth: today.totalNetWorth,
       spendable: today.investableAfterTax,
       swrTarget: today.swrTarget,
-      fiDate: fi?.date ?? null,
+      fiDate: onTrack && fiPoint ? fiPoint.date : null,
       scenarioName: primary.name,
     };
     (mode === "manual" ? addManualSnapshot : recordHistoryPoint)(pt);

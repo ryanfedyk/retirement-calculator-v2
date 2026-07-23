@@ -1,13 +1,13 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Minus, Plus, Maximize2, Expand, X } from "lucide-react";
-import { C } from "@/config/colors";
 import type { ArcSeason, ArcSeasonKey } from "@/lib/perfectWizard";
+import { R, SERIF } from "./reclaimTheme";
 
 export const SEASON_META: Record<ArcSeasonKey, { name: string; emoji: string; color: string; tint: string; blurb: string }> = {
-  open:  { name: "The Open Road", emoji: "🌄", color: "#3f9e86", tint: "#ecf6f2", blurb: "Do the big things while the body's game — travel far, move, say yes to everything." },
-  roots: { name: "Deep Roots",    emoji: "🌳", color: "#2d6b58", tint: "#e9f1ed", blurb: "Deepen your craft and the people around you — mastery, mentoring, community." },
-  still: { name: "Still Waters",   emoji: "🌅", color: "#c4784e", tint: "#f6ede6", blurb: "Presence and what you pass on — family, giving back, and unhurried days." },
+  open:  { name: "The Open Road", emoji: "🌄", color: "#3f8f77", tint: "#eaf4ef", blurb: "Do the big things while the body's game — travel far, move, say yes to everything." },
+  roots: { name: "Deep Roots",    emoji: "🌳", color: "#2b6a58", tint: "#e7f0ea", blurb: "Deepen your craft and the people around you — mastery, mentoring, community." },
+  still: { name: "Still Waters",   emoji: "🌅", color: "#c17a5c", tint: "#f6ece5", blurb: "Presence and what you pass on — family, giving back, and unhurried days." },
 };
 export const ARC_ORDER: ArcSeasonKey[] = ["open", "roots", "still"];
 
@@ -149,7 +149,7 @@ export default function RetirementArcTimeline({
     <>
       {/* Zoom controls */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, rowGap: 8, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: C.inkFaint }}>
+        <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: R.inkFaint }}>
           {showAges ? `Age ${start} → ${horizonAge}` : "Your retirement, start → horizon"}
         </span>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
@@ -163,13 +163,13 @@ export default function RetirementArcTimeline({
           <button onClick={() => zoom(1)} aria-label="Zoom in" style={btn}><Plus size={14} /></button>
           <button onClick={fitZoom} aria-label="Fit to width" style={btn}><Maximize2 size={13} /></button>
           {!fullscreen && (
-            <button onClick={() => setFullscreen(true)} aria-label="Open fullscreen" title="Fullscreen" style={{ ...btn, borderColor: C.tealLight, background: C.tealWash, color: C.tealDark }}><Expand size={14} /></button>
+            <button onClick={() => setFullscreen(true)} aria-label="Open fullscreen" title="Fullscreen" style={{ ...btn, borderColor: `color-mix(in oklab, ${R.accent} 35%, ${R.line})`, background: `color-mix(in oklab, ${R.accent} 9%, ${R.card})`, color: R.accentInk }}><Expand size={14} /></button>
           )}
         </div>
       </div>
 
       {/* The scrollable timeline — horizontal pan is native; two-finger pinch zooms */}
-      <div ref={scrollRef} style={{ overflowX: "auto", overflowY: "hidden", borderRadius: fullscreen ? 12 : 14, border: `1px solid ${C.borderSoft}`, background: C.bgCard, touchAction: "pan-x", WebkitOverflowScrolling: "touch", overscrollBehaviorX: "contain", flex: fullscreen ? "1 1 auto" : undefined }}>
+      <div ref={scrollRef} style={{ overflowX: "auto", overflowY: "hidden", borderRadius: fullscreen ? 12 : 14, border: `1px solid ${R.lineSoft}`, background: R.card, touchAction: "pan-x", WebkitOverflowScrolling: "touch", overscrollBehaviorX: "contain", flex: fullscreen ? "1 1 auto" : undefined }}>
         <div style={{ position: "relative", width, minWidth: "100%", height: TRACK_H }}>
           {/* Season bands */}
           {seasons.map((s) => {
@@ -177,14 +177,14 @@ export default function RetirementArcTimeline({
             return (
               <div key={s.key} onClick={() => focusSeason(s.from, s.to)} style={{
                 position: "absolute", left, width: w, top: 0, bottom: 0, background: `linear-gradient(180deg, ${s.meta.tint}, ${s.meta.tint}44)`,
-                borderRight: `1px dashed ${C.border}`, cursor: "pointer",
+                borderRight: `1px dashed ${R.line}`, cursor: "pointer",
               }}>
                 <div style={{ position: "sticky", left: 0, padding: fullscreen ? "14px 14px" : "10px 12px", maxWidth: fullscreen ? Math.min(w - 12, 240) : undefined, whiteSpace: fullscreen ? "normal" : "nowrap" }}>
-                  <div style={{ fontSize: fullscreen ? 15 : 12.5, fontWeight: 800, color: s.meta.color }}>{s.meta.emoji} {s.meta.name}</div>
+                  <div style={{ fontFamily: SERIF, fontSize: fullscreen ? 18 : 14, fontWeight: 500, color: s.meta.color }}>{s.meta.emoji} {s.meta.name}</div>
                   {showAges && <div style={{ fontSize: fullscreen ? 11 : 10, fontWeight: 700, color: s.meta.color, opacity: 0.8 }}>{s.key === "still" ? `${s.from}+` : `${s.from}–${s.to}`}</div>}
                   {fullscreen && (
                     <>
-                      <div style={{ fontSize: 11.5, color: C.inkMid, lineHeight: 1.5, marginTop: 8 }}>{s.meta.blurb}</div>
+                      <div style={{ fontSize: 11.5, color: R.inkSoft, lineHeight: 1.5, marginTop: 8 }}>{s.meta.blurb}</div>
                       {s.themeLabels.length > 0 && (
                         <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 9 }}>
                           {s.themeLabels.map((t) => (
@@ -192,7 +192,7 @@ export default function RetirementArcTimeline({
                           ))}
                         </div>
                       )}
-                      {s.pursuits.length === 0 && <div style={{ fontSize: 10.5, color: C.inkFaint, fontStyle: "italic", marginTop: 9 }}>Open space — room to grow into.</div>}
+                      {s.pursuits.length === 0 && <div style={{ fontSize: 10.5, color: R.inkFaint, fontStyle: "italic", marginTop: 9 }}>Open space — room to grow into.</div>}
                     </>
                   )}
                 </div>
@@ -217,12 +217,12 @@ export default function RetirementArcTimeline({
               <div key={p.id + i} style={{ position: "absolute", left: x, top: 0, bottom: 0, width: 0 }}>
                 <div style={{ position: "absolute", top: chipY, left: 0, transform: "translateX(-50%)", maxWidth: detailed ? 160 : 120 }}>
                   <div title={p.concept} style={{
-                    fontSize: 10, fontWeight: 700, color: C.ink, background: "#fff", border: `1px solid ${color}55`, borderLeft: `3px solid ${color}`,
+                    fontSize: 10, fontWeight: 700, color: R.ink, background: "#fff", border: `1px solid ${color}55`, borderLeft: `3px solid ${color}`,
                     borderRadius: 7, padding: "4px 7px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                   }}>
                     {p.concept}
                     {detailed && p.microDoseAction && (
-                      <div style={{ fontSize: 9, fontWeight: 500, color: C.inkSoft, marginTop: 2, whiteSpace: "normal", lineHeight: 1.35 }}>👉 {p.microDoseAction}</div>
+                      <div style={{ fontSize: 9, fontWeight: 500, color: R.inkSoft, marginTop: 2, whiteSpace: "normal", lineHeight: 1.35 }}>👉 {p.microDoseAction}</div>
                     )}
                   </div>
                 </div>
@@ -235,13 +235,13 @@ export default function RetirementArcTimeline({
 
           {/* Age ticks */}
           {showAges && ticks.map((a) => (
-            <div key={a} style={{ position: "absolute", left: xOf(a), bottom: 6, transform: "translateX(-50%)", fontSize: 9, color: C.inkFaint, fontVariantNumeric: "tabular-nums" }}>
-              <div style={{ width: 1, height: 5, background: C.border, margin: "0 auto 2px" }} />{a}
+            <div key={a} style={{ position: "absolute", left: xOf(a), bottom: 6, transform: "translateX(-50%)", fontSize: 9, color: R.inkFaint, fontVariantNumeric: "tabular-nums" }}>
+              <div style={{ width: 1, height: 5, background: R.line, margin: "0 auto 2px" }} />{a}
             </div>
           ))}
         </div>
       </div>
-      <div style={{ fontSize: 10.5, color: C.inkFaint, textAlign: "center" }}>
+      <div style={{ fontSize: 10.5, color: R.inkFaint, textAlign: "center" }}>
         Drag to pan · pinch or +/− to zoom · zoom in to read each pursuit and its first step
       </div>
     </>
@@ -249,16 +249,16 @@ export default function RetirementArcTimeline({
 
   if (fullscreen) {
     return (
-      <div style={{ position: "fixed", inset: 0, zIndex: 2000, background: C.bg, display: "flex", flexDirection: "column", gap: 8, padding: "10px 12px calc(10px + env(safe-area-inset-bottom))" }}>
+      <div style={{ position: "fixed", inset: 0, zIndex: 2000, background: R.ground, display: "flex", flexDirection: "column", gap: 8, padding: "10px 12px calc(10px + env(safe-area-inset-bottom))" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
           <div style={{ minWidth: 0 }}>
             {headline ? (
               <>
-                <div style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: C.tealDark }}>Your retirement looks like</div>
-                <div style={{ fontSize: 17, fontWeight: 300, color: C.ink, letterSpacing: "-0.015em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{headline}</div>
+                <div style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: R.accentInk }}>Your retirement looks like</div>
+                <div style={{ fontFamily: SERIF, fontSize: 19, fontWeight: 500, color: R.ink, letterSpacing: "-0.01em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{headline}</div>
               </>
             ) : (
-              <div style={{ fontSize: 14, fontWeight: 800, color: C.ink, letterSpacing: "-0.01em" }}>Your retirement, one arc</div>
+              <div style={{ fontFamily: SERIF, fontSize: 17, fontWeight: 500, color: R.ink, letterSpacing: "-0.01em" }}>Your retirement, one arc</div>
             )}
           </div>
           <button onClick={() => setFullscreen(false)} aria-label="Close fullscreen" style={{ ...btn, width: 36, height: 36, flexShrink: 0 }}><X size={18} /></button>
@@ -272,5 +272,5 @@ export default function RetirementArcTimeline({
 
 const btn: React.CSSProperties = {
   display: "flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: 8,
-  border: `1px solid ${C.border}`, background: C.bgCard, color: C.inkMid, cursor: "pointer",
+  border: `1px solid ${R.line}`, background: R.card, color: R.inkSoft, cursor: "pointer",
 };

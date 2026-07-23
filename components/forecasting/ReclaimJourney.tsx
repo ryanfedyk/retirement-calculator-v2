@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, ArrowLeft, Pencil, ArrowRight, Search, Wand2, Loader2, X, RotateCcw, ChevronDown } from "lucide-react";
-import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { usePerfectYearStore } from "@/store/usePerfectYearStore";
 import { useReclaimWizardStore } from "@/store/useReclaimWizardStore";
@@ -149,15 +148,15 @@ export default function ReclaimJourney() {
 
   // A persistent reset control, shown on every step of the flow.
   const resetRow = (
-    <div style={{ display: "flex", justifyContent: "center", marginTop: 6, borderTop: `1px solid ${C.borderSoft}`, paddingTop: 12 }}>
+    <div style={{ display: "flex", justifyContent: "center", marginTop: 6, borderTop: `1px solid ${R.lineSoft}`, paddingTop: 12 }}>
       {confirmReset ? (
-        <div style={{ display: "inline-flex", alignItems: "center", gap: 10, fontSize: 12, color: C.inkSoft, flexWrap: "wrap", justifyContent: "center" }}>
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 10, fontSize: 12, color: R.inkSoft, flexWrap: "wrap", justifyContent: "center" }}>
           Clear your days, pursuits &amp; arc and design from scratch?
-          <button onClick={resetAll} style={{ background: C.warm, color: "#fff", border: "none", borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Yes, reset</button>
-          <button onClick={() => setConfirmReset(false)} style={{ background: "none", border: "none", color: C.inkFaint, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Cancel</button>
+          <button onClick={resetAll} style={{ background: R.clay, color: "#fff", border: "none", borderRadius: 9, padding: "6px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Yes, reset</button>
+          <button onClick={() => setConfirmReset(false)} style={{ background: "none", border: "none", color: R.inkFaint, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Cancel</button>
         </div>
       ) : (
-        <button onClick={() => setConfirmReset(true)} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "none", border: "none", cursor: "pointer", color: C.inkFaint, fontSize: 11.5, fontWeight: 600 }}>
+        <button onClick={() => setConfirmReset(true)} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "none", border: "none", cursor: "pointer", color: R.inkFaint, fontSize: 11.5, fontWeight: 600 }}>
           <RotateCcw size={12} /> Reset my design
         </button>
       )}
@@ -459,22 +458,22 @@ export default function ReclaimJourney() {
     );
   }
 
-  // ── Step 3 · Arc (finale) ─────────────────────────────────────────────────────
+  // ── Movement three · Arc (finale) ─────────────────────────────────────────────
   const anyContent = mix.length > 0 || pursuits.length > 0;
   return (
     <WizardShell
-      step={3} total={3} eyebrow="Step 3 · Your arc"
-      title="Your retirement, one arc"
+      step={3} total={3} eyebrow="Movement three · your arc"
+      title="The whole arc, across the seasons"
       subtitle="It won't be one long flat stretch — energy and focus shift. Here's how your days and pursuits flow across the seasons ahead."
       onBack={() => setStage("year")}
       resetSlot={resetRow}
     >
-      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         {/* Throughline headline — ties the arc back to what the days revealed */}
         {mix.length > 0 && (
-          <div style={{ borderRadius: 14, padding: "14px 18px", background: `linear-gradient(135deg, ${C.tealWash}, ${C.bgCard})`, border: `1px solid ${C.tealLight}` }}>
-            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: C.tealDark, marginBottom: 3 }}>Your retirement looks like</div>
-            <div style={{ fontSize: 20, fontWeight: 300, color: C.ink, letterSpacing: "-0.015em" }}>{synthesis.title}</div>
+          <div style={{ borderRadius: 16, padding: "16px 18px", background: `linear-gradient(135deg, color-mix(in oklab, ${R.accent} 10%, ${R.card}), ${R.card})`, border: `1px solid color-mix(in oklab, ${R.accent} 28%, ${R.line})` }}>
+            <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: R.accentInk, marginBottom: 5 }}>Your retirement looks like</div>
+            <div style={{ fontFamily: SERIF, fontSize: "clamp(21px, 4.4vw, 27px)", fontWeight: 500, color: R.ink, letterSpacing: "-0.015em", lineHeight: 1.2 }}>{synthesis.title}</div>
           </div>
         )}
 
@@ -482,45 +481,45 @@ export default function ReclaimJourney() {
         <RetirementArcTimeline arc={arc} exitAge={exitAge} horizonAge={90} headline={mix.length > 0 ? synthesis.title : undefined} />
 
         {/* Season cards — the readable detail beneath the timeline */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
           {arc.map((s) => {
             const m = SEASON_META[s.key];
             return (
-              <div key={s.key} style={{ borderRadius: 15, padding: "15px 16px", background: m.tint, border: `1px solid ${m.color}33`, display: "flex", flexDirection: "column", gap: 9 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 20, lineHeight: 1 }}>{m.emoji}</span>
+              <div key={s.key} style={{ borderRadius: 18, padding: "16px 17px", background: m.tint, border: `1px solid color-mix(in oklab, ${m.color} 26%, ${R.line})`, display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                  <span style={{ fontSize: 21, lineHeight: 1 }}>{m.emoji}</span>
                   <div>
-                    <div style={{ fontSize: 14.5, fontWeight: 800, color: C.ink, letterSpacing: "-0.01em" }}>{m.name}</div>
+                    <div style={{ fontFamily: SERIF, fontSize: 17, fontWeight: 500, color: R.ink, letterSpacing: "-0.005em" }}>{m.name}</div>
                     {s.ageFrom != null && (
-                      <div style={{ fontSize: 10.5, fontWeight: 700, color: m.color, letterSpacing: "0.03em" }}>
+                      <div style={{ fontSize: 10.5, fontWeight: 700, color: m.color, letterSpacing: "0.04em" }}>
                         {s.key === "still" ? `${s.ageFrom}+` : `Age ${s.ageFrom}–${s.ageTo}`}
                       </div>
                     )}
                   </div>
                 </div>
-                <div style={{ fontSize: 11.5, color: C.inkMid, lineHeight: 1.5 }}>{m.blurb}</div>
+                <div style={{ fontSize: 12, color: R.inkSoft, lineHeight: 1.55 }}>{m.blurb}</div>
 
                 {s.themeLabels.length > 0 && (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                     {s.themeLabels.map((t) => (
-                      <span key={t} style={{ fontSize: 10.5, fontWeight: 600, color: m.color, background: "#ffffffcc", border: `1px solid ${m.color}33`, borderRadius: 99, padding: "3px 9px" }}>{t}</span>
+                      <span key={t} style={{ fontSize: 10.5, fontWeight: 600, color: m.color, background: "#ffffffcc", border: `1px solid color-mix(in oklab, ${m.color} 30%, transparent)`, borderRadius: 99, padding: "3px 10px" }}>{t}</span>
                     ))}
                   </div>
                 )}
 
                 {s.pursuits.length > 0 && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 1 }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 1 }}>
                     {s.pursuits.map((p) => (
-                      <div key={p.id} style={{ display: "flex", gap: 6, alignItems: "flex-start" }}>
+                      <div key={p.id} style={{ display: "flex", gap: 7, alignItems: "flex-start" }}>
                         <span style={{ width: 5, height: 5, borderRadius: "50%", background: m.color, flexShrink: 0, marginTop: 6 }} />
-                        <span style={{ fontSize: 11.5, color: C.inkMid, lineHeight: 1.4 }}>{p.concept}</span>
+                        <span style={{ fontSize: 12, color: R.inkSoft, lineHeight: 1.45 }}>{p.concept}</span>
                       </div>
                     ))}
                   </div>
                 )}
 
                 {s.themeLabels.length === 0 && s.pursuits.length === 0 && (
-                  <div style={{ fontSize: 11, color: C.inkFaint, fontStyle: "italic" }}>Open space — room to grow into.</div>
+                  <div style={{ fontSize: 11.5, color: R.inkFaint, fontStyle: "italic" }}>Open space — room to grow into.</div>
                 )}
               </div>
             );
@@ -529,20 +528,20 @@ export default function ReclaimJourney() {
 
         {/* Warm close */}
         {anyContent && (
-          <div style={{ fontSize: 12.5, color: C.inkSoft, lineHeight: 1.6, textAlign: "center", padding: "4px 8px" }}>
+          <div style={{ fontFamily: SERIF, fontSize: "clamp(14px, 3vw, 16px)", color: R.inkSoft, lineHeight: 1.6, textAlign: "center", padding: "4px 8px", fontStyle: "italic" }}>
             However far the road runs, this is a life with room for what matters most — and it starts with the very next season.
           </div>
         )}
 
         {/* Fine-tune handoffs */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16, flexWrap: "wrap", marginTop: 2 }}>
-          <button onClick={() => setStage("days")} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", color: C.inkMid, fontSize: 12.5, fontWeight: 600 }}>
+          <button onClick={() => setStage("days")} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", color: R.inkSoft, fontSize: 12.5, fontWeight: 600 }}>
             <ArrowLeft size={13} /> Adjust my blend
           </button>
-          <button onClick={() => setFineTune("days")} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "none", border: "none", cursor: "pointer", color: C.inkMid, fontSize: 12.5, fontWeight: 600 }}>
+          <button onClick={() => setFineTune("days")} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "none", border: "none", cursor: "pointer", color: R.inkSoft, fontSize: 12.5, fontWeight: 600 }}>
             <Pencil size={13} /> Fine-tune days
           </button>
-          <button onClick={() => { commitPursuits(pursuits); setFineTune("year"); }} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "none", border: "none", cursor: "pointer", color: C.inkMid, fontSize: 12.5, fontWeight: 600 }}>
+          <button onClick={() => { commitPursuits(pursuits); setFineTune("year"); }} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "none", border: "none", cursor: "pointer", color: R.inkSoft, fontSize: 12.5, fontWeight: 600 }}>
             <Pencil size={13} /> Fine-tune year
           </button>
         </div>

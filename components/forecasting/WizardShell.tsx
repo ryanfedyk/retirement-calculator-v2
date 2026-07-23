@@ -1,5 +1,6 @@
 "use client";
-import { ArrowLeft, ArrowRight, X } from "lucide-react";
+import { useState } from "react";
+import { ArrowLeft, ArrowRight, X, MoreHorizontal } from "lucide-react";
 import { R, SERIF } from "./reclaimTheme";
 
 /**
@@ -37,6 +38,8 @@ export default function WizardShell({
   immersive?: boolean;        // fill the viewport, pin only progress + Back/Next
   onExit?: () => void;        // immersive only: a quiet way back out to the landing
 }) {
+  const [menuOpen, setMenuOpen] = useState(false); // immersive overflow (skip / reset)
+
   const progress = (
     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
       {Array.from({ length: total }).map((_, i) => (
@@ -100,9 +103,35 @@ export default function WizardShell({
   if (immersive) {
     return (
       <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
-        {/* Pinned: just the progress meter (+ exit, when standalone) */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0, paddingBottom: 12 }}>
+        {/* Pinned: progress meter, an overflow menu for secondary actions, and
+            (standalone only) an exit. */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, paddingBottom: 12 }}>
           <div style={{ flex: 1 }}>{progress}</div>
+          {(onSkip || resetSlot) && (
+            <div style={{ position: "relative", flexShrink: 0 }}>
+              <button onClick={() => setMenuOpen((o) => !o)} aria-label="More options" style={{
+                display: "flex", alignItems: "center", justifyContent: "center", width: 30, height: 30, borderRadius: "50%",
+                border: `1px solid ${menuOpen ? R.inkFaint : R.line}`, background: R.card, color: R.inkSoft, cursor: "pointer",
+              }}><MoreHorizontal size={16} /></button>
+              {menuOpen && (
+                <>
+                  <div onClick={() => setMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 20 }} />
+                  <div style={{
+                    position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 21, minWidth: 224,
+                    background: R.card2, border: `1px solid ${R.line}`, borderRadius: 14, boxShadow: "0 18px 40px -16px rgba(20,30,26,0.4)", padding: 6,
+                  }}>
+                    {onSkip && (
+                      <button onClick={() => { setMenuOpen(false); onSkip(); }} style={{
+                        width: "100%", textAlign: "left", padding: "10px 12px", borderRadius: 9, border: "none", background: "none",
+                        color: R.ink, fontSize: 13.5, fontWeight: 600, cursor: "pointer",
+                      }}>{skipLabel}</button>
+                    )}
+                    {resetSlot}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
           {onExit && (
             <button onClick={onExit} aria-label="Close" style={{
               flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", width: 30, height: 30, borderRadius: "50%",
@@ -111,16 +140,10 @@ export default function WizardShell({
           )}
         </div>
 
-        {/* Scrolls: heading, body, and the secondary actions */}
+        {/* Scrolls: heading + body only — nothing but the reading area. */}
         <div style={{ flex: "1 1 auto", overflowY: "auto", overflowX: "hidden", minHeight: 0, margin: "0 -2px", padding: "2px 2px 16px", WebkitOverflowScrolling: "touch", overscrollBehaviorY: "contain" }}>
           {heading}
           <div style={{ marginTop: 18 }}>{children}</div>
-          {(skipBtn || resetSlot) && (
-            <div style={{ marginTop: 22, display: "flex", flexDirection: "column", gap: 10, alignItems: "flex-start" }}>
-              {skipBtn}
-              {resetSlot}
-            </div>
-          )}
         </div>
 
         {/* Pinned: a slim hint line, then Back + primary action */}

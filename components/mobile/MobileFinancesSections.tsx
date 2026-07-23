@@ -105,7 +105,7 @@ export default function MobileFinancesSections({ livePrices = {} }: { livePrices
   return (
     <>
       {/* Plan history — monthly net-worth + FI-date trail. */}
-      <PlanHistory />
+      <PlanHistory livePrices={livePrices} />
 
       {/* ── Income (baseline cash flow) ── */}
       <Section title="Income" accent="#4aab92" {...sec("income")}>

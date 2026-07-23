@@ -278,7 +278,7 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
       <div style={{ padding: "14px 16px", flex: 1 }}>
 
         {/* Plan history — monthly net-worth + FI-date trail (finances view only). */}
-        {showFacts && <PlanHistory />}
+        {showFacts && <PlanHistory livePrices={livePrices} />}
 
         {/* ── Income (baseline cash flow) ── */}
         <AccCard {...acc("fin_income")} hidden={!showFacts} title="Income" color="#4aab92">

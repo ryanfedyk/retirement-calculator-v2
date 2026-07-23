@@ -595,7 +595,7 @@ export default function RightPanel({ livePrices }: Props) {
 
       {/* ── Plan history — monthly net-worth + FI-date trail (wealth view only,
           and only once a trend has accrued so it never shows an empty card). ── */}
-      {chartView === "wealth" && <PlanHistory hideUntilTrend />}
+      {chartView === "wealth" && <PlanHistory hideUntilTrend livePrices={livePrices} />}
 
       {/* ── Insights — progressive disclosure below the hero chart ── */}
       <div style={{ display: "flex", gap: 6, background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 10, padding: 4, alignSelf: "flex-start" }}>

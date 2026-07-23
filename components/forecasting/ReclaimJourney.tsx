@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, ArrowLeft, Pencil, ArrowRight, Search, Wand2, Loader2, X, RotateCcw, ChevronDown } from "lucide-react";
+import { useIsMobile } from "@/hooks/useIsMobile";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { usePerfectYearStore } from "@/store/usePerfectYearStore";
 import { useReclaimWizardStore } from "@/store/useReclaimWizardStore";
@@ -64,6 +65,18 @@ export default function ReclaimJourney() {
     const anyP = Object.values(usePerfectYearStore.getState().plan).flat().length > 0;
     setStage(anyW || anyP ? "arc" : "intro");
   }, []);
+
+  // On mobile, the three movements become immersive full-screen sub-pages — the
+  // landing (intro) stays inline in the tab, but stepping into a movement takes
+  // over the phone so it's a screen sized to the viewport, not a long scroll.
+  const isMobile = useIsMobile();
+  const immersive = isMobile && !fineTune && (stage === "days" || stage === "year" || stage === "arc");
+  useEffect(() => {
+    if (!immersive) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, [immersive]);
 
   // Day blend
   const dayWeights = useReclaimWizardStore((s) => s.dayWeights);
@@ -177,6 +190,22 @@ export default function ReclaimJourney() {
 
   if (stage === null) return <div style={{ minHeight: 200 }} />;
 
+  // In immersive mode a movement takes over the whole phone: a fixed canvas on
+  // the warm-grey ground, above the dashboard chrome and tab bar, sized to the
+  // dynamic viewport height with safe-area padding. Inline elsewhere.
+  const shell = (node: React.ReactNode) =>
+    immersive ? (
+      <div style={{
+        position: "fixed", inset: 0, zIndex: 1500, background: R.ground,
+        height: "100dvh", display: "flex", flexDirection: "column",
+        padding: "max(14px, env(safe-area-inset-top)) 18px calc(14px + env(safe-area-inset-bottom))",
+        animation: "reclaim-rise 0.28s ease",
+      }}>
+        <style>{"@keyframes reclaim-rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}"}</style>
+        {node}
+      </div>
+    ) : node;
+
   // ── Intro ───────────────────────────────────────────────────────────────────
   if (stage === "intro") {
     return (
@@ -237,8 +266,9 @@ export default function ReclaimJourney() {
   if (stage === "days") {
     const total = archetypes.reduce((s, a) => s + (dayWeights[a.id] ?? 0), 0);
     const weightFromX = (clientX: number, rect: DOMRect) => Math.round(Math.max(0, Math.min(1, (clientX - rect.left) / rect.width)) * 100);
-    return (
+    return shell(
       <WizardShell
+        immersive={immersive} onExit={() => setStage("intro")}
         step={1} total={3} eyebrow="Movement one · your days"
         title="What does a good week feel like?"
         subtitle="Not a schedule — a feeling. Drag to give each kind of day as much presence as it deserves. There's no wrong mix; the point is to notice where your heart leans."
@@ -343,8 +373,9 @@ export default function ReclaimJourney() {
       );
     };
 
-    return (
+    return shell(
       <WizardShell
+        immersive={immersive} onExit={() => setStage("intro")}
         step={2} total={3} eyebrow="Movement two · your year"
         title="Which worlds will your year hold?"
         subtitle="Open a world and its paths unfold right there — tap one and its pursuits gather below to keep or set down. Search or ask for fresh ideas anytime."
@@ -460,8 +491,9 @@ export default function ReclaimJourney() {
 
   // ── Movement three · Arc (finale) ─────────────────────────────────────────────
   const anyContent = mix.length > 0 || pursuits.length > 0;
-  return (
+  return shell(
     <WizardShell
+      immersive={immersive} onExit={() => setStage("intro")}
       step={3} total={3} eyebrow="Movement three · your arc"
       title="The whole arc, across the seasons"
       subtitle="It won't be one long flat stretch — energy and focus shift. Here's how your days and pursuits flow across the seasons ahead."

@@ -24,6 +24,13 @@ import { R, SERIF, DAY_COLOR, YEAR_COLOR, presenceWord } from "./reclaimTheme";
 const VALID_CATS: AdventureCategory[] = ["Immersive Travel", "Creative Mastery", "Endurance/Active", "Slow Living"];
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 40);
 
+// An item added straight to a season on the arc takes a category that lands it
+// there (the arc buckets pursuits into seasons by category), plus the season's
+// display name for the coach prompt.
+type ArcKey = "open" | "roots" | "still";
+const ARC_CATEGORY: Record<ArcKey, AdventureCategory> = { open: "Immersive Travel", roots: "Creative Mastery", still: "Slow Living" };
+const ARC_NAME: Record<ArcKey, string> = { open: "The Open Road", roots: "Deep Roots", still: "Still Waters" };
+
 /** Coerce raw AI JSON into safe AdventureBlueprints (validate the enums). */
 function normalizeIdeas(raw: unknown): AdventureBlueprint[] {
   if (!Array.isArray(raw)) return [];
@@ -122,8 +129,44 @@ export default function ReclaimJourney({ framed = false }: { framed?: boolean } 
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiDisabled, setAiDisabled] = useState(false);
+  const [optimizingSeason, setOptimizingSeason] = useState<ArcKey | null>(null);
   const grouped = useMemo(() => adventuresByCategory(catalog), [catalog]);
   const searchResults = useMemo(() => filterPursuits(catalog, { query }), [catalog, query]);
+
+  // Add a pursuit straight onto the arc, then ask the coach to round out the rest.
+  // The manual add lands immediately (and persists); the AI inference is a bonus
+  // that fills gaps across the seasons — skipped quietly if Gemini isn't configured.
+  const addToArc = async (season: ArcKey, text: string) => {
+    const concept = text.trim();
+    if (!concept) return;
+    const added: AdventureBlueprint = {
+      id: `add-${slug(concept) || "item"}`, concept, category: ARC_CATEGORY[season],
+      commitment: "Micro-Prototype", whenToStart: "Now", depthScore: 1, whyFactor: "", microDoseAction: "", tags: [],
+    };
+    addCustom([added]);
+    const withAdded = [...pursuits, added.id];
+    setPursuits(withAdded); commitPursuits(withAdded);
+    if (aiDisabled) return;
+
+    setOptimizingSeason(season);
+    try {
+      const byIdLocal = Object.fromEntries([...catalog, added].map((s) => [s.id, s]));
+      const have = withAdded.map((id) => byIdLocal[id]).filter(Boolean).map((p) => ({ concept: p.concept, category: p.category }));
+      const res = await fetch("/api/perfect-day", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "arc", themes: mix.map((m) => m.label), have, added: { concept, season: ARC_NAME[season] }, exitAge, horizonAge: 90 }),
+      });
+      const data = await res.json();
+      if (!res.ok) { if (res.status === 503 || res.status === 401) setAiDisabled(true); return; }
+      const inferred = normalizeIdeas(data.items);
+      if (inferred.length) {
+        addCustom(inferred);
+        const next = [...withAdded, ...inferred.map((p) => p.id)];
+        setPursuits(next); commitPursuits(next);
+      }
+    } catch { /* keep the manual add; skip inference */ }
+    finally { setOptimizingSeason(null); }
+  };
 
   const generateIdeas = async () => {
     if (aiGenerating) return;
@@ -536,7 +579,7 @@ export default function ReclaimJourney({ framed = false }: { framed?: boolean } 
       onBack={() => setStage("year")}
       resetSlot={resetRow}
     >
-      <VerticalArc arc={arc} exitAge={exitAge} horizonAge={90} headline={mix.length > 0 ? synthesis.title : undefined} tail={arcTail} />
+      <VerticalArc arc={arc} exitAge={exitAge} horizonAge={90} headline={mix.length > 0 ? synthesis.title : undefined} tail={arcTail} onAddPursuit={addToArc} optimizingSeason={optimizingSeason} />
     </WizardShell>
   );
 }

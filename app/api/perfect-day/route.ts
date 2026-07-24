@@ -94,8 +94,12 @@ Return ONLY raw JSON in this exact shape (no markdown, no code fences):
 function arcPrompt(p: ArcPayload): string {
   const themes = (p.themes ?? []).filter(Boolean).join(", ");
   const have = (p.have ?? []).slice(0, 60).map((h) => `- [${h.category}] ${h.concept}`).join("\n") || "(none yet)";
-  const added = p.added ? `"${p.added.concept}" (into the ${p.added.season} season)` : "a new pursuit";
   const ages = p.exitAge ? `They retire around age ${p.exitAge}, looking out to age ${p.horizonAge ?? 90}.` : "";
+  // Two shapes: growing a fresh arc from a handful of chosen "seeds", or rounding
+  // out an existing arc after the user just added one pursuit.
+  const task = p.added
+    ? `They just added "${p.added.concept}" (into the ${p.added.season} season). Infer 3–5 fresh, complementary pursuits that ROUND OUT and OPTIMIZE the whole arc — filling gaps across the three seasons, echoing what they just added and what they already love, WITHOUT duplicating anything above.`
+    : `The pursuits above are a handful of SEEDS they chose to grow from. Infer 5–7 fresh, complementary pursuits that GROW these seeds into a rich, full arc — building on their spirit and filling gaps across the three seasons so every season has something to look forward to, WITHOUT duplicating anything above.`;
   return `
 You are a warm, imaginative retirement-life coach — NOT a financial advisor. Someone is composing the ARC of their retirement across three seasons:
 - "The Open Road" — adventure, travel, movement; doing the big things while the body's game (categories: "Immersive Travel", "Endurance/Active").
@@ -107,7 +111,7 @@ Their day-blend leans toward: ${themes || "a balanced life"}.
 Pursuits already on their arc:
 ${have}
 
-They just added ${added}. Infer 3–5 fresh, complementary pursuits that ROUND OUT and OPTIMIZE the whole arc — filling gaps across the three seasons, echoing what they just added and what they already love, WITHOUT duplicating anything above. Each must be specific and evocative (a real, nameable thing to do — not "travel more" or "get healthy").
+${task} Each must be specific and evocative (a real, nameable thing to do — not "travel more" or "get healthy").
 
 Classify each into EXACTLY ONE category from: "Immersive Travel", "Creative Mastery", "Endurance/Active", "Slow Living" (the category decides its season). Give a balanced mix across the three seasons. Avoid financial-planning advice.
 

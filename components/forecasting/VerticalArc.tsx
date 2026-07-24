@@ -18,7 +18,7 @@ const RAIL = 48;         // width of the left rail the spine runs down
  * add your own — which asks the coach to round out the rest of the arc.
  */
 export default function VerticalArc({
-  arc, exitAge, horizonAge = 90, headline, tail, onAddPursuit, optimizingSeason,
+  arc, exitAge, horizonAge = 90, headline, tail, onAddPursuit, optimizingSeason, building = false,
 }: {
   arc: ArcSeason[];
   exitAge: number | null;
@@ -27,6 +27,7 @@ export default function VerticalArc({
   tail?: React.ReactNode;
   onAddPursuit?: (season: Key, text: string) => void;
   optimizingSeason?: Key | null;
+  building?: boolean;         // Gemini is growing the arc from the chosen seeds
 }) {
   const showAges = exitAge != null;
   const start = exitAge ?? NOMINAL_EXIT;
@@ -120,6 +121,12 @@ export default function VerticalArc({
           <div style={{ fontSize: 12, color: R.inkFaint, marginTop: headline ? 12 : 0, lineHeight: 1.5 }}>
             {showAges ? `Age ${start} → ${horizonAge}` : "Your retirement, start → horizon"} · scroll the years, pinch to zoom{onAddPursuit ? " in to add" : ""}
           </div>
+          {building && (
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 8, marginTop: 14, padding: "9px 14px", borderRadius: 12, background: `color-mix(in oklab, ${R.accent} 9%, ${R.card2})`, border: `1px solid color-mix(in oklab, ${R.accent} 28%, ${R.line})` }}>
+              <Loader2 size={14} className="animate-spin" color={R.accentInk} />
+              <span style={{ fontSize: 12.5, fontWeight: 600, color: R.accentInk }}>Growing your arc from your seeds…</span>
+            </div>
+          )}
         </div>
 
         {/* The spine + seasons */}

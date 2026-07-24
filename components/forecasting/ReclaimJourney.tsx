@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, ArrowLeft, Pencil, ArrowRight, Search, Wand2, Loader2, X, RotateCcw } from "lucide-react";
+import { Check, ArrowLeft, Pencil, ArrowRight, Search, Wand2, Loader2, X, RotateCcw, ChevronDown } from "lucide-react";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { usePerfectYearStore } from "@/store/usePerfectYearStore";
@@ -12,7 +12,7 @@ import { ADVENTURE_SEEDS } from "@/data/adventureSeeds";
 import {
   dayArchetypes, dayVignette, themeMixFromWeights, synthesizeFromWeights,
   adventuresByCategory, shortWhy, placeAdventures, retirementArc, blendGapNote,
-  filterPursuits, YEAR_CATEGORIES, SUBTHEMES, subthemePursuits,
+  filterPursuits, YEAR_CATEGORIES,
 } from "@/lib/perfectWizard";
 import type { AdventureBlueprint, AdventureCategory, CommitmentLevel, WhenToStart } from "@/types/horizon";
 import WizardShell from "./WizardShell";
@@ -50,7 +50,7 @@ function normalizeIdeas(raw: unknown): AdventureBlueprint[] {
   }).filter((p) => p.concept);
 }
 
-type Stage = "intro" | "days" | "worlds" | "types" | "arc";
+type Stage = "intro" | "days" | "year" | "arc";
 
 /**
  * One guided journey for the whole Reclaim tab: shape the *days* you want (a
@@ -79,7 +79,7 @@ export default function ReclaimJourney({ framed = false }: { framed?: boolean } 
   // its footer and fills the height. When framed, ToolStage owns the fixed
   // overlay and the page-scroll lock, so we don't add our own.
   const isMobile = useIsMobile();
-  const immersive = (framed || isMobile) && !fineTune && (stage === "days" || stage === "worlds" || stage === "types" || stage === "arc");
+  const immersive = (framed || isMobile) && !fineTune && (stage === "days" || stage === "year" || stage === "arc");
   useEffect(() => {
     if (!immersive || framed) return;
     const prev = document.body.style.overflow;
@@ -117,22 +117,23 @@ export default function ReclaimJourney({ framed = false }: { framed?: boolean } 
   const togglePursuit = (id: string) => setPursuits((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
   const commitPursuits = (ids: string[]) => applySeed(placeAdventures(ids));
 
-  // The "worlds" the year is built from — the ingredients chosen before diving
-  // into specifics. Seeded from the categories of any already-chosen pursuits.
-  const [worlds, setWorlds] = useState<AdventureCategory[]>(() => {
+  // The year is built by drilling in: open a world and its six most evocative
+  // pursuits appear right there as specific "seeds" to check off. Seeded open to
+  // the world of an already-chosen pursuit, else the first world, so there's
+  // always something to react to.
+  const [expandedWorld, setExpandedWorld] = useState<AdventureCategory | null>(() => {
     const byId = Object.fromEntries([...ADVENTURE_SEEDS, ...useCustomPursuitStore.getState().pursuits].map((s) => [s.id, s]));
-    const cats = Object.values(usePerfectYearStore.getState().plan).flat().map((id) => byId[id]?.category).filter(Boolean);
-    return [...new Set(cats)] as AdventureCategory[];
+    const chosenCat = Object.values(usePerfectYearStore.getState().plan).flat().map((id) => byId[id]?.category).find(Boolean);
+    return (chosenCat as AdventureCategory) ?? YEAR_CATEGORIES[0].id;
   });
-  const toggleWorld = (c: AdventureCategory) => setWorlds((w) => (w.includes(c) ? w.filter((x) => x !== c) : [...w, c]));
 
-  // Explorer — an in-place accordion: open a kind and its types expand right
-  // there; tapping a kind fills in matching pursuits. Search is a global escape hatch.
+  // Explorer — search is a global escape hatch; "Dream some up" adds fresh ideas.
   const [query, setQuery] = useState("");
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiDisabled, setAiDisabled] = useState(false);
   const [optimizingSeason, setOptimizingSeason] = useState<ArcKey | null>(null);
+  const [buildingArc, setBuildingArc] = useState(false);
   const grouped = useMemo(() => adventuresByCategory(catalog), [catalog]);
   const searchResults = useMemo(() => filterPursuits(catalog, { query }), [catalog, query]);
 
@@ -189,6 +190,33 @@ export default function ReclaimJourney({ framed = false }: { framed?: boolean } 
     } finally { setAiGenerating(false); }
   };
 
+  // Commit the chosen seeds and move to the arc — then ask the coach to grow a
+  // fuller arc from those seeds, inferring complementary pursuits across the
+  // seasons. The seeds stand on their own if Gemini isn't configured.
+  const buildArc = async () => {
+    commitPursuits(pursuits);
+    setStage("arc");
+    if (aiDisabled || pursuits.length === 0) return;
+    setBuildingArc(true);
+    try {
+      const byIdLocal = Object.fromEntries(catalog.map((s) => [s.id, s]));
+      const have = pursuits.map((id) => byIdLocal[id]).filter(Boolean).map((p) => ({ concept: p.concept, category: p.category }));
+      const res = await fetch("/api/perfect-day", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "arc", themes: mix.map((m) => m.label), have, exitAge, horizonAge: 90 }),
+      });
+      const data = await res.json();
+      if (!res.ok) { if (res.status === 503 || res.status === 401) setAiDisabled(true); return; }
+      const inferred = normalizeIdeas(data.items);
+      if (inferred.length) {
+        addCustom(inferred);
+        const next = [...pursuits, ...inferred.map((p) => p.id)];
+        setPursuits(next); commitPursuits(next);
+      }
+    } catch { /* seeds stand on their own; skip the grow step */ }
+    finally { setBuildingArc(false); }
+  };
+
   // Draft a whole starter journey to react to — a gentle default blend + one
   // pursuit from each kind — so the arc is meaningful in a single tap.
   const draftForMe = () => {
@@ -197,14 +225,13 @@ export default function ReclaimJourney({ framed = false }: { framed?: boolean } 
     setDayWeight("arch-restful", 65);
     const ids = grouped.map((g) => g.items[0]?.id).filter(Boolean) as string[];
     setPursuits(ids); commitPursuits(ids);
-    setWorlds([...VALID_CATS]);
     setStage("arc");
   };
 
   // Reset the whole day / year / arc feature back to a blank slate.
   const resetAll = () => {
     resetDayWeights(); clearYear(); clearCustom(); resetDays();
-    setPursuits([]); setWorlds([]); setQuery(""); setAiError(null); setAiDisabled(false);
+    setPursuits([]); setExpandedWorld(YEAR_CATEGORIES[0].id); setQuery(""); setAiError(null); setAiDisabled(false);
     setConfirmReset(false); setStage("intro");
   };
 
@@ -259,7 +286,7 @@ export default function ReclaimJourney({ framed = false }: { framed?: boolean } 
 
   // ── Fine-tune: full editors, one tap away ──────────────────────────────────
   if (fineTune === "days") {
-    return framedScroll(<PerfectDay onExit={() => setFineTune(null)} onGoToYear={() => { setFineTune(null); setStage("worlds"); }} />);
+    return framedScroll(<PerfectDay onExit={() => setFineTune(null)} onGoToYear={() => { setFineTune(null); setStage("year"); }} />);
   }
   if (fineTune === "year") {
     return framedScroll(<PerfectYear onExit={() => setFineTune(null)} />);
@@ -277,7 +304,7 @@ export default function ReclaimJourney({ framed = false }: { framed?: boolean } 
             Let&apos;s compose the life, not just the number.
           </h2>
           <p style={{ fontSize: 15, color: R.inkSoft, lineHeight: 1.6, margin: "16px 0 0", maxWidth: "50ch" }}>
-            No budgets, no forms — a few quiet movements. Shape the <strong style={{ color: R.ink, fontWeight: 600 }}>days</strong> that feel like you, choose the <strong style={{ color: R.ink, fontWeight: 600 }}>worlds</strong> your year holds, gather the <strong style={{ color: R.ink, fontWeight: 600 }}>pursuits</strong> within them, then watch the whole <strong style={{ color: R.ink, fontWeight: 600 }}>arc</strong> settle across the seasons ahead.
+            No budgets, no forms — a few quiet movements. Shape the <strong style={{ color: R.ink, fontWeight: 600 }}>days</strong> that feel like you, drill into the worlds that call to you and pick a few <strong style={{ color: R.ink, fontWeight: 600 }}>seeds</strong>, then watch the coach grow the whole <strong style={{ color: R.ink, fontWeight: 600 }}>arc</strong> across the seasons ahead.
           </p>
         </div>
 
@@ -285,9 +312,8 @@ export default function ReclaimJourney({ framed = false }: { framed?: boolean } 
         <div style={{ display: "flex", flexDirection: "column" }}>
           {[
             { n: 1, t: "Your days", d: "How a good week actually feels." },
-            { n: 2, t: "Your worlds", d: "The ingredients that call to you." },
-            { n: 3, t: "Your pursuits", d: "The kinds of things to reach for." },
-            { n: 4, t: "Your arc", d: "The shape of it, across the seasons." },
+            { n: 2, t: "Your year", d: "Drill into a world, pick a few seeds." },
+            { n: 3, t: "Your arc", d: "The coach grows it across the seasons." },
           ].map((c, i, arr) => (
             <div key={c.n} style={{ display: "flex", gap: 15 }}>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
@@ -331,11 +357,11 @@ export default function ReclaimJourney({ framed = false }: { framed?: boolean } 
     return shell(
       <WizardShell
         immersive={immersive} onExit={framed ? undefined : () => setStage("intro")}
-        step={1} total={4} eyebrow="Movement one · your days"
+        step={1} total={3} eyebrow="Movement one · your days"
         title="What does a good week feel like?"
         subtitle="Not a schedule — a feeling. Drag to give each kind of day as much presence as it deserves. There's no wrong mix; the point is to notice where your heart leans."
         onBack={() => setStage("intro")}
-        onNext={() => setStage("worlds")} nextLabel="Next: your worlds"
+        onNext={() => setStage("year")} nextLabel="Next: your year"
         nextDisabled={total === 0}
         nextHint={total === 0 ? "Give at least one kind of day some presence to continue." : undefined}
         onSkip={() => setFineTune("days")} skipLabel="Fine-tune day by day"
@@ -388,47 +414,29 @@ export default function ReclaimJourney({ framed = false }: { framed?: boolean } 
     );
   }
 
-  // ── Movement two · Your worlds (the ingredients) ──────────────────────────────
-  if (stage === "worlds") {
-    return shell(
-      <WizardShell
-        immersive={immersive} onExit={framed ? undefined : () => setStage("intro")}
-        step={2} total={4} eyebrow="Movement two · your worlds"
-        title="Which worlds will your year hold?"
-        subtitle="Start with the ingredients — choose the worlds that call to you. We'll get specific about the kinds of things next."
-        onBack={() => setStage("days")}
-        onNext={() => setStage("types")} nextLabel="Next: the kinds"
-        nextDisabled={worlds.length === 0}
-        nextHint={worlds.length === 0 ? "Pick at least one world to continue." : `${worlds.length} world${worlds.length === 1 ? "" : "s"} chosen`}
-        resetSlot={resetRow}
-      >
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(158px, 1fr))", gap: 10 }}>
-          {YEAR_CATEGORIES.map((c) => {
-            const tint = YEAR_COLOR[c.id] ?? R.accent;
-            const on = worlds.includes(c.id);
-            return (
-              <button key={c.id} onClick={() => toggleWorld(c.id)} style={{
-                position: "relative", aspectRatio: "1 / 1", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", gap: 9,
-                padding: "16px 12px", borderRadius: 22, cursor: "pointer",
-                border: `1.5px solid ${on ? tint : `color-mix(in oklab, ${tint} 24%, ${R.line})`}`,
-                background: on ? `color-mix(in oklab, ${tint} 12%, ${R.card2})` : R.card2,
-                boxShadow: on ? `0 8px 22px -10px ${tint}` : "0 1px 3px rgba(20,30,26,0.06)", transition: "all 0.15s",
-              }}>
-                {on && <span style={{ position: "absolute", top: 10, right: 10, width: 22, height: 22, borderRadius: "50%", background: tint, display: "flex", alignItems: "center", justifyContent: "center" }}><Check size={13} color="#fff" /></span>}
-                <span style={{ fontSize: 36, lineHeight: 1 }}>{c.icon}</span>
-                <span style={{ fontFamily: SERIF, fontSize: 17, fontWeight: 500, color: on ? R.accentInk : R.ink, lineHeight: 1.12 }}>{c.id}</span>
-                <span style={{ fontSize: 11, color: R.inkFaint, lineHeight: 1.35 }}>{c.blurb}</span>
-              </button>
-            );
-          })}
-        </div>
-      </WizardShell>
-    );
-  }
+  // ── Movement two · Your year (drill into a world, pick the seeds) ─────────────
+  if (stage === "year") {
+    const byId = Object.fromEntries(catalog.map((s) => [s.id, s]));
+    const isCustom = (id: string) => id.startsWith("ai-") || id.startsWith("add-");
 
-  // ── Movement three · Your pursuits (the kinds within your worlds) ─────────────
-  if (stage === "types") {
-    const card = (s: AdventureBlueprint) => {
+    // The specific "seeds" a world drills into: its six most evocative pursuits,
+    // plus any dreamed-up or already-chosen ones so nothing a user picked ever
+    // hides behind the six.
+    const worldSeeds = (cat: AdventureCategory): AdventureBlueprint[] => {
+      const all = catalog.filter((s) => s.category === cat);
+      const custom = all.filter((s) => isCustom(s.id));
+      const base = all.filter((s) => !isCustom(s.id)).sort((a, b) => b.depthScore - a.depthScore).slice(0, 6);
+      const extraChosen = all.filter((s) => pursuits.includes(s.id) && !custom.includes(s) && !base.includes(s));
+      return [...custom, ...base, ...extraChosen];
+    };
+
+    const toggleAll = (ids: string[], turnOn: boolean) => {
+      if (!ids.length) return;
+      setPursuits((p) => (turnOn ? [...new Set([...p, ...ids])] : p.filter((x) => !ids.includes(x))));
+    };
+
+    // A specific seed — a checkbox card the user chooses (or not).
+    const seedCard = (s: AdventureBlueprint) => {
       const on = pursuits.includes(s.id);
       const tint = YEAR_COLOR[s.category] ?? R.accent;
       const isAI = s.id.startsWith("ai-");
@@ -455,34 +463,16 @@ export default function ReclaimJourney({ framed = false }: { framed?: boolean } 
       );
     };
 
-    // Toggle a whole set of pursuits at once (a path gathers several at once).
-    const toggleSet = (ids: string[]) => {
-      if (!ids.length) return;
-      const anyOn = ids.some((id) => pursuits.includes(id));
-      setPursuits((p) => (anyOn ? p.filter((x) => !ids.includes(x)) : [...new Set([...p, ...ids])]));
-    };
-    const byId = Object.fromEntries(catalog.map((s) => [s.id, s]));
-    const pickChip = (id: string) => {
-      const s = byId[id]; if (!s) return null;
-      const tint = YEAR_COLOR[s.category] ?? R.accent;
-      return (
-        <span key={id} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 8px 6px 12px", borderRadius: 99, background: `color-mix(in oklab, ${tint} 12%, ${R.card})`, border: `1px solid color-mix(in oklab, ${tint} 40%, ${R.line})`, fontSize: 12, fontWeight: 600, color: R.ink, maxWidth: "100%" }}>
-          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 200 }} title={s.concept}>{s.concept}</span>
-          <button onClick={() => togglePursuit(id)} aria-label={`Remove ${s.concept}`} style={{ flexShrink: 0, display: "flex", background: "none", border: "none", cursor: "pointer", color: tint, padding: 0 }}><X size={13} /></button>
-        </span>
-      );
-    };
-
     return shell(
       <WizardShell
         immersive={immersive} onExit={framed ? undefined : () => setStage("intro")}
-        step={3} total={4} eyebrow="Movement three · your pursuits"
-        title="What kinds of things call to you?"
-        subtitle="Within your worlds, tap the kinds that fit — we'll gather pursuits to shape your arc. Search or ask for fresh ideas anytime."
-        onBack={() => setStage("worlds")}
-        onNext={() => { commitPursuits(pursuits); setStage("arc"); }} nextLabel="Next: your arc"
+        step={2} total={3} eyebrow="Movement two · your year"
+        title="Pick a few seeds to grow from"
+        subtitle="Open a world and choose the specific things that call to you — all of them, or none. These few seeds are all the coach needs to grow your whole arc."
+        onBack={() => setStage("days")}
+        onNext={buildArc} nextLabel="Build my arc"
         nextDisabled={pursuits.length === 0}
-        nextHint={pursuits.length === 0 ? "Tap a kind to gather its pursuits." : `${pursuits.length} gathered`}
+        nextHint={pursuits.length === 0 ? "Open a world and pick a seed or two to begin." : `${pursuits.length} seed${pursuits.length === 1 ? "" : "s"} chosen`}
         onSkip={() => { commitPursuits(pursuits); setFineTune("year"); }} skipLabel="Time them on a calendar"
         resetSlot={resetRow}
       >
@@ -507,7 +497,7 @@ export default function ReclaimJourney({ framed = false }: { framed?: boolean } 
           )}
         </div>
         {aiError && <div style={{ fontSize: 11.5, color: R.clay, marginBottom: 8 }}>{aiError}</div>}
-        {aiDisabled && <div style={{ fontSize: 11.5, color: R.inkFaint, marginBottom: 8 }}>Idea generation isn&apos;t configured — open a world below to explore its pursuits.</div>}
+        {aiDisabled && <div style={{ fontSize: 11.5, color: R.inkFaint, marginBottom: 8 }}>Idea generation isn&apos;t configured — open a world below to pick from its seeds.</div>}
 
         {/* Search overrides the worlds with a flat, global result set */}
         {query.trim() ? (
@@ -516,7 +506,7 @@ export default function ReclaimJourney({ framed = false }: { framed?: boolean } 
           ) : (
             <>
               <div style={{ fontSize: 11, color: R.inkFaint, marginBottom: 8 }}>{searchResults.length} match{searchResults.length === 1 ? "" : "es"}</div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 8 }}>{searchResults.map(card)}</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 8 }}>{searchResults.map(seedCard)}</div>
             </>
           )
         ) : (
@@ -528,48 +518,53 @@ export default function ReclaimJourney({ framed = false }: { framed?: boolean } 
                   <Wand2 size={14} color={R.plum} />
                   <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: R.plum }}>Dreamed up for you</span>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 8 }}>{customPursuits.map(card)}</div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 8 }}>{customPursuits.map(seedCard)}</div>
               </div>
             )}
 
-            {/* Your chosen worlds — each open, its paths as large tiles to gather */}
-            {YEAR_CATEGORIES.filter((c) => worlds.length === 0 || worlds.includes(c.id)).map((c) => {
+            {/* The four worlds as a drill-in accordion — open one and its specific
+                seeds appear right there to choose from (all, some, or none). */}
+            {YEAR_CATEGORIES.map((c) => {
               const tint = YEAR_COLOR[c.id] ?? R.accent;
-              const chosenIds = pursuits.filter((id) => byId[id]?.category === c.id);
+              const open = expandedWorld === c.id;
+              const seeds = worldSeeds(c.id);
+              const seedIds = seeds.map((s) => s.id);
+              const chosen = seedIds.filter((id) => pursuits.includes(id)).length;
+              const allOn = seedIds.length > 0 && chosen === seedIds.length;
               return (
-                <div key={c.id} style={{ borderRadius: 18, border: `1px solid color-mix(in oklab, ${tint} 30%, ${R.line})`, background: `color-mix(in oklab, ${tint} 5%, ${R.card})`, padding: "14px 16px 16px" }}>
-                  <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12 }}>
-                    <span style={{ fontSize: 23, lineHeight: 1, flexShrink: 0 }}>{c.icon}</span>
-                    <span style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
-                      <span style={{ fontFamily: SERIF, fontSize: 18, fontWeight: 500, color: R.ink }}>{c.id}</span>
-                      {chosenIds.length > 0 && <span style={{ fontSize: 10, fontWeight: 800, color: "#fff", background: tint, borderRadius: 99, padding: "1px 7px", lineHeight: "16px" }}>{chosenIds.length}</span>}
+                <div key={c.id} style={{ borderRadius: 18, border: `1px solid ${open ? `color-mix(in oklab, ${tint} 40%, ${R.line})` : `color-mix(in oklab, ${tint} 22%, ${R.line})`}`, background: open ? `color-mix(in oklab, ${tint} 5%, ${R.card})` : R.card, overflow: "hidden", transition: "border-color 0.15s, background 0.15s" }}>
+                  {/* Header — tap to drill in */}
+                  <button onClick={() => setExpandedWorld(open ? null : c.id)} style={{
+                    width: "100%", textAlign: "left", display: "flex", gap: 12, alignItems: "center", cursor: "pointer",
+                    background: "none", border: "none", padding: "14px 16px",
+                  }}>
+                    <span style={{ fontSize: 26, lineHeight: 1, flexShrink: 0 }}>{c.icon}</span>
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontFamily: SERIF, fontSize: 18, fontWeight: 500, color: R.ink, lineHeight: 1.1 }}>{c.id}</span>
+                        {chosen > 0 && <span style={{ fontSize: 10, fontWeight: 800, color: "#fff", background: tint, borderRadius: 99, padding: "1px 7px", lineHeight: "16px" }}>{chosen}</span>}
+                      </span>
+                      {!open && <span style={{ display: "block", fontSize: 11.5, color: R.inkFaint, lineHeight: 1.35, marginTop: 3 }}>{c.blurb}</span>}
                     </span>
-                  </div>
-                  <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: R.inkFaint, marginBottom: 10 }}>Tap a kind to gather its pursuits</div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 10 }}>
-                    {SUBTHEMES[c.id].map((st) => {
-                      const ids = subthemePursuits(catalog, c.id, st.tags);
-                      if (!ids.length) return null;
-                      const chosen = ids.filter((id) => pursuits.includes(id)).length;
-                      const on = chosen > 0;
-                      return (
-                        <button key={st.label} onClick={() => toggleSet(ids)} style={{
-                          position: "relative", aspectRatio: "1 / 1", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", gap: 9, padding: "12px 10px", borderRadius: 16, cursor: "pointer",
-                          border: `1.5px solid ${on ? tint : R.line}`, background: on ? `color-mix(in oklab, ${tint} 14%, ${R.card2})` : R.card2, color: on ? R.accentInk : R.ink,
-                          boxShadow: on ? `0 4px 12px -6px ${tint}` : "0 1px 2px rgba(20,30,26,0.05)", transition: "all 0.12s",
-                        }}>
-                          <span style={{ position: "absolute", top: 8, right: 8, fontSize: 10, fontWeight: 800, color: on ? "#fff" : R.inkFaint, background: on ? tint : R.lineSoft, borderRadius: 99, minWidth: 18, textAlign: "center", padding: "1px 5px", lineHeight: "16px" }}>{on ? chosen : `+${ids.length}`}</span>
-                          <span style={{ fontSize: 28, lineHeight: 1 }}>{st.emoji}</span>
-                          <span style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.2 }}>{st.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
+                    <ChevronDown size={18} color={R.inkFaint} style={{ flexShrink: 0, transform: open ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
+                  </button>
 
-                  {chosenIds.length > 0 && (
-                    <div style={{ marginTop: 14 }}>
-                      <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: tint, marginBottom: 8 }}>Gathered · {chosenIds.length}</div>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>{chosenIds.map(pickChip)}</div>
+                  {/* Drilled-in seeds */}
+                  {open && (
+                    <div style={{ padding: "0 16px 16px" }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 10 }}>
+                        <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: R.inkFaint }}>Choose the ones that call to you</span>
+                        {seedIds.length > 0 && (
+                          <button onClick={() => toggleAll(seedIds, !allOn)} style={{
+                            flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 11px", borderRadius: 99, cursor: "pointer",
+                            border: `1px solid ${allOn ? tint : `color-mix(in oklab, ${tint} 35%, ${R.line})`}`,
+                            background: allOn ? `color-mix(in oklab, ${tint} 12%, ${R.card})` : R.card, color: allOn ? R.accentInk : tint, fontSize: 11.5, fontWeight: 700,
+                          }}>
+                            {allOn ? <><X size={12} /> Clear all</> : <><Check size={12} /> Choose all</>}
+                          </button>
+                        )}
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 8 }}>{seeds.map(seedCard)}</div>
                     </div>
                   )}
                 </div>
@@ -607,12 +602,12 @@ export default function ReclaimJourney({ framed = false }: { framed?: boolean } 
     <WizardShell
       immersive={immersive} onExit={framed ? undefined : () => setStage("intro")}
       bodyFill
-      step={4} total={4} eyebrow="Movement four · your arc"
+      step={3} total={3} eyebrow="Movement three · your arc"
       title="The whole arc, across the seasons"
-      onBack={() => setStage("types")}
+      onBack={() => setStage("year")}
       resetSlot={resetRow}
     >
-      <VerticalArc arc={arc} exitAge={exitAge} horizonAge={90} headline={mix.length > 0 ? synthesis.title : undefined} tail={arcTail} onAddPursuit={addToArc} optimizingSeason={optimizingSeason} />
+      <VerticalArc arc={arc} exitAge={exitAge} horizonAge={90} headline={mix.length > 0 ? synthesis.title : undefined} tail={arcTail} onAddPursuit={addToArc} optimizingSeason={optimizingSeason} building={buildingArc} />
     </WizardShell>
   );
 }

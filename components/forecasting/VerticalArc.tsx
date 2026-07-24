@@ -1,38 +1,54 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Plus, Minus } from "lucide-react";
+import { Plus, Minus, X, Sparkles, Loader2 } from "lucide-react";
 import type { ArcSeason } from "@/lib/perfectWizard";
 import { R, SERIF, SEASON_META } from "./reclaimTheme";
+
+type Key = ArcSeason["key"];
 
 const NOMINAL_EXIT = 55; // layout fallback when the real exit age is unknown
 const RAIL = 48;         // width of the left rail the spine runs down
 
 /**
- * The arc as a vertical journey: a spine that runs from your exit at the top to
- * the horizon at the bottom, the three seasons flowing one into the next as you
- * scroll down, with each pursuit blooming as a card along the way. Pinch (or the
- * +/- controls, or ⌘/ctrl-scroll) stretches or compresses the years, so you can
- * zoom out for the whole shape of a life or in to dwell on a single season.
+ * The arc as a vertical journey: a spine from your exit at the top to the horizon
+ * at the bottom, the three seasons flowing one into the next as you scroll. Zoom
+ * (pinch / +- / ⌘-scroll) does two things at once — it stretches the years AND
+ * changes the fidelity: zoomed out you see the whole shape of a life as compact
+ * bands; zoomed in each pursuit opens into a card with its first step, and you can
+ * add your own — which asks the coach to round out the rest of the arc.
  */
 export default function VerticalArc({
-  arc, exitAge, horizonAge = 90, headline, tail,
+  arc, exitAge, horizonAge = 90, headline, tail, onAddPursuit, optimizingSeason,
 }: {
   arc: ArcSeason[];
   exitAge: number | null;
   horizonAge?: number;
   headline?: string;
   tail?: React.ReactNode;
+  onAddPursuit?: (season: Key, text: string) => void;
+  optimizingSeason?: Key | null;
 }) {
   const showAges = exitAge != null;
   const start = exitAge ?? NOMINAL_EXIT;
   const years = Math.max(9, horizonAge - start);
 
-  const MIN_PX = 9, MAX_PX = 46;
+  const MIN_PX = 6, MAX_PX = 64;
   const [pxPerYear, setPxPerYear] = useState(18);
   const pxRef = useRef(pxPerYear);
   useEffect(() => { pxRef.current = pxPerYear; }, [pxPerYear]);
   const clampPx = (v: number) => Math.min(MAX_PX, Math.max(MIN_PX, v));
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Fidelity follows the zoom: overview → titles → full detail + add.
+  const level: "far" | "mid" | "near" = pxPerYear < 13 ? "far" : pxPerYear < 32 ? "mid" : "near";
+
+  const [adding, setAdding] = useState<Key | null>(null);
+  const [addText, setAddText] = useState("");
+  const submitAdd = (k: Key) => {
+    const t = addText.trim();
+    if (t && onAddPursuit) onAddPursuit(k, t);
+    setAddText(""); setAdding(null);
+  };
 
   // Resolve each season's age span (equal thirds when real ages are unknown).
   const seasons = useMemo(() => arc.map((s, i) => {
@@ -102,20 +118,38 @@ export default function VerticalArc({
             </>
           )}
           <div style={{ fontSize: 12, color: R.inkFaint, marginTop: headline ? 12 : 0, lineHeight: 1.5 }}>
-            {showAges ? `Age ${start} → ${horizonAge}` : "Your retirement, start → horizon"} · scroll down the years, pinch to zoom
+            {showAges ? `Age ${start} → ${horizonAge}` : "Your retirement, start → horizon"} · scroll the years, pinch to zoom{onAddPursuit ? " in to add" : ""}
           </div>
         </div>
 
         {/* The spine + seasons */}
         <div style={{ position: "relative", paddingLeft: RAIL }}>
-          {/* continuous spine */}
           <div style={{ position: "absolute", left: RAIL / 2 - 2, top: 4, bottom: 26, width: 4, borderRadius: 99, background: spineGrad }} />
 
           {seasons.map((s) => {
             const kc = s.meta.color;
+            const optimizing = optimizingSeason === s.key;
+
+            // ── Far: a compact band, the whole life at a glance ──
+            if (level === "far") {
+              return (
+                <div key={s.key} style={{ position: "relative", minHeight: Math.max(46, s.span * pxPerYear), marginBottom: 6, display: "flex", alignItems: "flex-start", gap: 10 }}>
+                  <span style={{ ...dot(16, kc), top: 3 }} />
+                  <span style={{ fontSize: 19, lineHeight: 1, marginTop: 1 }}>{s.meta.emoji}</span>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontFamily: SERIF, fontSize: 17, fontWeight: 500, color: R.ink, lineHeight: 1.1 }}>{s.meta.name}</div>
+                    <div style={{ fontSize: 11, color: R.inkFaint, marginTop: 2 }}>
+                      {showAges && <span style={{ fontWeight: 700, color: kc }}>{s.key === "still" ? `${s.from}+` : `${s.from}–${s.to}`}</span>}
+                      {s.pursuits.length > 0 && <span>{showAges ? " · " : ""}{s.pursuits.length} pursuit{s.pursuits.length === 1 ? "" : "s"}</span>}
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
+            // ── Mid / Near: header + pursuit cards (+ add, at near) ──
             return (
               <div key={s.key} style={{ position: "relative", minHeight: s.span * pxPerYear, marginBottom: 8 }}>
-                {/* season header */}
                 <div style={{ position: "relative", marginBottom: 14 }}>
                   <span style={dot(20, kc)} />
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -127,7 +161,7 @@ export default function VerticalArc({
                       )}
                     </div>
                   </div>
-                  <div style={{ fontSize: 12.5, color: R.inkSoft, lineHeight: 1.5, marginTop: 9 }}>{s.meta.blurb}</div>
+                  {level === "near" && <div style={{ fontSize: 12.5, color: R.inkSoft, lineHeight: 1.5, marginTop: 9 }}>{s.meta.blurb}</div>}
                   {s.themeLabels.length > 0 && (
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
                       {s.themeLabels.map((t) => (
@@ -137,21 +171,48 @@ export default function VerticalArc({
                   )}
                 </div>
 
-                {/* pursuits blooming along the season */}
-                {s.pursuits.length > 0 ? (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {(s.pursuits.length > 0 || level === "near") && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: level === "near" ? 10 : 8 }}>
                     {s.pursuits.map((p) => (
                       <div key={p.id} style={{ position: "relative" }}>
                         <span style={dot(11, kc)} />
-                        <div style={{ borderRadius: 14, background: R.card2, border: `1px solid color-mix(in oklab, ${kc} 22%, ${R.line})`, borderLeft: `3px solid ${kc}`, padding: "11px 13px", boxShadow: "0 1px 3px rgba(20,30,26,0.06)" }}>
-                          <div style={{ fontFamily: SERIF, fontSize: 15, fontWeight: 500, color: R.ink, lineHeight: 1.25 }}>{p.concept}</div>
-                          {p.microDoseAction && <div style={{ fontSize: 12, color: R.inkSoft, marginTop: 5, lineHeight: 1.45 }}>👉 {p.microDoseAction}</div>}
+                        <div style={{ borderRadius: 14, background: R.card2, border: `1px solid color-mix(in oklab, ${kc} 22%, ${R.line})`, borderLeft: `3px solid ${kc}`, padding: level === "near" ? "11px 13px" : "9px 12px", boxShadow: "0 1px 3px rgba(20,30,26,0.06)" }}>
+                          <div style={{ fontFamily: SERIF, fontSize: level === "near" ? 15 : 14, fontWeight: 500, color: R.ink, lineHeight: 1.25 }}>{p.concept}</div>
+                          {level === "near" && p.microDoseAction && <div style={{ fontSize: 12, color: R.inkSoft, marginTop: 5, lineHeight: 1.45 }}>👉 {p.microDoseAction}</div>}
                         </div>
                       </div>
                     ))}
+
+                    {/* Add affordance — near zoom only */}
+                    {level === "near" && onAddPursuit && (
+                      <div style={{ position: "relative" }}>
+                        <span style={{ ...dot(11, kc), background: R.card2, borderStyle: "dashed" }} />
+                        {adding === s.key ? (
+                          <div style={{ display: "flex", gap: 8, alignItems: "center", borderRadius: 14, background: R.card2, border: `1.5px solid ${kc}`, padding: "8px 8px 8px 12px" }}>
+                            <input autoFocus value={addText} onChange={(e) => setAddText(e.target.value)}
+                              onKeyDown={(e) => { if (e.key === "Enter") submitAdd(s.key); if (e.key === "Escape") { setAdding(null); setAddText(""); } }}
+                              placeholder={`Add to ${s.meta.name}…`}
+                              style={{ flex: 1, minWidth: 0, border: "none", outline: "none", background: "none", fontSize: 14, color: R.ink }} />
+                            <button onClick={() => submitAdd(s.key)} disabled={!addText.trim()} style={{ flexShrink: 0, background: addText.trim() ? kc : R.line, color: "#fff", border: "none", borderRadius: 9, padding: "7px 12px", fontSize: 12.5, fontWeight: 700, cursor: addText.trim() ? "pointer" : "default" }}>Add</button>
+                            <button onClick={() => { setAdding(null); setAddText(""); }} aria-label="Cancel" style={{ flexShrink: 0, background: "none", border: "none", cursor: "pointer", color: R.inkFaint, display: "flex", padding: 4 }}><X size={16} /></button>
+                          </div>
+                        ) : (
+                          <button onClick={() => { setAdding(s.key); setAddText(""); }} style={{ width: "100%", textAlign: "left", display: "flex", alignItems: "center", gap: 8, borderRadius: 14, background: "transparent", border: `1.5px dashed color-mix(in oklab, ${kc} 45%, ${R.line})`, color: kc, padding: "11px 13px", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>
+                            <Plus size={15} /> Add to {s.meta.name}
+                          </button>
+                        )}
+                        {optimizing && (
+                          <div style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 11.5, fontWeight: 600, color: R.accentInk }}>
+                            <Loader2 size={13} className="animate-spin" /> optimizing your arc…
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {s.pursuits.length === 0 && level !== "near" && (
+                      <div style={{ fontSize: 12, color: R.inkFaint, fontStyle: "italic" }}>Open space — room to grow into.</div>
+                    )}
                   </div>
-                ) : (
-                  <div style={{ fontSize: 12, color: R.inkFaint, fontStyle: "italic" }}>Open space — room to grow into.</div>
                 )}
               </div>
             );
@@ -167,10 +228,13 @@ export default function VerticalArc({
         {tail && <div style={{ padding: "20px 2px 64px" }}>{tail}</div>}
       </div>
 
-      {/* floating zoom controls */}
-      <div style={{ position: "absolute", right: 4, bottom: 8, display: "flex", flexDirection: "column", gap: 7 }}>
+      {/* floating zoom controls + fidelity hint */}
+      <div style={{ position: "absolute", right: 4, bottom: 8, display: "flex", flexDirection: "column", alignItems: "center", gap: 7 }}>
         <button onClick={() => zoom(1)} aria-label="Zoom in" style={zbtn}><Plus size={16} /></button>
         <button onClick={() => zoom(-1)} aria-label="Zoom out" style={zbtn}><Minus size={16} /></button>
+        <span style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: R.inkFaint, display: "inline-flex", alignItems: "center", gap: 3 }}>
+          {level === "near" && <Sparkles size={9} />}{level === "far" ? "overview" : level === "mid" ? "titles" : "detail"}
+        </span>
       </div>
     </div>
   );

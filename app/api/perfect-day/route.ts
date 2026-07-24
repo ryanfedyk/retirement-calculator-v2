@@ -43,6 +43,18 @@ interface IdeasPayload {
   count?: number;
 }
 
+interface ArcPayload {
+  mode: "arc";
+  /** Passion/theme labels from the user's day blend. */
+  themes?: string[];
+  /** Pursuits already on the arc, so the AI complements rather than repeats them. */
+  have?: { concept: string; category: string }[];
+  /** The pursuit the user just added, and which season they placed it in. */
+  added?: { concept: string; season: string };
+  exitAge?: number | null;
+  horizonAge?: number | null;
+}
+
 /** Build the prompt for generating fresh, personalized retirement pursuits. */
 function ideasPrompt(p: IdeasPayload): string {
   const n = Math.min(8, Math.max(3, p.count ?? 6));
@@ -71,6 +83,46 @@ Return ONLY raw JSON in this exact shape (no markdown, no code fences):
       "whyFactor": "1-2 warm sentences on why this pursuit is meaningful and worth the time",
       "microDoseAction": "one small, concrete first step they can take this week",
       "tags": ["3-5 short lowercase interest tags"]
+    }
+  ]
+}
+`;
+}
+
+/** Build the prompt for regenerating the arc — infer complementary pursuits that
+ * round out the three seasons after the user adds something. */
+function arcPrompt(p: ArcPayload): string {
+  const themes = (p.themes ?? []).filter(Boolean).join(", ");
+  const have = (p.have ?? []).slice(0, 60).map((h) => `- [${h.category}] ${h.concept}`).join("\n") || "(none yet)";
+  const added = p.added ? `"${p.added.concept}" (into the ${p.added.season} season)` : "a new pursuit";
+  const ages = p.exitAge ? `They retire around age ${p.exitAge}, looking out to age ${p.horizonAge ?? 90}.` : "";
+  return `
+You are a warm, imaginative retirement-life coach — NOT a financial advisor. Someone is composing the ARC of their retirement across three seasons:
+- "The Open Road" — adventure, travel, movement; doing the big things while the body's game (categories: "Immersive Travel", "Endurance/Active").
+- "Deep Roots" — mastery, craft, mentoring, community, the people you love (category: "Creative Mastery").
+- "Still Waters" — presence, ritual, legacy, unhurried days (category: "Slow Living").
+${ages}
+
+Their day-blend leans toward: ${themes || "a balanced life"}.
+Pursuits already on their arc:
+${have}
+
+They just added ${added}. Infer 3–5 fresh, complementary pursuits that ROUND OUT and OPTIMIZE the whole arc — filling gaps across the three seasons, echoing what they just added and what they already love, WITHOUT duplicating anything above. Each must be specific and evocative (a real, nameable thing to do — not "travel more" or "get healthy").
+
+Classify each into EXACTLY ONE category from: "Immersive Travel", "Creative Mastery", "Endurance/Active", "Slow Living" (the category decides its season). Give a balanced mix across the three seasons. Avoid financial-planning advice.
+
+Return ONLY raw JSON in this exact shape (no markdown, no code fences):
+{
+  "items": [
+    {
+      "concept": "specific, evocative pursuit name (max ~9 words)",
+      "category": "one of the four categories, exactly",
+      "commitment": "Micro-Prototype OR Macro-Adventure",
+      "whenToStart": "Now OR Phase 2+ OR Post-Retirement",
+      "depthScore": 1,
+      "whyFactor": "1-2 warm sentences on why it belongs on their arc",
+      "microDoseAction": "one small, concrete first step this week",
+      "tags": ["3-5 short lowercase tags"]
     }
   ]
 }
@@ -159,13 +211,15 @@ export async function POST(req: Request) {
       );
     }
 
-    const body = (await req.json()) as DayPayload | CulminationPayload | IdeasPayload;
+    const body = (await req.json()) as DayPayload | CulminationPayload | IdeasPayload | ArcPayload;
     const mode = (body as { mode?: string }).mode;
     const prompt = mode === "culmination"
       ? culminationPrompt(body as CulminationPayload)
       : mode === "ideas"
         ? ideasPrompt(body as IdeasPayload)
-        : singleDayPrompt(body as DayPayload);
+        : mode === "arc"
+          ? arcPrompt(body as ArcPayload)
+          : singleDayPrompt(body as DayPayload);
 
     let responseText = "";
     let lastErr: any = null;
@@ -206,7 +260,9 @@ export async function POST(req: Request) {
       ? NextResponse.json({ culmination: parsed })
       : mode === "ideas"
         ? NextResponse.json({ ideas: (parsed?.ideas ?? parsed) })
-        : NextResponse.json({ insight: parsed });
+        : mode === "arc"
+          ? NextResponse.json({ items: (parsed?.items ?? parsed) })
+          : NextResponse.json({ insight: parsed });
   } catch (err: any) {
     console.error("Perfect Day insight error:", err.message);
     return NextResponse.json({ error: "Insight generation failed", detail: err.message }, { status: 500 });

@@ -20,9 +20,9 @@ type Tool = {
 };
 
 const TOOLS: Tool[] = [
-  { id: "seasons", label: "Seasons", eyebrow: "The map",     title: "Seasons of your life", blurb: "The chapters ahead — and just where you stand in them right now.", icon: Anchor,   accent: R.sea },
-  { id: "design",  label: "Design",  eyebrow: "The studio",  title: "Design your life",     blurb: "Compose the days, gather the year, and watch the whole arc take shape.", icon: Sparkles, accent: R.accent },
-  { id: "reclaim", label: "Reclaim", eyebrow: "The river",   title: "Reclaim your time",    blurb: "See the prime-time weeks you win back by stepping away sooner.",   icon: Wind,     accent: R.gold },
+  { id: "seasons", label: "Seasons", eyebrow: "The taper",   title: "Seasons of your life", blurb: "How work winds down — the seasons of easing out of the job, and just where you stand today.", icon: Anchor,   accent: R.sea },
+  { id: "reclaim", label: "Reclaim", eyebrow: "The gain",    title: "Reclaim your time",    blurb: "The prime-time weeks you gain back — a clear picture of what stepping away sooner returns to you.", icon: Wind,     accent: R.gold },
+  { id: "design",  label: "Design",  eyebrow: "The studio",  title: "Design your life",     blurb: "Compose the days, gather the year, and design the new life waiting on the far side of work.", icon: Sparkles, accent: R.accent },
 ];
 
 /**
@@ -40,7 +40,7 @@ export default function ForecastingHub() {
         Design your next chapter
       </div>
       <h2 style={{ fontFamily: SERIF, fontSize: "clamp(22px, 5.5vw, 30px)", fontWeight: 500, color: R.ink, letterSpacing: "-0.015em", lineHeight: 1.12, margin: "0 0 16px", textWrap: "balance" }}>
-        Three ways to picture the life ahead.
+        Wind down from work, see what you gain, design what&apos;s next.
       </h2>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12 }}>

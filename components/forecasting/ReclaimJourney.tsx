@@ -18,7 +18,7 @@ import type { AdventureBlueprint, AdventureCategory, CommitmentLevel, WhenToStar
 import WizardShell from "./WizardShell";
 import PerfectDay from "./PerfectDay";
 import PerfectYear from "./PerfectYear";
-import RetirementArcTimeline, { SEASON_META } from "./RetirementArcTimeline";
+import VerticalArc from "./VerticalArc";
 import { R, SERIF, DAY_COLOR, YEAR_COLOR, presenceWord } from "./reclaimTheme";
 
 const VALID_CATS: AdventureCategory[] = ["Immersive Travel", "Creative Mastery", "Endurance/Active", "Slow Living"];
@@ -505,95 +505,38 @@ export default function ReclaimJourney({ framed = false }: { framed?: boolean } 
     );
   }
 
-  // ── Movement three · Arc (finale) ─────────────────────────────────────────────
+  // ── Movement three · Arc (finale) — a vertical journey down the years ─────────
   const anyContent = mix.length > 0 || pursuits.length > 0;
+  const arcTail = (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {anyContent && (
+        <div style={{ fontFamily: SERIF, fontSize: "clamp(14px, 3vw, 16px)", color: R.inkSoft, lineHeight: 1.6, textAlign: "center", padding: "0 8px", fontStyle: "italic" }}>
+          However far the road runs, this is a life with room for what matters most — and it starts with the very next season.
+        </div>
+      )}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16, flexWrap: "wrap" }}>
+        <button onClick={() => setStage("days")} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", color: R.inkSoft, fontSize: 12.5, fontWeight: 600 }}>
+          <ArrowLeft size={13} /> Adjust my blend
+        </button>
+        <button onClick={() => setFineTune("days")} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "none", border: "none", cursor: "pointer", color: R.inkSoft, fontSize: 12.5, fontWeight: 600 }}>
+          <Pencil size={13} /> Fine-tune days
+        </button>
+        <button onClick={() => { commitPursuits(pursuits); setFineTune("year"); }} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "none", border: "none", cursor: "pointer", color: R.inkSoft, fontSize: 12.5, fontWeight: 600 }}>
+          <Pencil size={13} /> Fine-tune year
+        </button>
+      </div>
+    </div>
+  );
   return shell(
     <WizardShell
       immersive={immersive} onExit={framed ? undefined : () => setStage("intro")}
+      bodyFill
       step={3} total={3} eyebrow="Movement three · your arc"
       title="The whole arc, across the seasons"
-      subtitle="It won't be one long flat stretch — energy and focus shift. Here's how your days and pursuits flow across the seasons ahead."
       onBack={() => setStage("year")}
       resetSlot={resetRow}
     >
-      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        {/* Throughline headline — ties the arc back to what the days revealed */}
-        {mix.length > 0 && (
-          <div style={{ borderRadius: 16, padding: "16px 18px", background: `linear-gradient(135deg, color-mix(in oklab, ${R.accent} 10%, ${R.card}), ${R.card})`, border: `1px solid color-mix(in oklab, ${R.accent} 28%, ${R.line})` }}>
-            <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: R.accentInk, marginBottom: 5 }}>Your retirement looks like</div>
-            <div style={{ fontFamily: SERIF, fontSize: "clamp(21px, 4.4vw, 27px)", fontWeight: 500, color: R.ink, letterSpacing: "-0.015em", lineHeight: 1.2 }}>{synthesis.title}</div>
-          </div>
-        )}
-
-        {/* The zoomable life timeline (fullscreen = an immersive, all-on-canvas view) */}
-        <RetirementArcTimeline arc={arc} exitAge={exitAge} horizonAge={90} headline={mix.length > 0 ? synthesis.title : undefined} />
-
-        {/* Season cards — the readable detail beneath the timeline */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
-          {arc.map((s) => {
-            const m = SEASON_META[s.key];
-            return (
-              <div key={s.key} style={{ borderRadius: 18, padding: "16px 17px", background: m.tint, border: `1px solid color-mix(in oklab, ${m.color} 26%, ${R.line})`, display: "flex", flexDirection: "column", gap: 10 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                  <span style={{ fontSize: 21, lineHeight: 1 }}>{m.emoji}</span>
-                  <div>
-                    <div style={{ fontFamily: SERIF, fontSize: 17, fontWeight: 500, color: R.ink, letterSpacing: "-0.005em" }}>{m.name}</div>
-                    {s.ageFrom != null && (
-                      <div style={{ fontSize: 10.5, fontWeight: 700, color: m.color, letterSpacing: "0.04em" }}>
-                        {s.key === "still" ? `${s.ageFrom}+` : `Age ${s.ageFrom}–${s.ageTo}`}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div style={{ fontSize: 12, color: R.inkSoft, lineHeight: 1.55 }}>{m.blurb}</div>
-
-                {s.themeLabels.length > 0 && (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                    {s.themeLabels.map((t) => (
-                      <span key={t} style={{ fontSize: 10.5, fontWeight: 600, color: m.color, background: "#ffffffcc", border: `1px solid color-mix(in oklab, ${m.color} 30%, transparent)`, borderRadius: 99, padding: "3px 10px" }}>{t}</span>
-                    ))}
-                  </div>
-                )}
-
-                {s.pursuits.length > 0 && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 1 }}>
-                    {s.pursuits.map((p) => (
-                      <div key={p.id} style={{ display: "flex", gap: 7, alignItems: "flex-start" }}>
-                        <span style={{ width: 5, height: 5, borderRadius: "50%", background: m.color, flexShrink: 0, marginTop: 6 }} />
-                        <span style={{ fontSize: 12, color: R.inkSoft, lineHeight: 1.45 }}>{p.concept}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {s.themeLabels.length === 0 && s.pursuits.length === 0 && (
-                  <div style={{ fontSize: 11.5, color: R.inkFaint, fontStyle: "italic" }}>Open space — room to grow into.</div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Warm close */}
-        {anyContent && (
-          <div style={{ fontFamily: SERIF, fontSize: "clamp(14px, 3vw, 16px)", color: R.inkSoft, lineHeight: 1.6, textAlign: "center", padding: "4px 8px", fontStyle: "italic" }}>
-            However far the road runs, this is a life with room for what matters most — and it starts with the very next season.
-          </div>
-        )}
-
-        {/* Fine-tune handoffs */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16, flexWrap: "wrap", marginTop: 2 }}>
-          <button onClick={() => setStage("days")} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", color: R.inkSoft, fontSize: 12.5, fontWeight: 600 }}>
-            <ArrowLeft size={13} /> Adjust my blend
-          </button>
-          <button onClick={() => setFineTune("days")} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "none", border: "none", cursor: "pointer", color: R.inkSoft, fontSize: 12.5, fontWeight: 600 }}>
-            <Pencil size={13} /> Fine-tune days
-          </button>
-          <button onClick={() => { commitPursuits(pursuits); setFineTune("year"); }} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "none", border: "none", cursor: "pointer", color: R.inkSoft, fontSize: 12.5, fontWeight: 600 }}>
-            <Pencil size={13} /> Fine-tune year
-          </button>
-        </div>
-      </div>
+      <VerticalArc arc={arc} exitAge={exitAge} horizonAge={90} headline={mix.length > 0 ? synthesis.title : undefined} tail={arcTail} />
     </WizardShell>
   );
 }

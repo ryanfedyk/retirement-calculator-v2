@@ -51,3 +51,13 @@ export const YEAR_COLOR: Record<string, string> = {
 export function presenceWord(w: number): string {
   return w <= 0 ? "not for me" : w < 34 ? "a little" : w < 70 ? "often" : "this is me";
 }
+
+/** The three seasons of the arc — name, glyph, and landscape colour. Ordered
+ *  as a warm progression: the open road → deep roots → still waters. */
+export type ArcSeasonKey = "open" | "roots" | "still";
+export const SEASON_META: Record<ArcSeasonKey, { name: string; emoji: string; color: string; tint: string; blurb: string }> = {
+  open:  { name: "The Open Road", emoji: "🌄", color: "#3f8f77", tint: "#eaf4ef", blurb: "Do the big things while the body's game — travel far, move, say yes to everything." },
+  roots: { name: "Deep Roots",    emoji: "🌳", color: "#2b6a58", tint: "#e7f0ea", blurb: "Deepen your craft and the people around you — mastery, mentoring, community." },
+  still: { name: "Still Waters",  emoji: "🌅", color: "#c17a5c", tint: "#f6ece5", blurb: "Presence and what you pass on — family, giving back, and unhurried days." },
+};
+export const ARC_ORDER: ArcSeasonKey[] = ["open", "roots", "still"];

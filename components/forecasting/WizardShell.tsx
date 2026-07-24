@@ -19,7 +19,7 @@ export default function WizardShell({
   step, total, eyebrow, title, subtitle, children,
   onBack, onNext, nextLabel = "Continue", nextDisabled = false, nextHint,
   onSkip, skipLabel = "I'll build it myself", resetSlot,
-  immersive = false, onExit,
+  immersive = false, onExit, bodyFill = false,
 }: {
   step: number;               // 1-based
   total: number;
@@ -37,6 +37,7 @@ export default function WizardShell({
   resetSlot?: React.ReactNode; // persistent "reset this feature" control
   immersive?: boolean;        // fill the viewport, pin only progress + Back/Next
   onExit?: () => void;        // immersive only: a quiet way back out to the landing
+  bodyFill?: boolean;         // immersive only: hand the whole body to the child (it scrolls itself); no heading
 }) {
   const [menuOpen, setMenuOpen] = useState(false); // immersive overflow (skip / reset)
 
@@ -140,11 +141,18 @@ export default function WizardShell({
           )}
         </div>
 
-        {/* Scrolls: heading + body only — nothing but the reading area. */}
-        <div style={{ flex: "1 1 auto", overflowY: "auto", overflowX: "hidden", minHeight: 0, margin: "0 -2px", padding: "2px 2px 16px", WebkitOverflowScrolling: "touch", overscrollBehaviorY: "contain" }}>
-          {heading}
-          <div style={{ marginTop: 18 }}>{children}</div>
-        </div>
+        {/* Body — either a scrolling reading area (heading + content), or, in
+            bodyFill mode, handed whole to the child so it can scroll itself. */}
+        {bodyFill ? (
+          <div style={{ flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column" }}>
+            {children}
+          </div>
+        ) : (
+          <div style={{ flex: "1 1 auto", overflowY: "auto", overflowX: "hidden", minHeight: 0, margin: "0 -2px", padding: "2px 2px 16px", WebkitOverflowScrolling: "touch", overscrollBehaviorY: "contain" }}>
+            {heading}
+            <div style={{ marginTop: 18 }}>{children}</div>
+          </div>
+        )}
 
         {/* Pinned: a slim hint line, then Back + primary action */}
         <div style={{ flexShrink: 0, paddingTop: 10, borderTop: `1px solid ${R.lineSoft}` }}>

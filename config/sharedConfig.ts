@@ -205,4 +205,11 @@ export const DEFAULT_SIM_CONFIG: SimulationConfiguration = {
   concentrated_symbol: "",
   children:    [],
   life_events: [],
+  // Per-scenario one-time windfall — off by default; toggled on inside a single
+  // scenario to model "what if I inherit?". Never shared via the baseline.
+  inheritance: {
+    enabled: false,
+    year:    CURRENT_YEAR + 10,
+    amount:  250_000,
+  },
 };

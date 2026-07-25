@@ -249,6 +249,31 @@ function idleSnap(cash: number): FinancialSnapshot {
   return snap;
 }
 
+describe("inheritance — per-scenario one-time windfall", () => {
+  it("credits the amount to net worth in January of its year; the path before is untouched", () => {
+    const cfg = idleRetiree();
+    cfg.market_assumptions.market_return_rate = 0;
+    cfg.market_assumptions.volatility_drag = 0;
+    cfg.market_assumptions.inflation_rate = 0; // flat path → the jump is exactly the amount
+    const withInh = structuredClone(cfg);
+    withInh.inheritance = { enabled: true, year: YEAR + 2, amount: 300_000 };
+
+    const base = runSimulation(idleSnap(1_000_000), cfg, 0);
+    const inh  = runSimulation(idleSnap(1_000_000), withInh, 0);
+
+    const janIdx = inh.findIndex((p) => p.date === `Jan ${YEAR + 2}`);
+    expect(janIdx).toBeGreaterThan(0);
+    expect(inh[janIdx - 1].totalNetWorth).toBeCloseTo(base[janIdx - 1].totalNetWorth, 3);
+    expect(inh[janIdx].totalNetWorth - base[janIdx].totalNetWorth).toBeCloseTo(300_000, 0);
+  });
+
+  it("a disabled inheritance changes nothing", () => {
+    const off = idleRetiree();
+    off.inheritance = { enabled: false, year: YEAR + 2, amount: 300_000 };
+    expect(runSimulation(idleSnap(1_000_000), off, 0)).toEqual(runSimulation(idleSnap(1_000_000), idleRetiree(), 0));
+  });
+});
+
 describe("findRetirementWindow — earliest fundable & recommended exit years", () => {
   it("returns ordered years (recommended no earlier than earliest) for a fundable plan", () => {
     const win = findRetirementWindow(idleSnap(5_000_000), baseConfig(), 0);

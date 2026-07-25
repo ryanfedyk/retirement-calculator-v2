@@ -247,6 +247,28 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
             </div>
           </Section>
 
+          {/* ── Inheritance (per-scenario windfall) ── */}
+          <Section title="Inheritance / Windfall" accent="#4aab92" {...sec("inheritance")}>
+            <Toggle label="Expect an inheritance in this scenario" color="#4aab92"
+              on={config.inheritance?.enabled === true}
+              onChange={v => updateNestedConfig("inheritance", {
+                enabled: v,
+                year: config.inheritance?.year ?? thisYear + 10,
+                amount: config.inheritance?.amount ?? 250_000,
+              })} />
+            {config.inheritance?.enabled === true && (
+              <>
+                <Two>
+                  <Field label="Year Received"><Num value={config.inheritance.year} onChange={v => updateNestedConfig("inheritance", { year: v })} /></Field>
+                  <Field label="Amount (today's $)"><Num prefix="$" step={10000} value={config.inheritance.amount} onChange={v => updateNestedConfig("inheritance", { amount: v })} /></Field>
+                </Two>
+                <div style={{ fontSize: 11, color: C.inkFaint, lineHeight: 1.5 }}>
+                  Lands as after-tax cash in January of that year — this scenario only; other scenarios are untouched.
+                </div>
+              </>
+            )}
+          </Section>
+
           {/* Family (kids & partner) now lives in Settings (profile menu). */}
 
         <button onClick={onClose} style={{ marginTop: 8, width: "100%", padding: "16px", borderRadius: 16, border: "none", background: C.teal, color: "white", fontSize: 15, fontWeight: 600, cursor: "pointer", boxShadow: `0 4px 16px ${C.teal}55` }}>

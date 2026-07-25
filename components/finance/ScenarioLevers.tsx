@@ -15,7 +15,7 @@ const money = (n: number) => `$${Math.round(n).toLocaleString()}`;
  * place of the old phase chips (phases now live in the "What if…" cards). */
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
-function describeScenario(cp: { exit_year: number; exit_month?: number; use_sabbatical?: boolean; sabbatical_duration?: number; use_jump?: boolean; use_bridge?: boolean }, monthlySpend: number): string {
+function describeScenario(cp: { exit_year: number; exit_month?: number; use_sabbatical?: boolean; sabbatical_duration?: number; use_jump?: boolean; use_bridge?: boolean }, monthlySpend: number, inheritance?: { enabled: boolean; year: number; amount: number }): string {
   const phases: string[] = [];
   if (cp.use_sabbatical) phases.push(cp.sabbatical_duration === 1 ? "a year-long sabbatical" : `a ${cp.sabbatical_duration ?? 1}-year sabbatical`);
   if (cp.use_jump) phases.push("a career jump");
@@ -28,6 +28,7 @@ function describeScenario(cp: { exit_year: number; exit_month?: number; use_sabb
       : `${phases.slice(0, -1).join(", ")}, and ${phases[phases.length - 1]}`;
     s += `, with ${list} along the way`;
   }
+  if (inheritance?.enabled) s += `, expecting a ${money(inheritance.amount)} inheritance in ${inheritance.year}`;
   return `${s}.`;
 }
 
@@ -125,7 +126,7 @@ export default function ScenarioLevers({ onOpenEditor, livePrices, retireWindow,
       {/* Plain-language gist of the scenario — replaces the old phase chips
           (phases now live as cards in the "What if…" strip below). */}
       <p style={{ fontSize: 13, lineHeight: 1.5, color: C.inkMid, margin: "0 0 14px" }}>
-        {describeScenario(cp, sp.monthly_lifestyle)}
+        {describeScenario(cp, sp.monthly_lifestyle, config.inheritance)}
       </p>
 
       <div className="@container" style={{ display: "flex", flexWrap: "wrap", gap: "14px 22px", marginBottom: 14 }}>

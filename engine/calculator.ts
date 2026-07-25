@@ -168,6 +168,16 @@ export interface SimulationConfiguration {
     cost: number;
     auto?: boolean;   // Auto-generated (e.g. college costs derived from children) vs user-added
   }>;
+  // One-time inheritance/windfall received in January of `year`. Per-scenario —
+  // never part of the shared baseline — so "what if I inherit?" can live in one
+  // scenario without touching the others. `amount` is in today's dollars and is
+  // treated as after-tax cash (an inheritance isn't income to the recipient;
+  // any estate tax is paid by the estate before the money arrives).
+  inheritance?: {
+    enabled: boolean;
+    year: number;
+    amount: number;
+  };
   // Children, projected from the user profile — used to count kids still on the
   // family health plan. Optional so existing configs without it still type-check.
   children?: Array<{ birthYear: number }>;
@@ -1091,6 +1101,13 @@ const simulate = (
           }
         }
       }
+    }
+
+    // Inheritance — a one-time windfall landing in January of its year. Credited
+    // straight to cash (today's dollars, after-tax; see the config field's note),
+    // where the existing surplus-investing / deficit logic takes over.
+    if (config.inheritance?.enabled && config.inheritance.year === currentYear && monthOfYear === 0) {
+      liquidCash += Math.max(0, config.inheritance.amount || 0);
     }
 
     // Capital calls

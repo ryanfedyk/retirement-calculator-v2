@@ -833,6 +833,34 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
           </div>
         </AccCard>
 
+        {/* ── Inheritance (per-scenario windfall) ── */}
+        <AccCard {...acc("inheritance")} hidden={!showLevers} title="Inheritance / Windfall" color="#4aab92">
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <Checkbox id="use_inheritance" label="Expect an inheritance in this scenario?"
+              checked={config.inheritance?.enabled === true}
+              onChange={v => updateNestedConfig("inheritance", {
+                enabled: v,
+                year: config.inheritance?.year ?? thisYear + 10,
+                amount: config.inheritance?.amount ?? 250_000,
+              })} />
+            {config.inheritance?.enabled === true && (
+              <Indent>
+                <Row>
+                  <div><FieldLabel>Year Received</FieldLabel>
+                    <Input type="number" value={config.inheritance.year}
+                      onChange={e => updateNestedConfig("inheritance", { year: +e.target.value || 0 })} /></div>
+                  <div><FieldLabel>Amount ($, today&apos;s)</FieldLabel>
+                    <Input type="number" step={10000} value={config.inheritance.amount}
+                      onChange={e => updateNestedConfig("inheritance", { amount: +e.target.value || 0 })} /></div>
+                </Row>
+                <div style={{ fontSize: 9, color: C.inkFaint, marginTop: 8, lineHeight: 1.5 }}>
+                  Lands as after-tax cash in January of that year. Applies to <strong>this scenario only</strong> — other scenarios are untouched.
+                </div>
+              </Indent>
+            )}
+          </div>
+        </AccCard>
+
         {/* Family (kids & partner) now lives in Settings (profile menu). */}
 
         {/* ── Portfolio Holdings ── */}

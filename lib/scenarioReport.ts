@@ -294,8 +294,19 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
   } else {
     p(`- Mortgage payment: ${usd(sp.mortgage_payment)}/mo (nominal; deflated to real over time since it's a fixed contract). It ends at payoff, and the **remaining balance is added to the FI number** (see §9).`);
   }
-  if (!isRent && (sp.sell_home_year ?? 0) > 0 && (liab.property_value ?? 0) > 0) {
-    p(`- **Home sale in ${sp.sell_home_year}:** proceeds = value ${usd(liab.property_value ?? 0)} − mortgage − ~6% costs − 15% cap-gains tax (gain over basis ${usd(liab.property_cost_basis ?? liab.property_value ?? 0)} less §121 $500k/$250k) → spendable cash. Mortgage clears, rental stops, housing → rent ${usd(sp.rent_after_sale ?? 0)}/mo thereafter.`);
+  // Per-scenario home plan (falls back to the legacy shared sell fields).
+  const hp = config.home_plan ?? ((sp.sell_home_year ?? 0) > 0
+    ? { type: "sell" as const, year: sp.sell_home_year, rent_after: sp.rent_after_sale ?? 0 }
+    : { type: "keep" as const });
+  if (!isRent && (liab.property_value ?? 0) > 0) {
+    if (hp.type === "sell" && (hp.year ?? 0) > 0) {
+      p(`- **Home sale in ${hp.year} (this scenario only):** proceeds = value ${usd(liab.property_value ?? 0)} − mortgage − ~6% costs − 15% cap-gains tax (gain over basis ${usd(liab.property_cost_basis ?? liab.property_value ?? 0)} less §121 $500k/$250k) → spendable cash. Mortgage clears, rental stops, housing → rent ${usd(hp.rent_after ?? 0)}/mo thereafter.`);
+    } else if (hp.type === "rent_out" && (hp.year ?? 0) > 0) {
+      p(`- **Home rented out from ${hp.year} (this scenario only):** the household moves out and lets the home — ${usd(hp.rent_out_monthly ?? 0)}/mo gross rent joins rental income (taxed as such, growing with the rental growth rate), the home + mortgage stay on the books building equity, and the household pays ${usd(hp.rent_after ?? 0)}/mo rent elsewhere (perpetual, in the FI number).`);
+    }
+  }
+  if (config.inheritance?.enabled) {
+    p(`- **Inheritance in ${config.inheritance.year} (this scenario only):** ${usd(config.inheritance.amount)} lands as after-tax cash in January of that year.`);
   }
   if (sp.ltc_annual_cost) p(`- Long-term care: ${usd(sp.ltc_annual_cost)}/yr for ${sp.ltc_years ?? 3} years starting age ${sp.ltc_start_age ?? 80}.`);
   if (config.life_events?.length) {

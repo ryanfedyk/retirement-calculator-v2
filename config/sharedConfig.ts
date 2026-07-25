@@ -205,6 +205,14 @@ export const DEFAULT_SIM_CONFIG: SimulationConfiguration = {
   concentrated_symbol: "",
   children:    [],
   life_events: [],
+  // Per-scenario plan for the primary residence — keep, sell/downsize, or rent
+  // it out. Lives outside the shared baseline so each scenario decides for itself.
+  home_plan: {
+    type:             "keep",
+    year:             DEFAULT_PROFILE.retirementYear,
+    rent_after:       0,
+    rent_out_monthly: 0,
+  },
   // Per-scenario one-time windfall — off by default; toggled on inside a single
   // scenario to model "what if I inherit?". Never shared via the baseline.
   inheritance: {

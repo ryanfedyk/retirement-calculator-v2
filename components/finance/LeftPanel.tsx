@@ -238,6 +238,19 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
   const bsp = baseline.spending;
   const bma = baseline.market_assumptions;
 
+  // Per-scenario home plan — always write the full section so a config that
+  // predates `home_plan` gets sensible values the moment it's touched.
+  const hp = config.home_plan;
+  const hpType = hp?.type ?? "keep";
+  const setHomePlan = (patch: Partial<NonNullable<typeof hp>>) =>
+    updateNestedConfig("home_plan", {
+      type:             hpType,
+      year:             hp?.year ?? (cp.exit_year || thisYear + 1),
+      rent_after:       hp?.rent_after ?? 0,
+      rent_out_monthly: hp?.rent_out_monthly ?? 0,
+      ...patch,
+    });
+
   // Accordion: essentials open by default; everything else collapsed.
   const [openIds, setOpenIds] = useState<Set<string>>(new Set(variant === "finances" ? ["fin_income", "assets"] : ["career", "market"]));
   const toggle = (id: string) => setOpenIds(prev => {
@@ -486,29 +499,12 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
                 </div>
                 {(snapshot.liabilities.property_value ?? 0) > 0 && (
                   <div>
-                    <Checkbox id="sellHome" label="Plan to sell / downsize this home"
-                      checked={(bsp.sell_home_year ?? 0) > 0}
-                      onChange={v => updateBaseline("spending", { sell_home_year: v ? (config.career_path.exit_year || new Date().getFullYear() + 1) : 0 })} />
-                    {(bsp.sell_home_year ?? 0) > 0 && (
-                      <Indent>
-                        <Row>
-                          <div><FieldLabel>Sell in Year</FieldLabel>
-                            <Input type="number" value={bsp.sell_home_year ?? 0}
-                              onChange={e => updateBaseline("spending", { sell_home_year: +e.target.value || 0 })} /></div>
-                          <div><FieldLabel>Rent After ($/mo)</FieldLabel>
-                            <Input type="number" value={bsp.rent_after_sale ?? 0}
-                              onChange={e => updateBaseline("spending", { rent_after_sale: +e.target.value || 0 })} /></div>
-                        </Row>
-                        <div style={{ marginTop: 8 }}>
-                          <FieldLabel>Home Cost Basis (for capital gains)</FieldLabel>
-                          <Input type="number" value={snapshot.liabilities.property_cost_basis ?? 0}
-                            onChange={e => updateNestedSnapshot("liabilities", { property_cost_basis: +e.target.value || 0 })} />
-                        </div>
-                        <p className="mt-1 text-xs text-neutral-500">
-                          Sells the home that year: net proceeds (value − mortgage − ~6% selling costs − capital-gains tax over the $500k/$250k exclusion) become spendable cash. Rental income stops and you rent from then on. Leave basis at 0 to skip the gains tax.
-                        </p>
-                      </Indent>
-                    )}
+                    <FieldLabel>Home Cost Basis (for capital gains if sold)</FieldLabel>
+                    <Input type="number" value={snapshot.liabilities.property_cost_basis ?? 0}
+                      onChange={e => updateNestedSnapshot("liabilities", { property_cost_basis: +e.target.value || 0 })} />
+                    <p className="mt-1 text-xs text-neutral-500">
+                      Whether to keep, sell/downsize, or rent out this home is planned per scenario — see &ldquo;Home Plan&rdquo; in each scenario&apos;s plan.
+                    </p>
                   </div>
                 )}
               </>
@@ -832,6 +828,65 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
             </div>
           </div>
         </AccCard>
+
+        {/* ── Home Plan (per-scenario: keep / sell / rent out the home) ── */}
+        {(sp.housing_type ?? "mortgage") !== "rent" && (snapshot.liabilities.property_value ?? 0) > 0 && (
+        <AccCard {...acc("home")} hidden={!showLevers} title="Home Plan" color="#3a7d9c">
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ display: "flex", gap: 6 }}>
+              {([["keep", "Keep"], ["sell", "Sell / Downsize"], ["rent_out", "Rent It Out"]] as const).map(([t, label]) => (
+                <button key={t} onClick={() => setHomePlan({ type: t })}
+                  style={{
+                    flex: 1, padding: "5px 0", borderRadius: 5, border: `1px solid ${hpType === t ? C.teal : C.border}`,
+                    background: hpType === t ? C.tealWash : C.bgCard,
+                    color: hpType === t ? C.teal : C.inkMid,
+                    fontSize: 10, fontWeight: 600, cursor: "pointer",
+                  }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            {hpType === "sell" && (
+              <Indent>
+                <Row>
+                  <div><FieldLabel>Sell in Year</FieldLabel>
+                    <Input type="number" value={hp?.year ?? 0}
+                      onChange={e => setHomePlan({ year: +e.target.value || 0 })} /></div>
+                  <div><FieldLabel>Rent After ($/mo)</FieldLabel>
+                    <Input type="number" step={100} value={hp?.rent_after ?? 0}
+                      onChange={e => setHomePlan({ rent_after: +e.target.value || 0 })} /></div>
+                </Row>
+                <div style={{ fontSize: 9, color: C.inkFaint, marginTop: 8, lineHeight: 1.5 }}>
+                  Sells the home in January of that year: net proceeds (value − mortgage − ~6% selling costs − capital-gains tax over the $500k/$250k exclusion) become spendable cash. Rental income stops and you rent from then on. Set the home&apos;s cost basis in Your finances → Assets &amp; Liabilities.
+                </div>
+              </Indent>
+            )}
+            {hpType === "rent_out" && (
+              <Indent>
+                <Row>
+                  <div><FieldLabel>From Year</FieldLabel>
+                    <Input type="number" value={hp?.year ?? 0}
+                      onChange={e => setHomePlan({ year: +e.target.value || 0 })} /></div>
+                  <div><FieldLabel>Rent Collected ($/mo)</FieldLabel>
+                    <Input type="number" step={100} value={hp?.rent_out_monthly ?? 0}
+                      onChange={e => setHomePlan({ rent_out_monthly: +e.target.value || 0 })} /></div>
+                </Row>
+                <div style={{ marginTop: 8 }}>
+                  <FieldLabel>Your Rent Elsewhere ($/mo)</FieldLabel>
+                  <Input type="number" step={100} value={hp?.rent_after ?? 0}
+                    onChange={e => setHomePlan({ rent_after: +e.target.value || 0 })} />
+                </div>
+                <div style={{ fontSize: 9, color: C.inkFaint, marginTop: 8, lineHeight: 1.5 }}>
+                  From January of that year you move out and let the home: the rent you collect is taxed as rental income (and grows with your rental growth rate), the home and its mortgage stay on the books building equity, and you pay rent where you live instead.
+                </div>
+              </Indent>
+            )}
+            <div style={{ fontSize: 9, color: C.inkFaint, lineHeight: 1.5 }}>
+              Applies to <strong>this scenario only</strong> — each scenario makes its own call on the house.
+            </div>
+          </div>
+        </AccCard>
+        )}
 
         {/* ── Inheritance (per-scenario windfall) ── */}
         <AccCard {...acc("inheritance")} hidden={!showLevers} title="Inheritance / Windfall" color="#4aab92">

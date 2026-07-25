@@ -249,6 +249,31 @@ function idleSnap(cash: number): FinancialSnapshot {
   return snap;
 }
 
+describe("inheritance — per-scenario one-time windfall", () => {
+  it("credits the amount to net worth in January of its year; the path before is untouched", () => {
+    const cfg = idleRetiree();
+    cfg.market_assumptions.market_return_rate = 0;
+    cfg.market_assumptions.volatility_drag = 0;
+    cfg.market_assumptions.inflation_rate = 0; // flat path → the jump is exactly the amount
+    const withInh = structuredClone(cfg);
+    withInh.inheritance = { enabled: true, year: YEAR + 2, amount: 300_000 };
+
+    const base = runSimulation(idleSnap(1_000_000), cfg, 0);
+    const inh  = runSimulation(idleSnap(1_000_000), withInh, 0);
+
+    const janIdx = inh.findIndex((p) => p.date === `Jan ${YEAR + 2}`);
+    expect(janIdx).toBeGreaterThan(0);
+    expect(inh[janIdx - 1].totalNetWorth).toBeCloseTo(base[janIdx - 1].totalNetWorth, 3);
+    expect(inh[janIdx].totalNetWorth - base[janIdx].totalNetWorth).toBeCloseTo(300_000, 0);
+  });
+
+  it("a disabled inheritance changes nothing", () => {
+    const off = idleRetiree();
+    off.inheritance = { enabled: false, year: YEAR + 2, amount: 300_000 };
+    expect(runSimulation(idleSnap(1_000_000), off, 0)).toEqual(runSimulation(idleSnap(1_000_000), idleRetiree(), 0));
+  });
+});
+
 describe("findRetirementWindow — earliest fundable & recommended exit years", () => {
   it("returns ordered years (recommended no earlier than earliest) for a fundable plan", () => {
     const win = findRetirementWindow(idleSnap(5_000_000), baseConfig(), 0);
@@ -369,7 +394,7 @@ describe("sell / downsize the home", () => {
     cfg.spending.housing_type = "mortgage";
     cfg.spending.mortgage_payment = 4_000;
     cfg.income_profile.monthly_rental_income = 2_000; // an income-producing unit
-    if (sell) { cfg.spending.sell_home_year = YEAR + 3; cfg.spending.rent_after_sale = 2_500; }
+    if (sell) cfg.home_plan = { type: "sell", year: YEAR + 3, rent_after: 2_500 };
     return cfg;
   }
   function sellSnap(): FinancialSnapshot {
@@ -402,6 +427,35 @@ describe("sell / downsize the home", () => {
     const late = traj.find((p) => p.date.endsWith(String(YEAR + 4)))!;
     expect(late.homeEquity).toBeGreaterThan(0);   // still owns the home
     expect(late.rentalIncome).toBeGreaterThan(0); // still collecting rent
+  });
+
+  it("legacy shared sell fields still work when home_plan is absent (old saved configs)", () => {
+    const legacy = sellCfg(false);
+    delete legacy.home_plan; // an old config predating the per-scenario section
+    legacy.spending.sell_home_year = YEAR + 3;
+    legacy.spending.rent_after_sale = 2_500;
+    expect(runSimulation(sellSnap(), legacy, 200)).toEqual(runSimulation(sellSnap(), sellCfg(true), 200));
+  });
+
+  it("rent out: keeps the home + equity, adds collected rent to rental income, charges rent paid elsewhere", () => {
+    const rentOut = sellCfg(false);
+    rentOut.home_plan = { type: "rent_out", year: YEAR + 3, rent_out_monthly: 4_000, rent_after: 3_000 };
+    const freeRent = structuredClone(rentOut);
+    freeRent.home_plan = { ...freeRent.home_plan!, rent_after: 0 };
+
+    const at = (cfg: SimulationConfiguration) =>
+      runSimulation(sellSnap(), cfg, 200).find((p) => p.date.endsWith(String(YEAR + 4)))!;
+    const kept = at(sellCfg(false));
+    const let_ = at(rentOut);
+    const free = at(freeRent);
+    // Unlike a sale, the home stays on the books and keeps building equity…
+    expect(let_.homeEquity).toBeGreaterThan(0);
+    expect(let_.propertyValue).toBeGreaterThan(0);
+    // …the collected rent joins the rental-income stream…
+    expect(let_.rentalIncome).toBeGreaterThan(kept.rentalIncome);
+    // …and the rent the household pays elsewhere is a real cost (a rent-free
+    // variant of the same plan ends up wealthier).
+    expect(free.investableAfterTax).toBeGreaterThan(let_.investableAfterTax);
   });
 });
 

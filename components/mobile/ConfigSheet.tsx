@@ -11,7 +11,7 @@ import BottomSheet from "./BottomSheet";
 import { money, inputStyle, Field, Num, TextInput, Toggle, Two, Section } from "./sheetUI";
 
 export default function ConfigSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { config, profile, updateNestedConfig, updateConfig } = useFinancialStore();
+  const { config, snapshot, profile, updateNestedConfig, updateConfig } = useFinancialStore();
   const setFinancesOpen = useUIStore((s) => s.setFinancesOpen);
   const kids = profile.children;
   const thisYear = new Date().getFullYear();
@@ -24,6 +24,19 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
   const ma = config.market_assumptions;
   const sp = config.spending;
   const sec = (id: string) => ({ openId, setOpenId, id });
+
+  // Per-scenario home plan — always write the full section so a config that
+  // predates `home_plan` gets sensible values the moment it's touched.
+  const hp = config.home_plan;
+  const hpType = hp?.type ?? "keep";
+  const setHomePlan = (patch: Partial<NonNullable<typeof hp>>) =>
+    updateNestedConfig("home_plan", {
+      type:             hpType,
+      year:             hp?.year ?? (cp.exit_year || thisYear + 1),
+      rent_after:       hp?.rent_after ?? 0,
+      rent_out_monthly: hp?.rent_out_monthly ?? 0,
+      ...patch,
+    });
 
   return (
     <BottomSheet open={open} onClose={onClose} zIndex={60} restFraction={0.6} fullFraction={0.92}
@@ -245,6 +258,67 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
                 <Plus size={15} /> Add Event
               </button>
             </div>
+          </Section>
+
+          {/* ── Home Plan (per-scenario: keep / sell / rent out the home) ── */}
+          {(sp.housing_type ?? "mortgage") !== "rent" && (snapshot.liabilities.property_value ?? 0) > 0 && (
+          <Section title="Home Plan" accent="#3a7d9c" {...sec("home")}>
+            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+              {([["keep", "Keep"], ["sell", "Sell"], ["rent_out", "Rent Out"]] as const).map(([t, label]) => (
+                <button key={t} onClick={() => setHomePlan({ type: t })} style={{
+                  flex: 1, padding: "11px 0", borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: "pointer",
+                  border: `1px solid ${hpType === t ? C.teal : C.border}`,
+                  background: hpType === t ? C.tealWash : C.bgCard,
+                  color: hpType === t ? C.tealDark : C.inkMid,
+                }}>{label}</button>
+              ))}
+            </div>
+            {hpType === "sell" && (
+              <>
+                <Two>
+                  <Field label="Sell in Year"><Num value={hp?.year ?? 0} onChange={v => setHomePlan({ year: v })} /></Field>
+                  <Field label="Rent After ($/mo)"><Num prefix="$" step={100} value={hp?.rent_after ?? 0} onChange={v => setHomePlan({ rent_after: v })} /></Field>
+                </Two>
+                <div style={{ fontSize: 11, color: C.inkFaint, lineHeight: 1.5 }}>
+                  Sells the home in January of that year — net proceeds become spendable cash, the mortgage clears, and you rent from then on. This scenario only.
+                </div>
+              </>
+            )}
+            {hpType === "rent_out" && (
+              <>
+                <Two>
+                  <Field label="From Year"><Num value={hp?.year ?? 0} onChange={v => setHomePlan({ year: v })} /></Field>
+                  <Field label="Rent Collected ($/mo)"><Num prefix="$" step={100} value={hp?.rent_out_monthly ?? 0} onChange={v => setHomePlan({ rent_out_monthly: v })} /></Field>
+                </Two>
+                <Field label="Your Rent Elsewhere ($/mo)"><Num prefix="$" step={100} value={hp?.rent_after ?? 0} onChange={v => setHomePlan({ rent_after: v })} /></Field>
+                <div style={{ fontSize: 11, color: C.inkFaint, lineHeight: 1.5 }}>
+                  You move out and let the home: collected rent is taxed as rental income, the home and mortgage stay on the books building equity, and you pay rent where you live. This scenario only.
+                </div>
+              </>
+            )}
+          </Section>
+          )}
+
+          {/* ── Inheritance (per-scenario windfall) ── */}
+          <Section title="Inheritance / Windfall" accent="#4aab92" {...sec("inheritance")}>
+            <Toggle label="Expect an inheritance in this scenario" color="#4aab92"
+              on={config.inheritance?.enabled === true}
+              onChange={v => updateNestedConfig("inheritance", {
+                enabled: v,
+                year: config.inheritance?.year ?? thisYear + 10,
+                amount: config.inheritance?.amount ?? 250_000,
+              })} />
+            {config.inheritance?.enabled === true && (
+              <>
+                <Two>
+                  <Field label="Year Received"><Num value={config.inheritance.year} onChange={v => updateNestedConfig("inheritance", { year: v })} /></Field>
+                  <Field label="Amount (today's $)"><Num prefix="$" step={10000} value={config.inheritance.amount} onChange={v => updateNestedConfig("inheritance", { amount: v })} /></Field>
+                </Two>
+                <div style={{ fontSize: 11, color: C.inkFaint, lineHeight: 1.5 }}>
+                  Lands as after-tax cash in January of that year — this scenario only; other scenarios are untouched.
+                </div>
+              </>
+            )}
           </Section>
 
           {/* Family (kids & partner) now lives in Settings (profile menu). */}

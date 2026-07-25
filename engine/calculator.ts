@@ -130,10 +130,9 @@ export interface SimulationConfiguration {
     // so it's part of recurring expenses and capitalized into the FI number (×25),
     // with no balance to amortize or pay off.
     housing_type?: 'mortgage' | 'rent';
-    // Downsize / sell lever. In this calendar year the home is sold: net proceeds
-    // (value − mortgage − ~6% selling costs − cap-gains beyond the primary-residence
-    // exclusion) become spendable cash, the mortgage clears, rental income stops,
-    // and housing switches to renting at `rent_after_sale`/mo from then on.
+    // LEGACY downsize / sell lever — superseded by the per-scenario `home_plan`
+    // section (which wins when present). Kept so older saved configs, and cloud
+    // docs written by older clients, still project correctly.
     sell_home_year?: number;   // 0/undefined = never sell
     rent_after_sale?: number;  // monthly rent (today's $) once sold
     ltc_annual_cost?: number;  // Long-term care: annual cost in today's $ (0 = not modeled)
@@ -168,6 +167,37 @@ export interface SimulationConfiguration {
     cost: number;
     auto?: boolean;   // Auto-generated (e.g. college costs derived from children) vs user-added
   }>;
+  // Per-scenario plan for the primary residence (owned homes only). Like
+  // `inheritance`, this lives outside the shared baseline, so each scenario can
+  // make its own call on the house. Replaces the legacy shared
+  // spending.sell_home_year / rent_after_sale (still honored when this section
+  // is absent).
+  //  - 'keep':     live in it; nothing changes.
+  //  - 'sell':     in January of `year` the home is sold — net proceeds (value −
+  //                mortgage − ~6% selling costs − cap-gains beyond the §121
+  //                exclusion) become spendable cash, the mortgage clears, rental
+  //                income stops, and the household rents at `rent_after`/mo.
+  //  - 'rent_out': from January of `year` the household moves out and lets the
+  //                home — `rent_out_monthly` gross rent joins rental income
+  //                (taxed as such, growing with the rental growth rate), the
+  //                home + mortgage stay on the books, and the household pays
+  //                `rent_after`/mo in rent elsewhere.
+  home_plan?: {
+    type: 'keep' | 'sell' | 'rent_out';
+    year?: number;              // January this year: the sale closes / tenants move in
+    rent_after?: number;        // $/mo the household pays in rent afterwards (today's $)
+    rent_out_monthly?: number;  // $/mo gross rent collected when letting the home (today's $)
+  };
+  // One-time inheritance/windfall received in January of `year`. Per-scenario —
+  // never part of the shared baseline — so "what if I inherit?" can live in one
+  // scenario without touching the others. `amount` is in today's dollars and is
+  // treated as after-tax cash (an inheritance isn't income to the recipient;
+  // any estate tax is paid by the estate before the money arrives).
+  inheritance?: {
+    enabled: boolean;
+    year: number;
+    amount: number;
+  };
   // Children, projected from the user profile — used to count kids still on the
   // family health plan. Optional so existing configs without it still type-check.
   children?: Array<{ birthYear: number }>;
@@ -458,6 +488,12 @@ const simulate = (
   // the nominal mortgage amortizes and inflation erodes its real value.
   const currentPropertyValue = snapshot.liabilities.property_value ?? 0;
   let homeSold = false; // flips true from the property-sale month onward
+  // Effective home plan — the per-scenario section wins; configs that only carry
+  // the legacy shared sell fields keep working via the fallback.
+  const homePlan: NonNullable<SimulationConfiguration['home_plan']> =
+    config.home_plan ?? ((config.spending.sell_home_year ?? 0) > 0
+      ? { type: 'sell', year: config.spending.sell_home_year, rent_after: config.spending.rent_after_sale ?? 0 }
+      : { type: 'keep' });
 
   const mortgageRate       = snapshot.liabilities.mortgage_interest_rate || 3.5;
   const mortgagePayoffDate = snapshot.liabilities.mortgage_payoff_date
@@ -550,8 +586,8 @@ const simulate = (
     // ── Property sale / downsize ──────────────────────────────────────────────
     // At the chosen year, sell the home: net proceeds become spendable cash, the
     // mortgage clears, and from here on the household rents (rentalIncome stops,
-    // housing becomes `rent_after_sale`). Fires once, in January of the sale year.
-    const sellHomeYear = config.spending.sell_home_year ?? 0;
+    // housing becomes the plan's `rent_after`). Fires once, in January of the sale year.
+    const sellHomeYear = homePlan.type === 'sell' ? (homePlan.year ?? 0) : 0;
     if (!homeSold && sellHomeYear > 0 && currentPropertyValue > 0 && currentYear >= sellHomeYear) {
       const realMortgageAtSale = currentMortgage / inflationMultiplier;        // today's $
       const sellingCosts       = currentPropertyValue * 0.06;                   // agent + closing ~6%
@@ -563,6 +599,14 @@ const simulate = (
       currentMortgage = 0;       // loan is cleared at closing → no more mortgage payment
       homeSold = true;
     }
+
+    // ── Rent out the primary residence ───────────────────────────────────────
+    // From January of the plan year the household moves out and lets the home:
+    // the property (and its mortgage) stays on the books, gross rent joins the
+    // rental-income stream below, and the household pays rent elsewhere.
+    const homeRentedOut = homePlan.type === 'rent_out' && (homePlan.year ?? 0) > 0
+      && currentYear >= (homePlan.year ?? 0) && currentPropertyValue > 0
+      && config.spending.housing_type !== 'rent';
 
     // ── Asset growth — REAL geometric monthly compounding ─────────────────────
     // In Monte Carlo mode the sampled real return drives the whole diversified
@@ -627,8 +671,10 @@ const simulate = (
     }
 
     // ── Rental income (FICA-exempt, ordinary income tax) ──────────────────
-    const rentalIncome     = homeSold ? 0 : (ip.monthly_rental_income || 0)
-      * Math.pow(1 + toReal(RENTAL_GROWTH_PCT) / 100, Math.floor(yearsPassed));
+    const rentalGrowthFactor = Math.pow(1 + toReal(RENTAL_GROWTH_PCT) / 100, Math.floor(yearsPassed));
+    const rentalIncome     = (homeSold ? 0 : (ip.monthly_rental_income || 0) * rentalGrowthFactor)
+      // Gross rent from letting the primary residence, once the plan kicks in.
+      + (homeRentedOut ? (homePlan.rent_out_monthly ?? 0) * rentalGrowthFactor : 0);
     const annualRentalGross = rentalIncome * 12;
 
     // ── Part-time work income (earned → W2/FICA, ordinary income tax) ──────
@@ -701,9 +747,11 @@ const simulate = (
     // SALT: capped at $10k federally (NY state: no cap for state deduction itself).
     const isRent = config.spending.housing_type === 'rent';
     // Once the home is sold the household rents from then on — treat housing as
-    // rent, at `rent_after_sale`/mo (a real, perpetual expense like any rent).
+    // rent, at the plan's `rent_after`/mo (a real, perpetual expense like any
+    // rent). A rented-out home is different: the household ALSO pays rent
+    // elsewhere, but the home + mortgage stay on the books (handled below).
     const effectiveIsRent = isRent || homeSold;
-    const rentMonthly     = homeSold ? (config.spending.rent_after_sale ?? 0) : config.spending.mortgage_payment;
+    const rentMonthly     = (homeSold || homeRentedOut) ? (homePlan.rent_after ?? 0) : config.spending.mortgage_payment;
     const hasMortgageNow = !effectiveIsRent && currentDate < mortgagePayoffDate && currentMortgage > 0;
     const deductibleMortgagePct = hasMortgageNow
       ? Math.min(1, FED_MORTGAGE_CAP / Math.max(1, currentMortgage))
@@ -1060,9 +1108,12 @@ const simulate = (
     //    balance remains (and before the payoff date), shrinks in real terms as
     //    inflation erodes it, and stops once amortization clears the loan.
     const hasMortgage = !effectiveIsRent && currentDate < mortgagePayoffDate && currentMortgage > 0;
-    if (effectiveIsRent) {
-      expense += rentMonthly; // real, never ends (a renter's rent, or post-sale rent)
-    } else if (hasMortgage) {
+    if (effectiveIsRent || homeRentedOut) {
+      expense += rentMonthly; // real, never ends (a renter's rent, post-sale rent, or rent paid while the home is let out)
+    }
+    if (hasMortgage) {
+      // A rented-out home keeps its mortgage — so that month can carry BOTH the
+      // rent above and this payment (the collected rent offsets it via income).
       expense += config.spending.mortgage_payment / inflationMultiplier;
       if (currentMortgage > 0) {
         const mRate = (mortgageRate / 100) / 12;
@@ -1091,6 +1142,13 @@ const simulate = (
           }
         }
       }
+    }
+
+    // Inheritance — a one-time windfall landing in January of its year. Credited
+    // straight to cash (today's dollars, after-tax; see the config field's note),
+    // where the existing surplus-investing / deficit logic takes over.
+    if (config.inheritance?.enabled && config.inheritance.year === currentYear && monthOfYear === 0) {
+      liquidCash += Math.max(0, config.inheritance.amount || 0);
     }
 
     // Capital calls
@@ -1343,7 +1401,7 @@ const simulate = (
     // Rent is perpetual, so it's a recurring expense (capitalized at 25× via the
     // SWR below). A mortgage is finite, so its payment stays OUT of recurring
     // expenses and instead its remaining balance is added as a lump to pay off.
-    const monthlyRentExpense  = effectiveIsRent ? rentMonthly : 0;
+    const monthlyRentExpense  = (effectiveIsRent || homeRentedOut) ? rentMonthly : 0;
     const annualExpenses      = (baseMonthlySpend + selfPaidHealthcare + monthlyRentExpense) * 12;
     // Passive income is netted at a RETIREMENT tax rate for the target — rental
     // taxed as the household's own ordinary income (no salary stacked on top).

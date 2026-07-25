@@ -189,6 +189,28 @@ function pickShared(config: SimulationConfiguration): Baseline {
 const isObj = (v: unknown): v is Record<string, unknown> =>
   v !== null && typeof v === "object" && !Array.isArray(v);
 
+/** Legacy shared sell-plan (spending.sell_home_year) → the per-scenario
+ *  `home_plan` section. The plan used to live in the shared `spending` baseline;
+ *  it's now per-scenario (like `inheritance`), so older configs — local persisted
+ *  state and cloud docs written by older clients — adopt it into `home_plan` and
+ *  zero the legacy field. No-op when `home_plan` already exists. */
+function adoptLegacyHomePlan(cfg: SimulationConfiguration): SimulationConfiguration {
+  const sellYear = cfg.spending?.sell_home_year ?? 0;
+  if (cfg.home_plan || sellYear <= 0) return cfg;
+  return {
+    ...cfg,
+    home_plan: { type: "sell", year: sellYear, rent_after: cfg.spending.rent_after_sale ?? 0 },
+    spending: { ...cfg.spending, sell_home_year: 0 },
+  };
+}
+
+/** Zero the legacy sell fields on a baseline's spending so they no longer flow
+ *  into scenarios (the plan is per-scenario now). */
+function stripLegacySellPlan(baseline: Baseline): Baseline {
+  if ((baseline.spending?.sell_home_year ?? 0) <= 0) return baseline;
+  return { ...baseline, spending: { ...baseline.spending, sell_home_year: 0 } };
+}
+
 /** Keys touched by an update — used to record which baseline fields a scenario forks. */
 function patchKeys(updates: unknown): string[] {
   return isObj(updates) ? Object.keys(updates) : [];
@@ -568,12 +590,12 @@ export const useFinancialStore = create<FinancialStore>()(
       hydrate: (state) =>
         set((s) => {
           const profile = state.profile ?? s.profile;
-          let scenarios = (state.scenarios && state.scenarios.length) ? state.scenarios.map((sc) => ({ ...sc, unlinked: sc.unlinked ?? [] })) : null;
+          let scenarios = (state.scenarios && state.scenarios.length) ? state.scenarios.map((sc) => ({ ...sc, config: adoptLegacyHomePlan(sc.config), unlinked: sc.unlinked ?? [] })) : null;
           let activeScenarioId = state.activeScenarioId ?? s.activeScenarioId;
 
           if (!scenarios) {
             // Back-compat: a single-config doc → wrap as one scenario.
-            const cfg = state.config ?? s.config;
+            const cfg = adoptLegacyHomePlan(state.config ?? s.config);
             const seeded = makeDefaultScenarios(cfg);
             scenarios = seeded.scenarios;
             activeScenarioId = seeded.activeScenarioId;
@@ -582,7 +604,7 @@ export const useFinancialStore = create<FinancialStore>()(
           activeScenarioId = active.id;
           // The active scenario seeds the baseline; other scenarios record their
           // divergence from it as forks so existing differences are preserved.
-          const baseline = state.baseline ?? pickShared(active.config);
+          const baseline = stripLegacySellPlan(state.baseline ?? pickShared(active.config));
           scenarios = scenarios.map((sc) =>
             sc.id === activeScenarioId
               ? { ...sc, unlinked: state.baseline ? sc.unlinked : [] }
@@ -598,7 +620,7 @@ export const useFinancialStore = create<FinancialStore>()(
     },
     {
       name:    "horizon-financial-v10",
-      version: 13,
+      version: 14,
       storage: createJSONStorage(() => localStorage),
       partialize: (s) => ({
         profile: s.profile, snapshot: s.snapshot, baseline: s.baseline, config: s.config,
@@ -643,6 +665,21 @@ export const useFinancialStore = create<FinancialStore>()(
           if (!pp.primaryScenarioId || !p.scenarios.some((x) => x.id === pp.primaryScenarioId)) {
             pp.primaryScenarioId = active.id;
           }
+        }
+        // v14: the sell/downsize plan moved from the shared `spending` baseline to
+        // the per-scenario `home_plan` section. Adopt any legacy sell plan into
+        // each scenario (and the config mirror), zero the legacy baseline fields
+        // so they stop flowing between scenarios, and drop stale fork markers.
+        if (p) {
+          if (p.config) p.config = adoptLegacyHomePlan(p.config);
+          if (p.scenarios) {
+            p.scenarios = p.scenarios.map((sc) => ({
+              ...sc,
+              config: adoptLegacyHomePlan(sc.config),
+              unlinked: (sc.unlinked ?? []).filter((u) => u !== "spending.sell_home_year" && u !== "spending.rent_after_sale"),
+            }));
+          }
+          if (p.baseline) p.baseline = stripLegacySellPlan(p.baseline);
         }
         // v13: reset the plan-history trail recorded before the live-price fix.
         // Holdings could be snapshotted at $0 before quotes loaded, and past

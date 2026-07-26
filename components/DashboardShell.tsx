@@ -13,6 +13,8 @@ import MobileApp             from "@/components/mobile/MobileApp";
 import { useRetirementDate } from "@/hooks/useRetirementDate";
 import FlightMap             from "@/components/FlightMap";
 import ForecastingHub        from "@/components/forecasting/ForecastingHub";
+import ForecastingSubpage    from "@/components/forecasting/ForecastingSubpage";
+import { type ToolId }       from "@/components/forecasting/ForecastingHub";
 import FinancialDashboard    from "@/components/finance/FinancialDashboard";
 import LifeEventsFab         from "@/components/forecasting/LifeEventsFab";
 import SettingsPanel         from "@/components/SettingsPanel";
@@ -42,6 +44,10 @@ export default function DashboardShell() {
   const setAppView = (v: AppView) => setScenarioView(activeScenarioId, v);
   const isMobile = useIsMobile();
   const prices = useLivePrices({ enabled: !isMobile });
+  // The forecasting tool open as a header-preserving subpage (desktop). Null =
+  // the hub of cards. Cleared whenever you leave the forecasting view.
+  const [forecastTool, setForecastTool] = useState<ToolId | null>(null);
+  useEffect(() => { if (appView !== "forecasting") setForecastTool(null); }, [appView]);
   // Capture a monthly snapshot of the primary plan for the Finances history trail.
   useMonthlyPlanSnapshot(prices.livePrices);
 
@@ -81,6 +87,7 @@ export default function DashboardShell() {
     layers: [
       { open: settingsOpen, close: () => setSettingsOpen(false) },
       { open: financesOpen, close: () => setFinancesOpen(false) },
+      { open: appView === "forecasting" && !!forecastTool, close: () => setForecastTool(null) },
       { open: compareOpen, close: () => setCompareOpen(false) },
     ],
   });
@@ -107,21 +114,23 @@ export default function DashboardShell() {
       ) : (
       <>
       {/* Countdown — reflects the open scenario, across both deep-dive tabs.
-          The portfolio price ticker rides on the same line (desktop only; on
-          mobile it lives on the Progress-to-FI summary card instead). */}
-      <CountdownStrip
-        right={
-          <PriceTicker
-            holdings={snapshot.other_investments}
-            livePrices={prices.livePrices}
-            concentratedSymbol={config.use_equity_comp ? config.concentrated_symbol : ""}
-            pricesUpdatedAt={prices.pricesUpdatedAt}
-            pricesFetching={prices.pricesFetching}
-            onRefreshPrices={prices.refresh}
-            align="end"
-          />
-        }
-      />
+          Hidden when a forecasting tool is open as a subpage, so the tool gets
+          the full height under the app header. */}
+      {!(appView === "forecasting" && forecastTool) && (
+        <CountdownStrip
+          right={
+            <PriceTicker
+              holdings={snapshot.other_investments}
+              livePrices={prices.livePrices}
+              concentratedSymbol={config.use_equity_comp ? config.concentrated_symbol : ""}
+              pricesUpdatedAt={prices.pricesUpdatedAt}
+              pricesFetching={prices.pricesFetching}
+              onRefreshPrices={prices.refresh}
+              align="end"
+            />
+          }
+        />
+      )}
 
       {/* ── Financial View ── */}
       {appView === "financial" && (
@@ -132,26 +141,34 @@ export default function DashboardShell() {
 
       {/* ── Forecasting View ── */}
       {appView === "forecasting" && (
-        <>
-          <FlightMap />
-          <LifeEventsFab />
+        forecastTool ? (
+          /* A tool open as a header-preserving subpage, filling the height below
+             the app header. */
+          <div className="flex-1" style={{ minHeight: 0, display: "flex", flexDirection: "column" }}>
+            <ForecastingSubpage id={forecastTool} onBack={() => setForecastTool(null)} />
+          </div>
+        ) : (
+          <>
+            <FlightMap />
+            <LifeEventsFab />
 
-          {/* The three tools — each launches a focused, full-screen experience */}
-          <main className="flex-1 px-8 py-12">
-            <div className="max-w-7xl mx-auto">
-              <ForecastingHub />
-            </div>
-          </main>
+            {/* The three tools — each opens as a subpage (desktop). */}
+            <main className="flex-1 px-8 py-12">
+              <div className="max-w-7xl mx-auto">
+                <ForecastingHub onLaunch={setForecastTool} />
+              </div>
+            </main>
 
-          <footer style={{ borderTop: `1px solid ${C.border}`, background: C.bgHeader }} className="px-8 py-4">
-            <div className="max-w-7xl mx-auto flex justify-between items-center">
-              <p style={{ color: C.inkFaint }} className="text-[10px] tracking-widest uppercase">Taper</p>
-              <p style={{ color: C.inkFaint }} className="text-[10px]">
-                {user.name ? `${user.name} · ` : ""}Retiring {retirementDate.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" })}
-              </p>
-            </div>
-          </footer>
-        </>
+            <footer style={{ borderTop: `1px solid ${C.border}`, background: C.bgHeader }} className="px-8 py-4">
+              <div className="max-w-7xl mx-auto flex justify-between items-center">
+                <p style={{ color: C.inkFaint }} className="text-[10px] tracking-widest uppercase">Taper</p>
+                <p style={{ color: C.inkFaint }} className="text-[10px]">
+                  {user.name ? `${user.name} · ` : ""}Retiring {retirementDate.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" })}
+                </p>
+              </div>
+            </footer>
+          </>
+        )
       )}
       </>
       )}

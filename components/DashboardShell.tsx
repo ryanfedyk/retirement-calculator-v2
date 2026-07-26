@@ -94,8 +94,13 @@ export default function DashboardShell() {
 
   if (isMobile) return <MobileApp />;
 
+  // When a forecasting tool is open as a subpage, pin the shell to the viewport
+  // and let the tool scroll internally — so the app header stays put and nothing
+  // falls off the bottom.
+  const toolSubpage = appView === "forecasting" && !!forecastTool;
+
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: C.bg }}>
+    <div className={`${toolSubpage ? "h-screen overflow-hidden" : "min-h-screen"} flex flex-col`} style={{ background: C.bg }}>
 
       <Header
         view={appView}

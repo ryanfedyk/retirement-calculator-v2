@@ -14,13 +14,14 @@ import { R, SERIF } from "./reclaimTheme";
  * own header/footer and scroll internally (used by the Design flow).
  */
 export default function ToolStage({
-  eyebrow, title, onClose, children, fill = false,
+  eyebrow, title, onClose, children, fill = false, maxWidth = 1040,
 }: {
   eyebrow?: string;
   title: string;
   onClose: () => void;
   children: React.ReactNode;
   fill?: boolean;
+  maxWidth?: number;          // cap + centre the tool on desktop (0 = full-bleed)
 }) {
   useEffect(() => {
     const prev = document.body.style.overflow;
@@ -42,8 +43,9 @@ export default function ToolStage({
     }}>
       <style>{"@keyframes toolstage-rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}"}</style>
 
-      {/* Pinned title bar — kept slim so the tool has the height */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0, paddingBottom: fill ? 10 : 12 }}>
+      {/* Pinned title bar — kept slim so the tool has the height. Capped + centred
+          to the same column as the body so the whole tool reads as one document. */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0, paddingBottom: fill ? 10 : 12, width: "100%", maxWidth: maxWidth || undefined, margin: maxWidth ? "0 auto" : undefined }}>
         <div style={{ minWidth: 0, flex: 1, display: "flex", alignItems: "baseline", gap: 8 }}>
           <span style={{ fontFamily: SERIF, fontSize: "clamp(17px, 4.5vw, 21px)", fontWeight: 500, color: R.ink, letterSpacing: "-0.01em", lineHeight: 1.1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</span>
           {eyebrow && (
@@ -56,11 +58,14 @@ export default function ToolStage({
         }}><X size={17} /></button>
       </div>
 
-      {/* Body */}
+      {/* Body — the scroll lives full-width so the scrollbar sits at the edge, but
+          the content is capped + centred. In fill mode the child owns its width. */}
       <div style={fill
         ? { flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column" }
         : { flex: "1 1 auto", minHeight: 0, overflowY: "auto", overflowX: "hidden", margin: "0 -2px", padding: "2px 2px 8px", WebkitOverflowScrolling: "touch", overscrollBehaviorY: "contain" }}>
-        {children}
+        {fill
+          ? children
+          : <div style={{ width: "100%", maxWidth: maxWidth || undefined, margin: maxWidth ? "0 auto" : undefined }}>{children}</div>}
       </div>
     </div>
   );

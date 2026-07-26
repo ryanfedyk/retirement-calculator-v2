@@ -38,6 +38,8 @@ interface IdeasPayload {
   themes?: string[];
   /** Free-text interest the user typed while exploring (optional). */
   interest?: string;
+  /** Constrain every idea to one world (e.g. "People & Belonging"). */
+  category?: string;
   /** Concepts already in the catalog, so the AI proposes genuinely new ones. */
   exclude?: string[];
   count?: number;
@@ -57,19 +59,23 @@ interface ArcPayload {
 
 /** Build the prompt for generating fresh, personalized retirement pursuits. */
 function ideasPrompt(p: IdeasPayload): string {
-  const n = Math.min(8, Math.max(3, p.count ?? 6));
+  const n = Math.min(8, Math.max(1, p.count ?? 6));
   const themes = (p.themes ?? []).filter(Boolean).join(", ");
   const exclude = (p.exclude ?? []).slice(0, 60).join("; ");
+  const catRule = p.category
+    ? `EVERY pursuit MUST be in the category "${p.category}" — use no other category.`
+    : `Classify each into EXACTLY ONE category from this set: "Immersive Travel", "Creative Mastery", "Endurance/Active", "Slow Living", "People & Belonging". Give a mix of categories.`;
   return `
 You are a warm, imaginative retirement-life coach — NOT a financial advisor. You help people discover vivid, specific pursuits for their retirement: hobbies, crafts, journeys, and projects worth building a chapter of life around.
 
-Propose ${n} fresh, INSPIRING, concrete pursuits.
+Propose ${n} fresh, INSPIRING, concrete pursuit${n === 1 ? "" : "s"}.
+${p.category ? `All within the world of "${p.category}".` : ""}
 ${themes ? `Lean toward what this person seems to love: ${themes}.` : "Offer a diverse, surprising mix."}
-${p.interest ? `They're especially curious about: "${p.interest}". Make most ideas speak to that.` : ""}
+${p.interest ? `They specifically asked for something about: "${p.interest}". Make ${n === 1 ? "it" : "most ideas"} speak directly to that.` : ""}
 Each pursuit must be specific and evocative (a real, nameable thing to do — not "travel more" or "get healthy"). Avoid anything already covered here: ${exclude || "(none)"}.
 
-Classify each into EXACTLY ONE category from this set: "Immersive Travel", "Creative Mastery", "Endurance/Active", "Slow Living".
-Give a mix of categories. Avoid financial-planning advice.
+${catRule}
+Avoid financial-planning advice.
 
 Return ONLY raw JSON in this exact shape (no markdown, no code fences):
 {
@@ -103,7 +109,7 @@ function arcPrompt(p: ArcPayload): string {
   return `
 You are a warm, imaginative retirement-life coach — NOT a financial advisor. Someone is composing the ARC of their retirement across three seasons:
 - "The Open Road" — adventure, travel, movement; doing the big things while the body's game (categories: "Immersive Travel", "Endurance/Active").
-- "Deep Roots" — mastery, craft, mentoring, community, the people you love (category: "Creative Mastery").
+- "Deep Roots" — mastery, craft, mentoring, community, the people you love (categories: "Creative Mastery", "People & Belonging").
 - "Still Waters" — presence, ritual, legacy, unhurried days (category: "Slow Living").
 ${ages}
 
@@ -113,7 +119,7 @@ ${have}
 
 ${task} Each must be specific and evocative (a real, nameable thing to do — not "travel more" or "get healthy").
 
-Classify each into EXACTLY ONE category from: "Immersive Travel", "Creative Mastery", "Endurance/Active", "Slow Living" (the category decides its season). Give a balanced mix across the three seasons. Avoid financial-planning advice.
+Classify each into EXACTLY ONE category from: "Immersive Travel", "Creative Mastery", "Endurance/Active", "Slow Living", "People & Belonging" (the category decides its season). Give a balanced mix across the three seasons. Avoid financial-planning advice.
 
 Return ONLY raw JSON in this exact shape (no markdown, no code fences):
 {

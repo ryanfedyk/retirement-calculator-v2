@@ -30,7 +30,8 @@ export type AdventureCategory =
   | "Immersive Travel"
   | "Creative Mastery"
   | "Endurance/Active"
-  | "Slow Living";
+  | "Slow Living"
+  | "People & Belonging";
 
 export type CommitmentLevel = "Micro-Prototype" | "Macro-Adventure";
 export type WhenToStart = "Now" | "Phase 2+" | "Post-Retirement";

@@ -214,6 +214,13 @@ export const SUBTHEMES: Record<AdventureCategory, { label: string; emoji: string
     { label: "Give back & guide", emoji: "🤝", tags: ["volunteer", "service", "mentorship", "coaching", "advisory", "teaching", "purpose", "giving"] },
     { label: "Legacy & belonging", emoji: "🏡", tags: ["legacy", "archive", "community", "belonging", "connection", "local"] },
   ],
+  "People & Belonging": [
+    { label: "Family gatherings", emoji: "👨‍👩‍👧‍👦", tags: ["family", "reunion", "grandkids", "traditions", "holidays"] },
+    { label: "Friendships", emoji: "🍷", tags: ["friends", "dinners", "reconnect", "supper club", "old friends"] },
+    { label: "Community & belonging", emoji: "🤝", tags: ["community", "neighbors", "volunteer", "belonging", "local", "club"] },
+    { label: "Love & partnership", emoji: "💞", tags: ["partner", "marriage", "romance", "couple", "date"] },
+    { label: "Roots & generations", emoji: "🌳", tags: ["heritage", "genealogy", "grandparent", "mentoring", "legacy", "stories"] },
+  ],
 };
 
 /** The pursuit ids in a kind whose tags intersect a sub-theme's tag set. */
@@ -269,6 +276,7 @@ const PURSUIT_SEASON: Record<AdventureCategory, ArcSeasonKey> = {
   "Immersive Travel": "open",
   "Endurance/Active": "open",
   "Creative Mastery": "roots",
+  "People & Belonging": "roots",
   "Slow Living":      "still",
 };
 const THEME_SEASON: Record<ActivityCategory, ArcSeasonKey> = {
@@ -328,6 +336,7 @@ export function retirementArc(opts: {
 // ── Perfect-Year experience kinds & placement ─────────────────────────────────
 export const YEAR_CATEGORIES: { id: AdventureCategory; icon: string; blurb: string }[] = [
   { id: "Immersive Travel", icon: "✈️", blurb: "Slow months in a new place, bucket-list regions, family trips." },
+  { id: "People & Belonging", icon: "🫂", blurb: "The people you love — family gatherings, old friends, community." },
   { id: "Creative Mastery",  icon: "🎸", blurb: "The instrument, the studio, the camera, the book in you." },
   { id: "Endurance/Active",  icon: "🏔️", blurb: "Long trails, cycling tours, the body still capable." },
   { id: "Slow Living",       icon: "🌿", blurb: "Gardens, rituals, decelerating into a gentler rhythm." },

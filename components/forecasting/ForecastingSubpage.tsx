@@ -27,7 +27,6 @@ export default function ForecastingSubpage({ id, onBack }: { id: ToolId; onBack:
           </button>
           <div style={{ minWidth: 0, display: "flex", alignItems: "baseline", gap: 10 }}>
             <span style={{ fontFamily: SERIF, fontSize: 22, fontWeight: 500, color: R.ink, letterSpacing: "-0.01em", lineHeight: 1.1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{meta.title}</span>
-            <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: R.inkFaint, flexShrink: 0 }}>{meta.eyebrow}</span>
           </div>
         </div>
       </div>

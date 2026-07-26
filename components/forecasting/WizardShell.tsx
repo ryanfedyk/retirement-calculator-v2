@@ -18,8 +18,8 @@ import { R, SERIF } from "./reclaimTheme";
 export default function WizardShell({
   step, total, eyebrow, title, subtitle, children,
   onBack, onNext, nextLabel = "Continue", nextDisabled = false, nextHint,
-  onSkip, skipLabel = "I'll build it myself", resetSlot,
-  immersive = false, onExit, bodyFill = false,
+  onSkip, skipLabel = "I'll build it myself", resetSlot, headerAction,
+  immersive = false, onExit, bodyFill = false, contentMaxWidth,
 }: {
   step: number;               // 1-based
   total: number;
@@ -35,9 +35,11 @@ export default function WizardShell({
   onSkip?: () => void;
   skipLabel?: string;
   resetSlot?: React.ReactNode; // persistent "reset this feature" control
+  headerAction?: React.ReactNode; // a control pinned in the top row (e.g. reset)
   immersive?: boolean;        // fill the viewport, pin only progress + Back/Next
   onExit?: () => void;        // immersive only: a quiet way back out to the landing
   bodyFill?: boolean;         // immersive only: hand the whole body to the child (it scrolls itself); no heading
+  contentMaxWidth?: number;   // cap + centre the reading column (desktop); full-width on mobile
 }) {
   const [menuOpen, setMenuOpen] = useState(false); // immersive overflow (skip / reset)
 
@@ -108,6 +110,7 @@ export default function WizardShell({
             (standalone only) an exit. */}
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, paddingBottom: 12 }}>
           <div style={{ flex: 1 }}>{progress}</div>
+          {headerAction}
           {(onSkip || resetSlot) && (
             <div style={{ position: "relative", flexShrink: 0 }}>
               <button onClick={() => setMenuOpen((o) => !o)} aria-label="More options" style={{
@@ -149,8 +152,10 @@ export default function WizardShell({
           </div>
         ) : (
           <div style={{ flex: "1 1 auto", overflowY: "auto", overflowX: "hidden", minHeight: 0, margin: "0 -2px", padding: "2px 2px 16px", WebkitOverflowScrolling: "touch", overscrollBehaviorY: "contain" }}>
-            {heading}
-            <div style={{ marginTop: 18 }}>{children}</div>
+            <div style={{ maxWidth: contentMaxWidth, margin: contentMaxWidth ? "0 auto" : undefined, width: contentMaxWidth ? "100%" : undefined }}>
+              {heading}
+              <div style={{ marginTop: 18 }}>{children}</div>
+            </div>
           </div>
         )}
 

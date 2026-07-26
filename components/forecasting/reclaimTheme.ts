@@ -45,6 +45,7 @@ export const YEAR_COLOR: Record<string, string> = {
   "Creative Mastery": R.plum,
   "Endurance/Active": R.field,
   "Slow Living":      R.gold,
+  "People & Belonging": R.sea,
 };
 
 /** A word for a kind's presence, from its 0–100 weight. */

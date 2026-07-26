@@ -22,7 +22,7 @@ type Tool = {
 const TOOLS: Tool[] = [
   { id: "seasons", label: "Wind-down", eyebrow: "Seasons of your life", title: "The Wind-Down", blurb: "How work winds down — the seasons of easing out of the job, and just where you stand today.", icon: Anchor,   accent: R.sea },
   { id: "reclaim", label: "Gains",     eyebrow: "Reclaim your time",    title: "What You Gain",  blurb: "The prime-time weeks you gain back — a clear picture of what stepping away sooner returns to you.", icon: Wind,     accent: R.gold },
-  { id: "design",  label: "New life",  eyebrow: "Design your life",     title: "Your New Life",  blurb: "Compose the days, gather the year, and design the new life waiting on the far side of work.", icon: Sparkles, accent: R.accent },
+  { id: "design",  label: "Retirement life", eyebrow: "Design your life", title: "Your Retirement Life", blurb: "Compose the days, gather the year, and design your retirement life on the far side of work.", icon: Sparkles, accent: R.accent },
 ];
 
 /**

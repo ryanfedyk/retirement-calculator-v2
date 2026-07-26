@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, ArrowLeft, Pencil, ArrowRight, Search, Wand2, Loader2, X, RotateCcw, ChevronDown } from "lucide-react";
+import { Check, ArrowLeft, Pencil, ArrowRight, Search, Wand2, Loader2, X, RotateCcw, ChevronDown, Plus, Sparkles } from "lucide-react";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { usePerfectYearStore } from "@/store/usePerfectYearStore";
@@ -21,7 +21,7 @@ import PerfectYear from "./PerfectYear";
 import VerticalArc from "./VerticalArc";
 import { R, SERIF, DAY_COLOR, YEAR_COLOR, presenceWord } from "./reclaimTheme";
 
-const VALID_CATS: AdventureCategory[] = ["Immersive Travel", "Creative Mastery", "Endurance/Active", "Slow Living"];
+const VALID_CATS: AdventureCategory[] = ["Immersive Travel", "Creative Mastery", "Endurance/Active", "Slow Living", "People & Belonging"];
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 40);
 
 // An item added straight to a season on the arc takes a category that lands it
@@ -127,9 +127,11 @@ export default function ReclaimJourney({ framed = false }: { framed?: boolean } 
     return (chosenCat as AdventureCategory) ?? YEAR_CATEGORIES[0].id;
   });
 
-  // Explorer — search is a global escape hatch; "Dream some up" adds fresh ideas.
+  // Explorer — search finds across worlds; each section can dream up more seeds
+  // or take a manual prompt ("add one about making an album").
   const [query, setQuery] = useState("");
-  const [aiGenerating, setAiGenerating] = useState(false);
+  const [busyWorld, setBusyWorld] = useState<AdventureCategory | null>(null);
+  const [promptText, setPromptText] = useState("");
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiDisabled, setAiDisabled] = useState(false);
   const [optimizingSeason, setOptimizingSeason] = useState<ArcKey | null>(null);
@@ -172,22 +174,47 @@ export default function ReclaimJourney({ framed = false }: { framed?: boolean } 
     finally { setOptimizingSeason(null); }
   };
 
-  const generateIdeas = async () => {
-    if (aiGenerating) return;
-    setAiGenerating(true); setAiError(null);
+  // Make a plain, local seed from typed text (no AI) — the offline fallback and
+  // the instant result of a manual add.
+  const addLocalSeed = (cat: AdventureCategory, text: string) => {
+    const concept = text.trim();
+    if (!concept) return;
+    const seed: AdventureBlueprint = {
+      id: `add-${slug(concept) || "seed"}`, concept, category: cat,
+      commitment: "Micro-Prototype", whenToStart: "Now", depthScore: 1, whyFactor: "", microDoseAction: "", tags: [],
+    };
+    addCustom([seed]);
+    setPursuits((p) => [...new Set([...p, seed.id])]);
+  };
+
+  // Grow more seeds for ONE world. With a prompt ("making an album") it fleshes
+  // out a single seed on that theme and selects it; without one it dreams up a
+  // few fresh options to choose from. Falls back to a plain local seed when the
+  // coach isn't available.
+  const dreamForWorld = async (cat: AdventureCategory, interest?: string) => {
+    if (busyWorld) return;
+    const prompt = interest?.trim();
+    if (aiDisabled) { if (prompt) addLocalSeed(cat, prompt); return; }
+    setBusyWorld(cat); setAiError(null);
     try {
       const res = await fetch("/api/perfect-day", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "ideas", themes: mix.map((m) => m.label), interest: query.trim() || undefined, exclude: catalog.map((c) => c.concept) }),
+        body: JSON.stringify({ mode: "ideas", themes: mix.map((m) => m.label), category: cat, interest: prompt || undefined, count: prompt ? 1 : 4, exclude: catalog.map((c) => c.concept) }),
       });
       const data = await res.json();
-      if (!res.ok) { if (res.status === 503 || res.status === 401) setAiDisabled(true); throw new Error(data.detail || data.error || "Couldn't generate ideas."); }
-      const ideas = normalizeIdeas(data.ideas);
-      if (ideas.length) addCustom(ideas);
+      if (!res.ok) {
+        if (res.status === 503 || res.status === 401) { setAiDisabled(true); if (prompt) addLocalSeed(cat, prompt); return; }
+        throw new Error(data.detail || data.error || "Couldn't dream up ideas.");
+      }
+      const ideas = normalizeIdeas(data.ideas).map((p) => ({ ...p, category: cat })); // keep them in this world
+      if (ideas.length) {
+        addCustom(ideas);
+        if (prompt) setPursuits((p) => [...new Set([...p, ...ideas.map((i) => i.id)])]); // a prompted seed is one they asked for
+      } else if (prompt) { addLocalSeed(cat, prompt); }
       else setAiError("No new ideas came back — try again.");
     } catch (e: unknown) {
-      setAiError(e instanceof Error ? e.message : "Couldn't generate ideas.");
-    } finally { setAiGenerating(false); }
+      setAiError(e instanceof Error ? e.message : "Couldn't dream up ideas.");
+    } finally { setBusyWorld(null); }
   };
 
   // Commit the chosen seeds and move to the arc — then ask the coach to grow a
@@ -235,21 +262,25 @@ export default function ReclaimJourney({ framed = false }: { framed?: boolean } 
     setConfirmReset(false); setStage("intro");
   };
 
-  // Reset control — a quiet item in the movement's overflow menu.
-  const resetRow = (
-    <div style={{ borderTop: `1px solid ${R.lineSoft}`, marginTop: 4, paddingTop: 4 }}>
-      {confirmReset ? (
-        <div style={{ padding: "8px 12px" }}>
-          <div style={{ fontSize: 12.5, color: R.inkSoft, lineHeight: 1.45, marginBottom: 9 }}>Clear your days, pursuits &amp; arc and design from scratch?</div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={resetAll} style={{ background: R.clay, color: "#fff", border: "none", borderRadius: 9, padding: "7px 13px", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>Yes, reset</button>
-            <button onClick={() => setConfirmReset(false)} style={{ background: "none", border: "none", color: R.inkFaint, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>Cancel</button>
+  // Reset control — a quiet icon pinned in the movement's header, with an
+  // inline confirm so it's one tap to reach but never a mis-tap.
+  const resetControl = (
+    <div style={{ position: "relative", flexShrink: 0 }}>
+      <button onClick={() => setConfirmReset((v) => !v)} aria-label="Reset my design" title="Reset my design" style={{
+        display: "flex", alignItems: "center", justifyContent: "center", width: 30, height: 30, borderRadius: "50%",
+        border: `1px solid ${confirmReset ? R.clay : R.line}`, background: R.card, color: R.clay, cursor: "pointer",
+      }}><RotateCcw size={15} /></button>
+      {confirmReset && (
+        <>
+          <div onClick={() => setConfirmReset(false)} style={{ position: "fixed", inset: 0, zIndex: 20 }} />
+          <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 21, width: 244, background: R.card2, border: `1px solid ${R.line}`, borderRadius: 14, boxShadow: "0 18px 40px -16px rgba(20,30,26,0.4)", padding: 14 }}>
+            <div style={{ fontSize: 12.5, color: R.inkSoft, lineHeight: 1.45, marginBottom: 11 }}>Clear your days, pursuits &amp; arc and design from scratch?</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={resetAll} style={{ background: R.clay, color: "#fff", border: "none", borderRadius: 9, padding: "8px 14px", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>Yes, reset</button>
+              <button onClick={() => setConfirmReset(false)} style={{ background: "none", border: "none", color: R.inkFaint, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>Cancel</button>
+            </div>
           </div>
-        </div>
-      ) : (
-        <button onClick={() => setConfirmReset(true)} style={{ width: "100%", textAlign: "left", display: "inline-flex", alignItems: "center", gap: 7, background: "none", border: "none", cursor: "pointer", color: R.clay, fontSize: 13.5, fontWeight: 600, padding: "10px 12px", borderRadius: 9 }}>
-          <RotateCcw size={14} /> Reset my design
-        </button>
+        </>
       )}
     </div>
   );
@@ -365,7 +396,7 @@ export default function ReclaimJourney({ framed = false }: { framed?: boolean } 
         nextDisabled={total === 0}
         nextHint={total === 0 ? "Give at least one kind of day some presence to continue." : undefined}
         onSkip={() => setFineTune("days")} skipLabel="Fine-tune day by day"
-        resetSlot={resetRow}
+        headerAction={resetControl} contentMaxWidth={640}
       >
         {/* Week ribbon — the blend as one band of light */}
         <div style={{ display: "flex", height: 18, borderRadius: 999, overflow: "hidden", marginBottom: 8, background: R.card, boxShadow: `inset 0 0 0 1px ${R.lineSoft}` }}>
@@ -416,8 +447,16 @@ export default function ReclaimJourney({ framed = false }: { framed?: boolean } 
 
   // ── Movement two · Your year (drill into a world, pick the seeds) ─────────────
   if (stage === "year") {
-    const byId = Object.fromEntries(catalog.map((s) => [s.id, s]));
     const isCustom = (id: string) => id.startsWith("ai-") || id.startsWith("add-");
+
+    // A prompt hint per world, so manual entry reads as a wish, not a form field.
+    const PROMPT_HINT: Record<AdventureCategory, string> = {
+      "Immersive Travel": "a month in Japan",
+      "People & Belonging": "hosting a family reunion",
+      "Creative Mastery": "making an album",
+      "Endurance/Active": "walking the Camino",
+      "Slow Living": "a garden that feeds you",
+    };
 
     // The specific "seeds" a world drills into: its six most evocative pursuits,
     // plus any dreamed-up or already-chosen ones so nothing a user picked ever
@@ -468,41 +507,29 @@ export default function ReclaimJourney({ framed = false }: { framed?: boolean } 
         immersive={immersive} onExit={framed ? undefined : () => setStage("intro")}
         step={2} total={3} eyebrow="Movement two · your year"
         title="Pick a few seeds to grow from"
-        subtitle="Open a world and choose the specific things that call to you — all of them, or none. These few seeds are all the coach needs to grow your whole arc."
+        subtitle="Open a world and choose the specific things that call to you — all, some, or none. Add your own or ask for more inside any world. These seeds are all the coach needs to grow your whole arc."
         onBack={() => setStage("days")}
         onNext={buildArc} nextLabel="Build my arc"
         nextDisabled={pursuits.length === 0}
         nextHint={pursuits.length === 0 ? "Open a world and pick a seed or two to begin." : `${pursuits.length} seed${pursuits.length === 1 ? "" : "s"} chosen`}
         onSkip={() => { commitPursuits(pursuits); setFineTune("year"); }} skipLabel="Time them on a calendar"
-        resetSlot={resetRow}
+        headerAction={resetControl} contentMaxWidth={1040}
       >
-        {/* Search + AI (a global escape hatch, always available) */}
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
-          <div style={{ flex: "1 1 220px", position: "relative", display: "flex", alignItems: "center" }}>
-            <Search size={15} color={R.inkFaint} style={{ position: "absolute", left: 12 }} />
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Or search every world…"
-              style={{ width: "100%", boxSizing: "border-box", padding: "11px 32px 11px 34px", borderRadius: 13, border: `1px solid ${R.line}`, background: R.card, color: R.ink, fontSize: 13.5, outline: "none" }} />
-            {query && (
-              <button onClick={() => setQuery("")} aria-label="Clear" style={{ position: "absolute", right: 8, background: "none", border: "none", cursor: "pointer", color: R.inkFaint, display: "flex" }}><X size={14} /></button>
-            )}
-          </div>
-          {!aiDisabled && (
-            <button onClick={generateIdeas} disabled={aiGenerating} style={{
-              display: "inline-flex", alignItems: "center", gap: 6, padding: "11px 15px", borderRadius: 13, border: `1px solid color-mix(in oklab, ${R.accent} 35%, ${R.line})`,
-              background: `color-mix(in oklab, ${R.accent} 9%, ${R.card})`, color: R.accentInk, fontSize: 12.5, fontWeight: 700, cursor: aiGenerating ? "default" : "pointer", whiteSpace: "nowrap",
-            }}>
-              {aiGenerating ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
-              {aiGenerating ? "Dreaming up ideas…" : "Dream some up"}
-            </button>
+        {/* A slim search to find across every world (creation lives in the sections) */}
+        <div style={{ position: "relative", display: "flex", alignItems: "center", marginBottom: 14, maxWidth: 460 }}>
+          <Search size={15} color={R.inkFaint} style={{ position: "absolute", left: 12 }} />
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search across every world…"
+            style={{ width: "100%", boxSizing: "border-box", padding: "11px 32px 11px 34px", borderRadius: 13, border: `1px solid ${R.line}`, background: R.card, color: R.ink, fontSize: 13.5, outline: "none" }} />
+          {query && (
+            <button onClick={() => setQuery("")} aria-label="Clear" style={{ position: "absolute", right: 8, background: "none", border: "none", cursor: "pointer", color: R.inkFaint, display: "flex" }}><X size={14} /></button>
           )}
         </div>
         {aiError && <div style={{ fontSize: 11.5, color: R.clay, marginBottom: 8 }}>{aiError}</div>}
-        {aiDisabled && <div style={{ fontSize: 11.5, color: R.inkFaint, marginBottom: 8 }}>Idea generation isn&apos;t configured — open a world below to pick from its seeds.</div>}
 
         {/* Search overrides the worlds with a flat, global result set */}
         {query.trim() ? (
           searchResults.length === 0 ? (
-            <div style={{ fontSize: 13, color: R.inkSoft, padding: "8px 0" }}>Nothing matches &ldquo;{query.trim()}&rdquo;{aiDisabled ? "." : " — try dreaming some up above."}</div>
+            <div style={{ fontSize: 13, color: R.inkSoft, padding: "8px 0" }}>Nothing matches &ldquo;{query.trim()}&rdquo; — open a world below and add your own.</div>
           ) : (
             <>
               <div style={{ fontSize: 11, color: R.inkFaint, marginBottom: 8 }}>{searchResults.length} match{searchResults.length === 1 ? "" : "es"}</div>
@@ -511,19 +538,8 @@ export default function ReclaimJourney({ framed = false }: { framed?: boolean } 
           )
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {/* Fresh AI ideas, when present, ride at the top */}
-            {customPursuits.length > 0 && (
-              <div style={{ borderRadius: 16, border: `1px solid color-mix(in oklab, ${R.plum} 30%, ${R.line})`, background: `color-mix(in oklab, ${R.plum} 6%, ${R.card})`, padding: "13px 15px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 10 }}>
-                  <Wand2 size={14} color={R.plum} />
-                  <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: R.plum }}>Dreamed up for you</span>
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 8 }}>{customPursuits.map(seedCard)}</div>
-              </div>
-            )}
-
-            {/* The four worlds as a drill-in accordion — open one and its specific
-                seeds appear right there to choose from (all, some, or none). */}
+            {/* The worlds as a drill-in accordion — open one and its specific seeds
+                appear right there to choose from, add to, or ask for more. */}
             {YEAR_CATEGORIES.map((c) => {
               const tint = YEAR_COLOR[c.id] ?? R.accent;
               const open = expandedWorld === c.id;
@@ -565,6 +581,31 @@ export default function ReclaimJourney({ framed = false }: { framed?: boolean } 
                         )}
                       </div>
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 8 }}>{seeds.map(seedCard)}</div>
+
+                      {/* Grow this world — a manual prompt + a "more" button, side by side */}
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 12 }}>
+                        <form
+                          onSubmit={(e) => { e.preventDefault(); const t = promptText.trim(); if (t) { dreamForWorld(c.id, t); setPromptText(""); } }}
+                          style={{ flex: "1 1 260px", display: "flex", alignItems: "center", gap: 6, border: `1px solid ${R.line}`, background: R.card, borderRadius: 12, padding: "3px 3px 3px 12px" }}
+                        >
+                          <Sparkles size={14} color={tint} style={{ flexShrink: 0 }} />
+                          <input value={promptText} onChange={(e) => setPromptText(e.target.value)} placeholder={`Add one about ${PROMPT_HINT[c.id]}…`}
+                            style={{ flex: 1, minWidth: 0, border: "none", outline: "none", background: "none", fontSize: 13, color: R.ink }} />
+                          <button type="submit" disabled={!promptText.trim() || busyWorld === c.id} style={{
+                            flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 5, background: promptText.trim() ? tint : R.line, color: "#fff", border: "none", borderRadius: 9, padding: "7px 12px", fontSize: 12.5, fontWeight: 700, cursor: promptText.trim() && busyWorld !== c.id ? "pointer" : "default",
+                          }}>
+                            {busyWorld === c.id ? <Loader2 size={13} className="animate-spin" /> : "Add"}
+                          </button>
+                        </form>
+                        {!aiDisabled && (
+                          <button onClick={() => dreamForWorld(c.id)} disabled={busyWorld === c.id} style={{
+                            flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 12,
+                            border: `1px solid color-mix(in oklab, ${tint} 35%, ${R.line})`, background: `color-mix(in oklab, ${tint} 8%, ${R.card})`, color: R.accentInk, fontSize: 12.5, fontWeight: 700, cursor: busyWorld === c.id ? "default" : "pointer", whiteSpace: "nowrap",
+                          }}>
+                            {busyWorld === c.id ? <Loader2 size={13} className="animate-spin" /> : <Plus size={14} />} More ideas
+                          </button>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -605,7 +646,7 @@ export default function ReclaimJourney({ framed = false }: { framed?: boolean } 
       step={3} total={3} eyebrow="Movement three · your arc"
       title="The whole arc, across the seasons"
       onBack={() => setStage("year")}
-      resetSlot={resetRow}
+      headerAction={resetControl}
     >
       <VerticalArc arc={arc} exitAge={exitAge} horizonAge={90} headline={mix.length > 0 ? synthesis.title : undefined} tail={arcTail} onAddPursuit={addToArc} optimizingSeason={optimizingSeason} building={buildingArc} />
     </WizardShell>

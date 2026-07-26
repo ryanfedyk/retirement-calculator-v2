@@ -23,6 +23,7 @@ const CAT_META: Record<AdventureCategory, { color: string; icon: string }> = {
   "Creative Mastery": { color: "#7a5a9e", icon: "🎸" },
   "Endurance/Active": { color: "#4a8a5a", icon: "🏔️" },
   "Slow Living":      { color: "#c4784e", icon: "🌿" },
+  "People & Belonging": { color: "#4e9e86", icon: "🫂" },
 };
 const CATEGORIES = Object.keys(CAT_META) as AdventureCategory[];
 

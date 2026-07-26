@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, ArrowLeft, Pencil, ArrowRight, Search, Wand2, Loader2, X, RotateCcw, ChevronDown, Plus, Sparkles } from "lucide-react";
+import { Check, ArrowLeft, Pencil, ArrowRight, Search, Wand2, Loader2, X, RotateCcw, ChevronDown, Plus, Sparkles, MoreHorizontal } from "lucide-react";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { usePerfectYearStore } from "@/store/usePerfectYearStore";
@@ -66,6 +66,7 @@ export default function ReclaimJourney({ framed = false }: { framed?: boolean } 
   const [stage, setStage] = useState<Stage | null>(null);
   const [fineTune, setFineTune] = useState<null | "days" | "year">(null);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false); // header actions (fine-tune / reset)
   const dragRef = useRef<{ id: string; rect: DOMRect } | null>(null); // day drag-to-weight
   useEffect(() => {
     const anyW = Object.values(useReclaimWizardStore.getState().dayWeights).some((v) => v > 0);
@@ -262,22 +263,42 @@ export default function ReclaimJourney({ framed = false }: { framed?: boolean } 
     setConfirmReset(false); setStage("intro");
   };
 
-  // Reset control — a quiet icon pinned in the movement's header, with an
-  // inline confirm so it's one tap to reach but never a mis-tap.
-  const resetControl = (
+  // Header actions — one quiet ⋯ menu pinned in the movement's header, holding
+  // the fine-tune editors and reset, so the arc itself stays uncluttered.
+  const closeMenu = () => { setMenuOpen(false); setConfirmReset(false); };
+  const menuItem = (label: string, onClick: () => void, color = R.ink) => (
+    <button onClick={onClick} style={{ width: "100%", textAlign: "left", display: "inline-flex", alignItems: "center", gap: 9, padding: "10px 12px", borderRadius: 9, border: "none", background: "none", color, fontSize: 13.5, fontWeight: 600, cursor: "pointer" }}>{label}</button>
+  );
+  const headerMenu = (
     <div style={{ position: "relative", flexShrink: 0 }}>
-      <button onClick={() => setConfirmReset((v) => !v)} aria-label="Reset my design" title="Reset my design" style={{
+      <button onClick={() => setMenuOpen((v) => !v)} aria-label="Options" style={{
         display: "flex", alignItems: "center", justifyContent: "center", width: 30, height: 30, borderRadius: "50%",
-        border: `1px solid ${confirmReset ? R.clay : R.line}`, background: R.card, color: R.clay, cursor: "pointer",
-      }}><RotateCcw size={15} /></button>
-      {confirmReset && (
+        border: `1px solid ${menuOpen ? R.inkFaint : R.line}`, background: R.card, color: R.inkSoft, cursor: "pointer",
+      }}><MoreHorizontal size={16} /></button>
+      {menuOpen && (
         <>
-          <div onClick={() => setConfirmReset(false)} style={{ position: "fixed", inset: 0, zIndex: 20 }} />
-          <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 21, width: 244, background: R.card2, border: `1px solid ${R.line}`, borderRadius: 14, boxShadow: "0 18px 40px -16px rgba(20,30,26,0.4)", padding: 14 }}>
-            <div style={{ fontSize: 12.5, color: R.inkSoft, lineHeight: 1.45, marginBottom: 11 }}>Clear your days, pursuits &amp; arc and design from scratch?</div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={resetAll} style={{ background: R.clay, color: "#fff", border: "none", borderRadius: 9, padding: "8px 14px", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>Yes, reset</button>
-              <button onClick={() => setConfirmReset(false)} style={{ background: "none", border: "none", color: R.inkFaint, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>Cancel</button>
+          <div onClick={closeMenu} style={{ position: "fixed", inset: 0, zIndex: 20 }} />
+          <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 21, minWidth: 220, background: R.card2, border: `1px solid ${R.line}`, borderRadius: 14, boxShadow: "0 18px 40px -16px rgba(20,30,26,0.4)", padding: 6 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px 4px" }}>
+              <Pencil size={12} color={R.inkFaint} />
+              <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: R.inkFaint }}>Fine-tune</span>
+            </div>
+            {menuItem("Your days, hour by hour", () => { closeMenu(); setFineTune("days"); })}
+            {menuItem("Your year, on a calendar", () => { closeMenu(); commitPursuits(pursuits); setFineTune("year"); })}
+            <div style={{ borderTop: `1px solid ${R.lineSoft}`, marginTop: 4, paddingTop: 4 }}>
+              {confirmReset ? (
+                <div style={{ padding: "8px 12px" }}>
+                  <div style={{ fontSize: 12.5, color: R.inkSoft, lineHeight: 1.45, marginBottom: 9 }}>Clear your days, pursuits &amp; arc and design from scratch?</div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button onClick={resetAll} style={{ background: R.clay, color: "#fff", border: "none", borderRadius: 9, padding: "7px 13px", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>Yes, reset</button>
+                    <button onClick={() => setConfirmReset(false)} style={{ background: "none", border: "none", color: R.inkFaint, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>Cancel</button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => setConfirmReset(true)} style={{ width: "100%", textAlign: "left", display: "inline-flex", alignItems: "center", gap: 9, padding: "10px 12px", borderRadius: 9, border: "none", background: "none", color: R.clay, fontSize: 13.5, fontWeight: 600, cursor: "pointer" }}>
+                  <RotateCcw size={14} /> Reset my design
+                </button>
+              )}
             </div>
           </div>
         </>
@@ -395,8 +416,7 @@ export default function ReclaimJourney({ framed = false }: { framed?: boolean } 
         onNext={() => setStage("year")} nextLabel="Next: your year"
         nextDisabled={total === 0}
         nextHint={total === 0 ? "Give at least one kind of day some presence to continue." : undefined}
-        onSkip={() => setFineTune("days")} skipLabel="Fine-tune day by day"
-        headerAction={resetControl} contentMaxWidth={640}
+        headerAction={headerMenu} contentMaxWidth={640}
       >
         {/* Week ribbon — the blend as one band of light */}
         <div style={{ display: "flex", height: 18, borderRadius: 999, overflow: "hidden", marginBottom: 8, background: R.card, boxShadow: `inset 0 0 0 1px ${R.lineSoft}` }}>
@@ -406,12 +426,17 @@ export default function ReclaimJourney({ framed = false }: { framed?: boolean } 
                 <div key={a.id} title={a.name} style={{ width: `${(dayWeights[a.id] ?? 0) / total * 100}%`, background: DAY_COLOR[a.id] ?? R.accent, transition: "width 0.15s linear" }} />
               ))}
         </div>
-        <div style={{ minHeight: "1.4em", marginBottom: total === 0 ? 6 : 2 }}>
-          {mix.length > 0
-            ? <span style={{ fontFamily: SERIF, fontSize: "clamp(19px, 3.6vw, 24px)", color: R.ink, lineHeight: 1.3 }}>A life of {synthesis.title.replace(/^A life of /, "").split(" and ").map((n, i, arr) => <span key={n}><em style={{ fontStyle: "normal", color: R.accentInk }}>{n}</em>{i < arr.length - 1 ? " and " : ""}</span>)}.</span>
-            : <span style={{ fontFamily: SERIF, fontSize: "clamp(18px, 3.4vw, 22px)", color: R.inkFaint, lineHeight: 1.3 }}>Reach for the kinds of day that feel like you.</span>}
+        {/* Fixed-height read-out so the sliders below never shift as content
+            appears — the synthesis line and its coaching note are reserved space
+            whether or not anything's been dialed in yet. */}
+        <div style={{ minHeight: 78, marginBottom: 14, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+          <div>
+            {mix.length > 0
+              ? <span style={{ fontFamily: SERIF, fontSize: "clamp(19px, 3.6vw, 24px)", color: R.ink, lineHeight: 1.3 }}>A life of {synthesis.title.replace(/^A life of /, "").split(" and ").map((n, i, arr) => <span key={n}><em style={{ fontStyle: "normal", color: R.accentInk }}>{n}</em>{i < arr.length - 1 ? " and " : ""}</span>)}.</span>
+              : <span style={{ fontFamily: SERIF, fontSize: "clamp(18px, 3.4vw, 22px)", color: R.inkFaint, lineHeight: 1.3 }}>Reach for the kinds of day that feel like you.</span>}
+          </div>
+          <div style={{ fontSize: 12.5, color: R.inkFaint, lineHeight: 1.5, marginTop: 6, minHeight: "2.4em" }}>{mix.length > 0 ? blendGapNote(mix) : ""}</div>
         </div>
-        {mix.length > 0 && <div style={{ fontSize: 12.5, color: R.inkFaint, lineHeight: 1.5, marginBottom: 22 }}>{blendGapNote(mix)}</div>}
 
         {/* Presence sliders */}
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -512,8 +537,7 @@ export default function ReclaimJourney({ framed = false }: { framed?: boolean } 
         onNext={buildArc} nextLabel="Build my arc"
         nextDisabled={pursuits.length === 0}
         nextHint={pursuits.length === 0 ? "Open a world and pick a seed or two to begin." : `${pursuits.length} seed${pursuits.length === 1 ? "" : "s"} chosen`}
-        onSkip={() => { commitPursuits(pursuits); setFineTune("year"); }} skipLabel="Time them on a calendar"
-        headerAction={resetControl} contentMaxWidth={1040}
+        headerAction={headerMenu} contentMaxWidth={1040}
       >
         {/* A slim search to find across every world (creation lives in the sections) */}
         <div style={{ position: "relative", display: "flex", alignItems: "center", marginBottom: 14, maxWidth: 460 }}>
@@ -619,26 +643,11 @@ export default function ReclaimJourney({ framed = false }: { framed?: boolean } 
 
   // ── Movement three · Arc (finale) — a vertical journey down the years ─────────
   const anyContent = mix.length > 0 || pursuits.length > 0;
-  const arcTail = (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {anyContent && (
-        <div style={{ fontFamily: SERIF, fontSize: "clamp(14px, 3vw, 16px)", color: R.inkSoft, lineHeight: 1.6, textAlign: "center", padding: "0 8px", fontStyle: "italic" }}>
-          However far the road runs, this is a life with room for what matters most — and it starts with the very next season.
-        </div>
-      )}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16, flexWrap: "wrap" }}>
-        <button onClick={() => setStage("days")} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", color: R.inkSoft, fontSize: 12.5, fontWeight: 600 }}>
-          <ArrowLeft size={13} /> Adjust my blend
-        </button>
-        <button onClick={() => setFineTune("days")} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "none", border: "none", cursor: "pointer", color: R.inkSoft, fontSize: 12.5, fontWeight: 600 }}>
-          <Pencil size={13} /> Fine-tune days
-        </button>
-        <button onClick={() => { commitPursuits(pursuits); setFineTune("year"); }} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "none", border: "none", cursor: "pointer", color: R.inkSoft, fontSize: 12.5, fontWeight: 600 }}>
-          <Pencil size={13} /> Fine-tune year
-        </button>
-      </div>
+  const arcTail = anyContent ? (
+    <div style={{ fontFamily: SERIF, fontSize: "clamp(14px, 3vw, 16px)", color: R.inkSoft, lineHeight: 1.6, textAlign: "center", padding: "0 8px", fontStyle: "italic" }}>
+      However far the road runs, this is a life with room for what matters most — and it starts with the very next season.
     </div>
-  );
+  ) : null;
   return shell(
     <WizardShell
       immersive={immersive} onExit={framed ? undefined : () => setStage("intro")}
@@ -646,7 +655,7 @@ export default function ReclaimJourney({ framed = false }: { framed?: boolean } 
       step={3} total={3} eyebrow="Movement three · your arc"
       title="The whole arc, across the seasons"
       onBack={() => setStage("year")}
-      headerAction={resetControl}
+      headerAction={headerMenu}
     >
       <ArcMap arc={arc} exitAge={exitAge} horizonAge={90} headline={mix.length > 0 ? synthesis.title : undefined} tail={arcTail} onAddPursuit={addToArc} optimizingSeason={optimizingSeason} building={buildingArc} />
     </WizardShell>

@@ -18,7 +18,7 @@ import type { AdventureBlueprint, AdventureCategory, CommitmentLevel, WhenToStar
 import WizardShell from "./WizardShell";
 import PerfectDay from "./PerfectDay";
 import PerfectYear from "./PerfectYear";
-import VerticalArc from "./VerticalArc";
+import ArcMap from "./ArcMap";
 import { R, SERIF, DAY_COLOR, YEAR_COLOR, presenceWord } from "./reclaimTheme";
 
 const VALID_CATS: AdventureCategory[] = ["Immersive Travel", "Creative Mastery", "Endurance/Active", "Slow Living", "People & Belonging"];
@@ -648,7 +648,7 @@ export default function ReclaimJourney({ framed = false }: { framed?: boolean } 
       onBack={() => setStage("year")}
       headerAction={resetControl}
     >
-      <VerticalArc arc={arc} exitAge={exitAge} horizonAge={90} headline={mix.length > 0 ? synthesis.title : undefined} tail={arcTail} onAddPursuit={addToArc} optimizingSeason={optimizingSeason} building={buildingArc} />
+      <ArcMap arc={arc} exitAge={exitAge} horizonAge={90} headline={mix.length > 0 ? synthesis.title : undefined} tail={arcTail} onAddPursuit={addToArc} optimizingSeason={optimizingSeason} building={buildingArc} />
     </WizardShell>
   );
 }

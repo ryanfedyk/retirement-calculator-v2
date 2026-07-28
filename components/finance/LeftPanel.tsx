@@ -8,6 +8,7 @@ import { IRS_401K } from "@/engine/calculator";
 import TickerAutocomplete from "./TickerAutocomplete";
 import LinkedNumberField from "./LinkedNumberField";
 import BaselineLinkBadge from "./BaselineLinkBadge";
+import RangeField from "./RangeField";
 import PlanHistory from "./PlanHistory";
 import type { LivePrices } from "./FinancialDashboard";
 
@@ -676,23 +677,21 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
         <AccCard {...acc("market")} hidden={!showLevers} title="Market & Lifestyle" color={C.warm}>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <BaselineLinkBadge section="market_assumptions" />
+            {/* Return assumptions live here (not on the quick-tune card) but stay
+                draggable sliders with an editable exact value. */}
+            <RangeField label="Market Return (%)" value={ma.market_return_rate} min={2} max={12} step={0.5} accent={C.warm}
+              onChange={v => updateNestedConfig("market_assumptions", { market_return_rate: v })} />
+            {config.use_equity_comp && (
+              <RangeField label={`${(config.concentrated_symbol || "Company").toUpperCase()} Return (%)`} value={ma.goog_growth_rate} min={0} max={25} step={0.5} accent="#c0873c"
+                onChange={v => updateNestedConfig("market_assumptions", { goog_growth_rate: v })} />
+            )}
             <Row>
-              <div><FieldLabel>Market Return (%)</FieldLabel>
-                <Input type="number" step={0.1} value={ma.market_return_rate}
-                  onChange={e => updateNestedConfig("market_assumptions", { market_return_rate: +e.target.value })} /></div>
               <div><FieldLabel>Volatility Drag (%)</FieldLabel>
                 <Input type="number" step={0.1} value={ma.volatility_drag}
                   onChange={e => updateNestedConfig("market_assumptions", { volatility_drag: +e.target.value })} /></div>
-            </Row>
-            <Row>
               <div><FieldLabel>Inflation (%)</FieldLabel>
                 <Input type="number" step={0.25} value={ma.inflation_rate}
                   onChange={e => updateNestedConfig("market_assumptions", { inflation_rate: +e.target.value })} /></div>
-              {config.use_equity_comp ? (
-                <div><FieldLabel>{(config.concentrated_symbol || "Company").toUpperCase()} Return (%)</FieldLabel>
-                  <Input type="number" step={0.5} value={ma.goog_growth_rate}
-                    onChange={e => updateNestedConfig("market_assumptions", { goog_growth_rate: +e.target.value })} /></div>
-              ) : <div />}
             </Row>
 
             <SectionDivider />

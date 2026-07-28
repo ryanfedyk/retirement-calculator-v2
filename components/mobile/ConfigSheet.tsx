@@ -208,6 +208,9 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
               <Field label="Market Return (%)"><Num step={0.1} value={ma.market_return_rate} onChange={v => updateNestedConfig("market_assumptions", { market_return_rate: v })} /></Field>
               <Field label="Volatility Drag (%)"><Num step={0.1} value={ma.volatility_drag} onChange={v => updateNestedConfig("market_assumptions", { volatility_drag: v })} /></Field>
             </Two>
+            {config.use_equity_comp === true && (
+              <Field label={`${(config.concentrated_symbol || "Company").toUpperCase()} Return (%)`}><Num step={0.5} value={ma.goog_growth_rate} onChange={v => updateNestedConfig("market_assumptions", { goog_growth_rate: v })} /></Field>
+            )}
             <Field label="Inflation (%)"><Num step={0.25} value={ma.inflation_rate} onChange={v => updateNestedConfig("market_assumptions", { inflation_rate: v })} /></Field>
             <Field label="Healthcare Inflation over CPI (%)"><Num step={0.25} value={ma.healthcare_inflation_premium ?? 2} onChange={v => updateNestedConfig("market_assumptions", { healthcare_inflation_premium: v })} /></Field>
           </Section>

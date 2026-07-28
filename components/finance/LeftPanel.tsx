@@ -688,7 +688,11 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
               <div><FieldLabel>Inflation (%)</FieldLabel>
                 <Input type="number" step={0.25} value={ma.inflation_rate}
                   onChange={e => updateNestedConfig("market_assumptions", { inflation_rate: +e.target.value })} /></div>
-              <div />
+              {config.use_equity_comp ? (
+                <div><FieldLabel>{(config.concentrated_symbol || "Company").toUpperCase()} Return (%)</FieldLabel>
+                  <Input type="number" step={0.5} value={ma.goog_growth_rate}
+                    onChange={e => updateNestedConfig("market_assumptions", { goog_growth_rate: +e.target.value })} /></div>
+              ) : <div />}
             </Row>
 
             <SectionDivider />

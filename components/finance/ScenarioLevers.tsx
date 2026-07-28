@@ -65,12 +65,9 @@ function TipChip({ emoji, code, tip, color }: { emoji: string; code: string; tip
   );
 }
 
-function Slider({ label, value, display, min, max, step, accent, onChange, badge, caption, editSuffix }: {
+function Slider({ label, value, display, min, max, step, accent, onChange, badge, caption }: {
   label: string; value: number; display: string; min: number; max: number; step: number; accent: string; onChange: (v: number) => void; badge?: React.ReactNode; caption?: string;
-  /** When set, the value read-out becomes an editable number field (type an exact value), with this suffix (e.g. "%"). */
-  editSuffix?: string;
 }) {
-  const clamp = (v: number) => Math.max(min, Math.min(max, v));
   return (
     <div style={{ flex: "1 1 150px", minWidth: 140 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 6, marginBottom: 4 }}>
@@ -81,14 +78,7 @@ function Slider({ label, value, display, min, max, step, accent, onChange, badge
         <span style={{ fontSize: 13, fontWeight: 700, color: C.ink, fontVariantNumeric: "tabular-nums", display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" }}>
           {/* Drop the badge before the headline ever wraps when the column is tight. */}
           {badge && <span className="hidden @min-[420px]:inline-flex" style={{ alignItems: "center" }}>{badge}</span>}
-          {editSuffix !== undefined ? (
-            <span style={{ display: "inline-flex", alignItems: "baseline" }}>
-              <input type="number" value={value} min={min} max={max} step={0.1} aria-label={`${label} exact value`}
-                onChange={e => { const raw = e.target.value; if (raw === "") return; onChange(clamp(Math.round(+raw * 10) / 10)); }}
-                style={{ width: 44, textAlign: "right", border: "none", borderBottom: `1px solid ${C.border}`, background: "none", fontSize: 13, fontWeight: 700, color: C.ink, fontVariantNumeric: "tabular-nums", outline: "none", MozAppearance: "textfield" as React.CSSProperties["MozAppearance"] }} />
-              <span>{editSuffix}</span>
-            </span>
-          ) : display}
+          {display}
         </span>
       </div>
       <input type="range" min={min} max={max} step={step} value={value}
@@ -154,15 +144,6 @@ export default function ScenarioLevers({ onOpenEditor, livePrices, retireWindow,
         <Slider label="Market Return" value={ma.market_return_rate} display={`${ma.market_return_rate}%`}
           min={2} max={12} step={0.5} accent="#7a6da8"
           onChange={v => updateNestedConfig("market_assumptions", { market_return_rate: v })} />
-        {/* Company equity grows at its own rate — model it conservatively or
-            ambitiously per scenario (forks just this scenario). Only shown when
-            the household actually holds concentrated employer stock. */}
-        {config.use_equity_comp && (
-          <Slider label={`${(config.concentrated_symbol || "Company").toUpperCase()} Return`} value={ma.goog_growth_rate} display={`${ma.goog_growth_rate}%`}
-            min={0} max={25} step={0.5} accent="#c0873c" editSuffix="%"
-            caption="your equity"
-            onChange={v => updateNestedConfig("market_assumptions", { goog_growth_rate: v })} />
-        )}
       </div>
 
       {/* "What if…" — the three career phases (Sabbatical / Career Jump / Bridge

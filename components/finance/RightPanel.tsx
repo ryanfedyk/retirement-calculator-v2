@@ -6,6 +6,7 @@ import {
 } from "recharts";
 import { CalendarDays } from "lucide-react";
 import HorizonZoomButton from "./HorizonZoomButton";
+import { type HorizonZoom, horizonCapYear, horizonZoomIn, horizonZoomOut } from "@/lib/horizonZoom";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
 import { runSimulation, runSimulationConverged, findCashflowFiPoint, assessPlan, toDisplayDollars, findRetirementWindow } from "@/engine/calculator";
@@ -159,7 +160,7 @@ export default function RightPanel({ livePrices }: Props) {
   const { children } = useHorizonProfile();
   const [chartView, setChartView] = useState<ChartView>("wealth");
   const [insightTab, setInsightTab] = useState<"today" | "ai">("today");
-  const [ageCap, setAgeCap] = useState<70 | 100>(70);
+  const [zoom, setZoom] = useState<HorizonZoom>("focus");
 
   // Year currently hovered on the chart — reveals subtle (secondary) milestones
   const [hoverYear, setHoverYear] = useState<string | null>(null);
@@ -227,6 +228,8 @@ export default function RightPanel({ livePrices }: Props) {
   const swrTarget      = todayPoint?.swrTarget ?? 0;
   const progress       = swrTarget > 0 ? Math.min(100, (spendable / swrTarget) * 100) : 0;
   const birthYear      = config.birth_year ?? 1980;
+  const currentYear    = new Date().getFullYear();
+  const capYear        = horizonCapYear(zoom, birthYear, currentYear);
   // Rough current savings rate (net income that isn't going to needs) for FIRE callouts.
   const savingsRate    = todayPoint ? Math.max(0, Math.min(1, 1 - (todayPoint.annualExpenseNeed / Math.max(1, todayPoint.salaryAndEquityNet)))) : 0;
   // Coast FIRE: current assets compounding at the real return reach FI by 65 with no new contributions.
@@ -280,10 +283,9 @@ export default function RightPanel({ livePrices }: Props) {
   // at 67+), so capping them at 70 would hide it almost entirely.
   const isBreakdown = chartView === "income" || chartView === "expenses";
   const cappedChartData = useMemo(() => {
-    if (ageCap >= 100 || isBreakdown) return chartData;
-    const maxYear = birthYear + ageCap;
-    return chartData.filter((d) => { const y = Number(String(d.date).split(" ")[1]); return !y || y <= maxYear; });
-  }, [chartData, ageCap, birthYear, isBreakdown]);
+    if (zoom === "full" || isBreakdown) return chartData;
+    return chartData.filter((d) => { const y = Number(String(d.date).split(" ")[1]); return !y || y <= capYear; });
+  }, [chartData, zoom, capYear, isBreakdown]);
 
   // ── Monte Carlo (sequence-of-returns risk) ────────────────────────────────
   // Only computed while the Risk view is open — it runs hundreds of full
@@ -296,7 +298,7 @@ export default function RightPanel({ livePrices }: Props) {
   // to the selected age horizon. `range` is a tuple so recharts draws a band.
   const riskChartData = useMemo(() => {
     if (!monteCarlo) return [];
-    const maxYear = ageCap >= 100 ? Infinity : birthYear + ageCap;
+    const maxYear = capYear;
     const annual = 1 + inflationRate / 100;
     const infl = (v: number, monthIndex: number) =>
       dollarMode === "future" && inflationRate ? v * Math.pow(annual, monthIndex / 12) : v;
@@ -307,7 +309,7 @@ export default function RightPanel({ livePrices }: Props) {
         p50: infl(b.p50, b.monthIndex),
         range: [infl(b.p10, b.monthIndex), infl(b.p90, b.monthIndex)] as [number, number],
       }));
-  }, [monteCarlo, ageCap, birthYear, dollarMode, inflationRate]);
+  }, [monteCarlo, capYear, dollarMode, inflationRate]);
   const successPct = monteCarlo ? Math.round(monteCarlo.successRate * 100) : null;
   const successColor = successPct == null ? C.inkSoft : successPct >= 85 ? "#2a7a68" : successPct >= 70 ? C.warm : "#c0492b";
 
@@ -446,7 +448,7 @@ export default function RightPanel({ livePrices }: Props) {
                chartView === "risk"     ? (
                  <span>
                    <span style={{ color: successColor, fontWeight: 700 }}>{successPct ?? "—"}%</span>
-                   <span style={{ fontWeight: 600 }}> fund this plan to age {ageCap}</span>
+                   <span style={{ fontWeight: 600 }}> fund this plan to age {zoom === "focus" ? 70 : 100}</span>
                  </span>
                ) :
                "Wealth Trajectory"}
@@ -455,7 +457,8 @@ export default function RightPanel({ livePrices }: Props) {
               {chartView === "timeline" ? "Month-by-month phases & milestones" :
                chartView === "risk"     ? `Median & 10th–90th percentile across ${monteCarlo?.runs ?? 0} return paths · ${dollarBasisLabel}` :
                isBreakdown              ? `Annual streams across your lifetime · in ${dollarBasisLabel}` :
-               `Projection to age ${ageCap} · in ${dollarBasisLabel}`}
+               zoom === "near" ? `The next 10 years · in ${dollarBasisLabel}` :
+               `Projection to age ${zoom === "focus" ? 70 : 100} · in ${dollarBasisLabel}`}
             </div>
           </div>
 
@@ -482,7 +485,7 @@ export default function RightPanel({ livePrices }: Props) {
           {/* Horizon zoom — floats in the chart's bottom-right (not for the
               calendar timeline, which has no age horizon to cap). */}
           {chartView !== "timeline" && !isBreakdown && (
-            <HorizonZoomButton ageCap={ageCap} onToggle={() => setAgeCap((a) => (a === 100 ? 70 : 100))} />
+            <HorizonZoomButton zoom={zoom} onZoomIn={() => setZoom(horizonZoomIn)} onZoomOut={() => setZoom(horizonZoomOut)} />
           )}
           {chartView === "timeline" ? (
             <LifeCalendar data={displayTrajectory} config={config} />

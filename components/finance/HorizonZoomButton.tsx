@@ -1,35 +1,50 @@
 "use client";
 import { ZoomIn, ZoomOut } from "lucide-react";
 import { C } from "@/config/colors";
+import type { HorizonZoom } from "@/lib/horizonZoom";
 
 /**
- * A small magnifier that toggles a chart's horizon between the focused (to age
- * 70) and full (to age 100) views. Renders as a floating control in the
- * bottom-right of the graph — the parent must be `position: relative`. Shows the
- * zoom-IN glass when fully zoomed out (at 100) and zoom-OUT when focused (at 70).
+ * A compact zoom control for a chart's horizon, with three levels: the next
+ * 10 years (near) → age 70 (focus) → the full horizon (full). Renders a
+ * stacked +/- pair floating in the bottom-right of the graph — the parent must
+ * be `position: relative`. Each button dims at the extreme it can't go past.
  */
 export default function HorizonZoomButton({
-  ageCap,
-  onToggle,
+  zoom,
+  onZoomIn,
+  onZoomOut,
   size = 32,
 }: {
-  ageCap: 70 | 100;
-  onToggle: () => void;
+  zoom: HorizonZoom;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
   size?: number;
 }) {
+  const canIn = zoom !== "near";
+  const canOut = zoom !== "full";
+  const base: React.CSSProperties = {
+    display: "flex", alignItems: "center", justifyContent: "center", width: size, height: size,
+    border: `1px solid ${C.border}`, background: `${C.bgCard}f0`, color: C.inkMid,
+    boxShadow: `0 1px 4px ${C.border}`, backdropFilter: "blur(2px)",
+  };
   return (
-    <button
-      onClick={onToggle}
-      title={ageCap === 100 ? "Zoom in — focus on the years to age 70" : "Zoom out — show the full horizon to age 100"}
-      aria-label={ageCap === 100 ? "Zoom in to age 70" : "Zoom out to age 100"}
-      style={{
-        position: "absolute", right: 24, bottom: 52, zIndex: 3,
-        display: "flex", alignItems: "center", justifyContent: "center", width: size, height: size,
-        borderRadius: 8, border: `1px solid ${C.border}`, background: `${C.bgCard}f0`,
-        color: C.inkMid, cursor: "pointer", boxShadow: `0 1px 4px ${C.border}`, backdropFilter: "blur(2px)",
-      }}
-    >
-      {ageCap === 100 ? <ZoomIn size={size * 0.5} /> : <ZoomOut size={size * 0.5} />}
-    </button>
+    <div style={{ position: "absolute", right: 24, bottom: 52, zIndex: 3, display: "flex", flexDirection: "column" }}>
+      <button
+        onClick={canIn ? onZoomIn : undefined} disabled={!canIn}
+        title={zoom === "full" ? "Zoom in — focus to age 70" : "Zoom in — the next 10 years"}
+        aria-label="Zoom in"
+        style={{ ...base, borderRadius: "8px 8px 0 0", borderBottom: "none", cursor: canIn ? "pointer" : "default", opacity: canIn ? 1 : 0.4 }}
+      >
+        <ZoomIn size={size * 0.5} />
+      </button>
+      <button
+        onClick={canOut ? onZoomOut : undefined} disabled={!canOut}
+        title={zoom === "near" ? "Zoom out — back to age 70" : "Zoom out — the full horizon"}
+        aria-label="Zoom out"
+        style={{ ...base, borderRadius: "0 0 8px 8px", cursor: canOut ? "pointer" : "default", opacity: canOut ? 1 : 0.4 }}
+      >
+        <ZoomOut size={size * 0.5} />
+      </button>
+    </div>
   );
 }

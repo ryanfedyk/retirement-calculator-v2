@@ -7,6 +7,7 @@ import { useUIStore } from "@/store/useUIStore";
 import TickerAutocomplete from "@/components/finance/TickerAutocomplete";
 import LinkedNumberField from "@/components/finance/LinkedNumberField";
 import BaselineLinkBadge from "@/components/finance/BaselineLinkBadge";
+import RangeField from "@/components/finance/RangeField";
 import BottomSheet from "./BottomSheet";
 import { money, inputStyle, Field, Num, TextInput, Toggle, Two, Section } from "./sheetUI";
 
@@ -204,14 +205,18 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
           {/* ── Market Assumptions ── */}
           <Section title="Market Assumptions" accent="#7a6da8" {...sec("market")}>
             <BaselineLinkBadge section="market_assumptions" variant="mobile" />
-            <Two>
-              <Field label="Market Return (%)"><Num step={0.1} value={ma.market_return_rate} onChange={v => updateNestedConfig("market_assumptions", { market_return_rate: v })} /></Field>
-              <Field label="Volatility Drag (%)"><Num step={0.1} value={ma.volatility_drag} onChange={v => updateNestedConfig("market_assumptions", { volatility_drag: v })} /></Field>
-            </Two>
+            {/* Returns stay draggable sliders (with an editable exact value); the
+                rest are number fields. */}
+            <RangeField label="Market Return (%)" value={ma.market_return_rate} min={2} max={12} step={0.5} accent="#7a6da8"
+              onChange={v => updateNestedConfig("market_assumptions", { market_return_rate: v })} />
             {config.use_equity_comp === true && (
-              <Field label={`${(config.concentrated_symbol || "Company").toUpperCase()} Return (%)`}><Num step={0.5} value={ma.goog_growth_rate} onChange={v => updateNestedConfig("market_assumptions", { goog_growth_rate: v })} /></Field>
+              <RangeField label={`${(config.concentrated_symbol || "Company").toUpperCase()} Return (%)`} value={ma.goog_growth_rate} min={0} max={25} step={0.5} accent="#c0873c"
+                onChange={v => updateNestedConfig("market_assumptions", { goog_growth_rate: v })} />
             )}
-            <Field label="Inflation (%)"><Num step={0.25} value={ma.inflation_rate} onChange={v => updateNestedConfig("market_assumptions", { inflation_rate: v })} /></Field>
+            <Two>
+              <Field label="Volatility Drag (%)"><Num step={0.1} value={ma.volatility_drag} onChange={v => updateNestedConfig("market_assumptions", { volatility_drag: v })} /></Field>
+              <Field label="Inflation (%)"><Num step={0.25} value={ma.inflation_rate} onChange={v => updateNestedConfig("market_assumptions", { inflation_rate: v })} /></Field>
+            </Two>
             <Field label="Healthcare Inflation over CPI (%)"><Num step={0.25} value={ma.healthcare_inflation_premium ?? 2} onChange={v => updateNestedConfig("market_assumptions", { healthcare_inflation_premium: v })} /></Field>
           </Section>
 

@@ -99,7 +99,6 @@ export default function ScenarioLevers({ onOpenEditor, livePrices, retireWindow,
   const { config, updateNestedConfig } = useFinancialStore();
   const cp = config.career_path;
   const sp = config.spending;
-  const ma = config.market_assumptions;
   const currentYear = new Date().getFullYear();
   // Exit-year range: today → the year they turn 70 (guard a pre-set later exit).
   const maxExit = Math.max((config.birth_year || 1985) + 70, cp.exit_year);
@@ -141,9 +140,6 @@ export default function ScenarioLevers({ onOpenEditor, livePrices, retireWindow,
             <TipChip emoji={t.emoji} code={t.code} tip={t.label} color={t.color} />
           ); })()}
           onChange={v => updateNestedConfig("spending", { monthly_lifestyle: v })} />
-        <Slider label="Market Return" value={ma.market_return_rate} display={`${ma.market_return_rate}%`}
-          min={2} max={12} step={0.5} accent="#7a6da8"
-          onChange={v => updateNestedConfig("market_assumptions", { market_return_rate: v })} />
       </div>
 
       {/* "What if…" — the three career phases (Sabbatical / Career Jump / Bridge

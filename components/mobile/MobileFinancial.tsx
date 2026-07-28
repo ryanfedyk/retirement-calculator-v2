@@ -2,6 +2,7 @@
 import { useState, useMemo } from "react";
 import { ResponsiveContainer, AreaChart, Area, Line, XAxis, YAxis, Tooltip, ReferenceLine, CartesianGrid } from "recharts";
 import HorizonZoomButton from "@/components/finance/HorizonZoomButton";
+import { type HorizonZoom, horizonCapYear, horizonZoomIn, horizonZoomOut } from "@/lib/horizonZoom";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
@@ -42,7 +43,7 @@ export default function MobileFinancial({ livePrices, onOpenConfig }: Props) {
   const dollarBasisLabel = dollarMode === "future" ? "future (nominal) dollars" : "today’s dollars";
   const { children } = useHorizonProfile();
   const [view, setView] = useState<View>("wealth");
-  const [ageCap, setAgeCap] = useState<70 | 100>(70);
+  const [zoom, setZoom] = useState<HorizonZoom>("focus");
 
   const googInfo      = livePrices["GOOG"] ?? livePrices["GOOGL"];
   const liveGoogPrice = googInfo?.price ?? 0;
@@ -88,6 +89,7 @@ export default function MobileFinancial({ livePrices, onOpenConfig }: Props) {
   const swrTarget = today?.swrTarget ?? 0;
   const progress  = swrTarget > 0 ? Math.min(100, (spendable / swrTarget) * 100) : 0;
   const birthYear = config.birth_year ?? 1980;
+  const capYear = horizonCapYear(zoom, birthYear, new Date().getFullYear());
   const savingsRate = today ? Math.max(0, Math.min(1, 1 - (today.annualExpenseNeed / Math.max(1, today.salaryAndEquityNet)))) : 0;
   const coastFI = isCoastFI({
     investable: today?.investableAssets ?? 0,
@@ -121,10 +123,9 @@ export default function MobileFinancial({ livePrices, onOpenConfig }: Props) {
   // only starts at 67+, so capping at age 70 would hide it almost entirely.
   const isBreakdown = view === "income" || view === "expenses";
   const cappedChartData = useMemo(() => {
-    if (ageCap >= 100 || isBreakdown) return chartData;
-    const maxYear = birthYear + ageCap;
-    return chartData.filter(d => { const y = Number(String(d.date).split(" ")[1]); return !y || y <= maxYear; });
-  }, [chartData, ageCap, birthYear, isBreakdown]);
+    if (zoom === "full" || isBreakdown) return chartData;
+    return chartData.filter(d => { const y = Number(String(d.date).split(" ")[1]); return !y || y <= capYear; });
+  }, [chartData, zoom, capYear, isBreakdown]);
 
   // Monte Carlo (sequence-of-returns) — only when the Risk view is open, since it
   // runs hundreds of full projections. Mirrors the desktop Risk tab.
@@ -134,7 +135,7 @@ export default function MobileFinancial({ livePrices, onOpenConfig }: Props) {
   );
   const riskData = useMemo(() => {
     if (!monteCarlo) return [];
-    const maxYear = ageCap >= 100 ? Infinity : birthYear + ageCap;
+    const maxYear = capYear;
     const annual = 1 + inflationRate / 100;
     const infl = (v: number, monthIndex: number) =>
       dollarMode === "future" && inflationRate ? v * Math.pow(annual, monthIndex / 12) : v;
@@ -145,7 +146,7 @@ export default function MobileFinancial({ livePrices, onOpenConfig }: Props) {
         p50: infl(b.p50, b.monthIndex),
         range: [infl(b.p10, b.monthIndex), infl(b.p90, b.monthIndex)] as [number, number],
       }));
-  }, [monteCarlo, ageCap, birthYear, dollarMode, inflationRate]);
+  }, [monteCarlo, capYear, dollarMode, inflationRate]);
   const successPct = monteCarlo ? Math.round(monteCarlo.successRate * 100) : null;
   const successColor = successPct == null ? C.inkSoft : successPct >= 85 ? "#2a7a68" : successPct >= 70 ? C.warm : "#c0492b";
 
@@ -244,13 +245,13 @@ export default function MobileFinancial({ livePrices, onOpenConfig }: Props) {
         {view === "risk" && (
           <div style={{ textAlign: "center", marginBottom: 8 }}>
             <span style={{ fontSize: 26, fontWeight: 700, color: successColor, fontVariantNumeric: "tabular-nums" }}>{successPct ?? "—"}%</span>
-            <div style={{ fontSize: 11, color: C.inkSoft, marginTop: 2 }}>of return paths fund this plan to age {ageCap}</div>
+            <div style={{ fontSize: 11, color: C.inkSoft, marginTop: 2 }}>of return paths fund this plan to age {zoom === "focus" ? 70 : 100}</div>
           </div>
         )}
 
         {/* Chart, with the horizon-zoom magnifier floating in its bottom-right. */}
         <div style={{ position: "relative" }}>
-        {!isBreakdown && <HorizonZoomButton ageCap={ageCap} onToggle={() => setAgeCap(a => (a === 100 ? 70 : 100))} size={30} />}
+        {!isBreakdown && <HorizonZoomButton zoom={zoom} onZoomIn={() => setZoom(horizonZoomIn)} onZoomOut={() => setZoom(horizonZoomOut)} size={30} />}
         {view === "risk" ? (
           <ResponsiveContainer width="100%" height={300}>
             <AreaChart data={riskData} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>

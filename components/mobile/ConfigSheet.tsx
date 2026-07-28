@@ -207,7 +207,7 @@ export default function ConfigSheet({ open, onClose }: { open: boolean; onClose:
             <BaselineLinkBadge section="market_assumptions" variant="mobile" />
             {/* Returns stay draggable sliders (with an editable exact value); the
                 rest are number fields. */}
-            <RangeField label="Market Return (%)" value={ma.market_return_rate} min={2} max={12} step={0.5} accent="#7a6da8"
+            <RangeField label="Market Return (%)" value={ma.market_return_rate} min={0} max={25} step={0.5} accent="#7a6da8"
               onChange={v => updateNestedConfig("market_assumptions", { market_return_rate: v })} />
             {config.use_equity_comp === true && (
               <RangeField label={`${(config.concentrated_symbol || "Company").toUpperCase()} Return (%)`} value={ma.goog_growth_rate} min={0} max={25} step={0.5} accent="#c0873c"

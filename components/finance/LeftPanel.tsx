@@ -679,7 +679,7 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
             <BaselineLinkBadge section="market_assumptions" />
             {/* Return assumptions live here (not on the quick-tune card) but stay
                 draggable sliders with an editable exact value. */}
-            <RangeField label="Market Return (%)" value={ma.market_return_rate} min={2} max={12} step={0.5} accent={C.warm}
+            <RangeField label="Market Return (%)" value={ma.market_return_rate} min={0} max={25} step={0.5} accent={C.warm}
               onChange={v => updateNestedConfig("market_assumptions", { market_return_rate: v })} />
             {config.use_equity_comp && (
               <RangeField label={`${(config.concentrated_symbol || "Company").toUpperCase()} Return (%)`} value={ma.goog_growth_rate} min={0} max={25} step={0.5} accent="#c0873c"

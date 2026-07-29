@@ -29,10 +29,17 @@ function tickerSymbols(holdings: FinancialSnapshot["other_investments"] | undefi
  * differentiation; a small "?" opens an explanation; tapping the FI Number card
  * opens finances; the Alerts card opens the full list in a popover.
  */
-export default function SummaryCards({ indepDate, netWorth, netWorthWithHome, spendable, grossInvestable, fiNumber, fiIsCashflow = false, progress, notices, onOpenFinances, holdings, livePrices, concentratedSymbol, housingType }: {
+export default function SummaryCards({ indepDate, fiSuccessPct = null, fiSuccessLoading = false, netWorth, netWorthWithHome, spendable, grossInvestable, fiNumber, fiIsCashflow = false, progress, notices, onOpenFinances, holdings, livePrices, concentratedSymbol, housingType }: {
   indepDate: string | null;
-  /** Headline net worth (investable money; excludes the home/mortgage) — matches
-   *  the wealth chart's first point. */
+  /** Monte-Carlo success rate (%) for fully retiring at `indepDate`. The FI date is
+   *  the earliest funded month under ONE smooth return path, so it ignores
+   *  sequence-of-returns risk; this qualifies it with the share of randomized
+   *  market paths that survive, so the date isn't misread as a green light. */
+  fiSuccessPct?: number | null;
+  fiSuccessLoading?: boolean;
+  /** Headline net worth (investable money; excludes the home/mortgage) — the
+   *  as-entered balance sheet today, so it ties out to the holdings the user
+   *  entered (not the projection's month-0 point, which is already a month in). */
   netWorth: number;
   /** Net worth including home equity, shown as a small secondary note when a home
    *  value is tracked. */
@@ -62,6 +69,10 @@ export default function SummaryCards({ indepDate, netWorth, netWorthWithHome, sp
   const [modal, setModal] = useState<{ title: string; node: React.ReactNode } | null>(null);
   const open = (title: string, node: React.ReactNode) => setModal({ title, node });
 
+  // Sequence-of-returns cue for the FI date: green if the date survives most
+  // simulated market paths, amber/red if it leans on a lucky return order.
+  const pctColor = fiSuccessPct == null ? C.inkFaint : fiSuccessPct >= 85 ? "#2a7a68" : fiSuccessPct >= 70 ? C.warm : "#c0492b";
+
   const cardBase: React.CSSProperties = {
     position: "relative", flex: "1 0 230px", borderRadius: 14, padding: "15px 16px",
     minHeight: 128, display: "flex", flexDirection: "column", textAlign: "left",
@@ -89,6 +100,9 @@ export default function SummaryCards({ indepDate, netWorth, netWorthWithHome, sp
       {indepDate
         ? <p style={{ margin: "10px 0 0" }}>For this scenario that’s <strong>{indepDate}</strong>.</p>
         : <p style={{ margin: "10px 0 0" }}>This scenario doesn’t reach FI — you’d run down your savings. Work a little longer or spend less and a date will appear.</p>}
+      {indepDate && fiSuccessPct != null && (
+        <p style={{ margin: "10px 0 0" }}>That date is the earliest under a single <em>smooth</em> return path. Real markets deliver returns in an <strong>order</strong>, and a bad first few years can sink an otherwise-fine plan. Across randomized market paths, retiring exactly here succeeds <strong style={{ color: pctColor }}>≈{fiSuccessPct}%</strong> of the time{fiSuccessPct < 85 ? <> — so read it as the <em>earliest conceivable</em> date, not a safe one. Waiting a year or two, spending less, or dialing back return assumptions raises the odds; the <strong>Risk</strong> view charts the full spread.</> : ", a comfortable cushion against sequence risk."}</p>
+      )}
     </>
   );
   const numExplain = (
@@ -101,7 +115,7 @@ export default function SummaryCards({ indepDate, netWorth, netWorthWithHome, sp
   );
   const nwExplain = (
     <>
-      <p style={{ margin: 0 }}>Your <strong>net worth</strong> here is your <strong>investable money</strong> — cash, brokerage, retirement accounts and holdings, less consumer debt. It matches the first point on the wealth chart.</p>
+      <p style={{ margin: 0 }}>Your <strong>net worth</strong> here is your <strong>investable money</strong> — cash, brokerage, retirement accounts and holdings, less consumer debt. It’s the balance sheet you entered, valued as of today.</p>
       <p style={{ margin: "10px 0 0" }}>It deliberately <strong>excludes your home and mortgage</strong> so it reads in the same terms everywhere.{netWorthWithHome != null && netWorthWithHome > netWorth + 5000 ? <> Counting your home&rsquo;s equity, the full-picture figure is <strong>{fmtMM(netWorthWithHome)}</strong>.</> : null}</p>
     </>
   );
@@ -136,10 +150,15 @@ export default function SummaryCards({ indepDate, netWorth, netWorthWithHome, sp
             <div style={{ minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 6 }}><Label>Financial Independence</Label><Help onClick={() => open("Financial Independence", fiExplain)} /></div>
               <div style={{ fontSize: 23, fontWeight: 300, color: indepDate ? C.tealDark : C.inkSoft, whiteSpace: "nowrap" }}>{indepDate ?? "30+ Yrs"}</div>
+              {indepDate && (fiSuccessPct != null || fiSuccessLoading) && (
+                <div style={{ fontSize: 10.5, fontWeight: 700, marginTop: 4, color: pctColor, whiteSpace: "nowrap" }}>
+                  {fiSuccessPct != null ? `≈${fiSuccessPct}% safe in market sims` : "checking the odds…"}
+                </div>
+              )}
             </div>
             <Chip bg={indepDate ? "#ffffffcc" : C.borderSoft} color={indepDate ? C.teal : C.inkFaint} icon={Flag} />
           </div>
-          <div style={{ fontSize: 10, color: indepDate ? C.tealDark : C.inkFaint, opacity: 0.8, marginTop: "auto", paddingTop: 8 }}>{indepDate ? "Earliest you can retire, funded to 100" : "Adjust strategy to reach FI"}</div>
+          <div style={{ fontSize: 10, color: indepDate ? C.tealDark : C.inkFaint, opacity: 0.8, marginTop: "auto", paddingTop: 8 }}>{indepDate ? "Earliest funded date — base-case returns" : "Adjust strategy to reach FI"}</div>
         </div>
 
         {/* Net Worth — your investable money; matches the wealth chart's first point */}

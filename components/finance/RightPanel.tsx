@@ -10,9 +10,10 @@ import { type HorizonZoom, horizonCapYear, horizonZoomIn, horizonZoomOut } from 
 import { exitDateString } from "@/lib/exitDate";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
-import { runSimulation, runSimulationConverged, findCashflowFiPoint, assessPlan, toDisplayDollars, findRetirementWindow } from "@/engine/calculator";
+import { runSimulation, runSimulationConverged, findCashflowFiPoint, netWorthToday, assessPlan, toDisplayDollars, findRetirementWindow } from "@/engine/calculator";
 import type { TrajectoryPoint } from "@/engine/calculator";
 import { runMonteCarlo } from "@/engine/montecarlo";
+import { useFiConfidence } from "@/hooks/useFiConfidence";
 import { MomentumGrid } from "./MotivationWidgets";
 import AiAnalysis from "./AiAnalysis";
 import { C } from "@/config/colors";
@@ -220,7 +221,12 @@ export default function RightPanel({ livePrices }: Props) {
   // moving your exit earlier than you can afford pushes FI out of reach.
   const fiShown        = plan.health === "on-track" && fiPoint ? fiPoint : undefined;
   const todayPoint     = trajectoryData[0];
-  const currentNW      = todayPoint?.totalNetWorth ?? 0;
+  // Net worth AS ENTERED (ties to the balance sheet the user typed). The engine's
+  // month-0 point is already a month into the projection, so it runs a touch higher.
+  const nwToday        = useMemo(() => netWorthToday(enrichedSnapshot, config, liveGoogPrice), [enrichedSnapshot, config, liveGoogPrice]);
+  const currentNW      = nwToday.netWorth;
+  // How safe is that FI date once return ORDER is randomized? (async, off-render)
+  const fiConfidence   = useFiConfidence(enrichedSnapshot, config, liveGoogPrice, fiShown?.date ?? null);
   // Progress toward FI is measured on SPENDABLE (after-tax investable) assets —
   // the exact quantity the FI test uses — so the bar hits 100% precisely at the
   // FI date. Net worth would over-count illiquid wealth (e.g. home equity) and
@@ -425,8 +431,10 @@ export default function RightPanel({ livePrices }: Props) {
       {/* ── Summary cards: Financial Independence · Progress to FI · Alerts ── */}
       <SummaryCards
         indepDate={fiShown ? fiShown.date : null}
+        fiSuccessPct={fiConfidence.pct}
+        fiSuccessLoading={fiConfidence.loading}
         netWorth={currentNW}
-        netWorthWithHome={todayPoint?.netWorthWithHome ?? 0}
+        netWorthWithHome={nwToday.netWorthWithHome}
         spendable={spendable}
         grossInvestable={todayPoint?.investableAssets ?? 0}
         fiNumber={fiTarget}

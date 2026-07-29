@@ -11,6 +11,7 @@ import {
   runSimulationConverged,
   findIndependencePoint,
   findCashflowFiPoint,
+  netWorthToday,
   IRS_401K,
   type FinancialSnapshot,
   type SimulationConfiguration,
@@ -57,6 +58,9 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
   const infl = ma.inflation_rate || 0;
 
   const trajectory = runSimulationConverged(snapshot, config, live);
+  // Net worth AS ENTERED (ties to the balance-sheet table exactly). The engine's
+  // month-0 point runs a month in, so use this for the headline figures.
+  const nwt = netWorthToday(snapshot, config, live);
   const fi = findIndependencePoint(trajectory);            // Rule-of-25 crossing (reference)
   const fiSurvival = findCashflowFiPoint(snapshot, config, live, trajectory); // headline FI (cash-flow survival)
   const today = trajectory[0];
@@ -171,13 +175,13 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
   p();
   p(
     propertyValue > 0
-      ? `**Net worth today: ${usd(today?.totalNetWorth ?? 0)}** — this headline figure ` +
+      ? `**Net worth today: ${usd(nwt.netWorth)}** — this headline figure ` +
           `*excludes* the home and its mortgage, so it reads in the same "investable ` +
           `money" terms as everything else. Reported separately: home equity ` +
-          `${usd(today?.homeEquity ?? 0)} (building value ${usd(propertyValue)} − mortgage), ` +
-          `so **net worth including the home is ${usd(today?.netWorthWithHome ?? 0)}**. ` +
+          `${usd(nwt.homeEquity)} (building value ${usd(propertyValue)} − mortgage), ` +
+          `so **net worth including the home is ${usd(nwt.netWorthWithHome)}**. ` +
           `Home equity is not a spendable/FI asset. Consumer debt is netted out.`
-      : `**Net worth today: ${usd(today?.totalNetWorth ?? 0)}.** Note: the mortgage ` +
+      : `**Net worth today: ${usd(nwt.netWorth)}.** Note: the mortgage ` +
           `is *excluded* from net worth (no home value entered, so the offsetting ` +
           `asset isn't tracked), but consumer debt is netted out.`,
   );
@@ -194,7 +198,7 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
   p(`**Reconciliation — the table above ties out exactly (as-entered / today).**`);
   p(`- Gross investable = cash+taxable ${usd(taxableStart)} + traditional ${usd(tradStart)} + Roth ${usd(ra.roth_ira)}${concValue > 0 ? ` + concentrated equity ${usd(concValue)}` : ""}${otherHoldingsRaw > 0 ? ` + other holdings ${usd(otherHoldingsRaw)}` : ""} = **${usd(rawGross)}**.`);
   p(`- Net worth (excl. home) = gross investable + 529 (${usd(eduStart)}) − consumer debt (${usd(debt)}) = **${usd(rawNet)}**.`);
-  p(`- **Valuation date:** the above are as-entered (today) and tie to the table exactly. The engine's month-0 record (used in §9–10 & Monte Carlo) is one month in — a month of growth, contributions/vesting, and a mortgage payment — so runs slightly higher: net worth **${usd(rawNet)}** vs **${usd(today?.totalNetWorth ?? 0)}**; FI-number mortgage **${usd(engMortgage)}** vs as-entered **${usd(liab.mortgage_balance)}**. A timing convention, not a discrepancy.`);
+  p(`- **Valuation date:** these are as-entered (today) and match the headline net worth (§10) and the table exactly. The engine's projection then steps forward one month before its first recorded point (used for the §9–10 spendable/FI-number metrics & Monte Carlo) — a month of growth, contributions/vesting, and a mortgage payment — so those forward-looking metrics are struck one month in; e.g. the FI-number mortgage uses the amortized balance ${usd(engMortgage)} vs the as-entered ${usd(liab.mortgage_balance)}. A timing convention, not a discrepancy.`);
   p(`- 529 is a household asset but excluded from spendable/FI assets; home equity (if any) reported separately above and also excluded.`);
   p();
 
@@ -407,7 +411,7 @@ export function buildScenarioReport(input: ScenarioReportInput): string {
     p(`- **FI Number today:** ${usd(today.swrTarget)}  (= 25 × net annual need of ${usd(netNeedToday)}${housingAdd > 1 ? ` + ${usd(housingAdd)} to clear the mortgage` : ""})`);
     p(`  - annual expense need: ${usd(today.annualExpenseNeed)}; passive income (net): ${usd(today.annualPassiveIncome)}`);
     p(`- **Spendable assets today:** ${usd(today.investableAfterTax)} (gross investable ${usd(today.investableAssets)})`);
-    p(`- **Net worth today:** ${usd(today.totalNetWorth)}`);
+    p(`- **Net worth today:** ${usd(nwt.netWorth)} (as entered — ties to the balance sheet above)`);
   }
   if (fiSurvival) {
     p(`- **Financial independence (cash-flow survival): ${fiSurvival.date}** (age ${Number((fiSurvival.date.match(/\d{4}/) || [])[0]) - birthYear}) — the earliest month you could fully retire and still fund every modeled expense to age 100.`);

@@ -226,7 +226,12 @@ export default function RightPanel({ livePrices }: Props) {
   // push the bar past 100% while FI is still years away.
   const spendable      = todayPoint?.investableAfterTax ?? 0;
   const swrTarget      = todayPoint?.swrTarget ?? 0;
-  const progress       = swrTarget > 0 ? Math.min(100, (spendable / swrTarget) * 100) : 0;
+  // The FI number the Progress bar tracks: the investable you need at your earliest
+  // funded (cash-flow) retirement date — so the bar hits 100% exactly when the FI
+  // flag on the chart arrives. Falls back to the Rule-of-25 heuristic only when no
+  // funded date exists within the horizon.
+  const fiTarget       = fiPoint?.investableAfterTax ?? swrTarget;
+  const progress       = fiTarget > 0 ? Math.min(100, (spendable / fiTarget) * 100) : 0;
   const birthYear      = config.birth_year ?? 1980;
   const currentYear    = new Date().getFullYear();
   const capYear        = horizonCapYear(zoom, birthYear, currentYear);
@@ -419,7 +424,8 @@ export default function RightPanel({ livePrices }: Props) {
         netWorthWithHome={todayPoint?.netWorthWithHome ?? 0}
         spendable={spendable}
         grossInvestable={todayPoint?.investableAssets ?? 0}
-        swrTarget={swrTarget}
+        fiNumber={fiTarget}
+        fiIsCashflow={!!fiPoint}
         progress={progress}
         notices={notices}
         onOpenFinances={() => useUIStore.getState().setFinancesOpen(true)}

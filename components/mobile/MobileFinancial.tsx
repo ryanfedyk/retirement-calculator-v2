@@ -87,7 +87,10 @@ export default function MobileFinancial({ livePrices, onOpenConfig }: Props) {
   // so illiquid home equity can't push the bar past 100% before the FI date.
   const spendable = today?.investableAfterTax ?? 0;
   const swrTarget = today?.swrTarget ?? 0;
-  const progress  = swrTarget > 0 ? Math.min(100, (spendable / swrTarget) * 100) : 0;
+  // Track progress toward the cash-flow FI number (what you need at your earliest
+  // funded date) so the bar aligns with the FI date; Rule-of-25 fallback.
+  const fiTarget  = indep?.investableAfterTax ?? swrTarget;
+  const progress  = fiTarget > 0 ? Math.min(100, (spendable / fiTarget) * 100) : 0;
   const birthYear = config.birth_year ?? 1980;
   const capYear = horizonCapYear(zoom, birthYear, new Date().getFullYear());
   const savingsRate = today ? Math.max(0, Math.min(1, 1 - (today.annualExpenseNeed / Math.max(1, today.salaryAndEquityNet)))) : 0;
@@ -212,7 +215,8 @@ export default function MobileFinancial({ livePrices, onOpenConfig }: Props) {
         netWorthWithHome={today?.netWorthWithHome ?? 0}
         spendable={spendable}
         grossInvestable={today?.investableAssets ?? 0}
-        swrTarget={swrTarget}
+        fiNumber={fiTarget}
+        fiIsCashflow={!!indep}
         progress={progress}
         notices={notices}
         onOpenFinances={() => useUIStore.getState().setFinancesOpen(true)}

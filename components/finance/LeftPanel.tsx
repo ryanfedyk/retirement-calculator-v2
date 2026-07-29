@@ -525,14 +525,9 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
             </div>
             <input type="range" min={2024} max={Math.max(2040, (config.birth_year || (thisYear - age)) + 75, cp.exit_year)} step={1} value={cp.exit_year}
               style={{ width: "100%", accentColor: C.teal }}
-              onChange={e => {
-                const yr = parseInt(e.target.value);
-                updateNestedConfig("career_path", { exit_year: yr });
-                if (config.divestment_strategy.type === "progressive") {
-                  const w = config.divestment_strategy.end_year - config.divestment_strategy.start_year;
-                  updateNestedConfig("divestment_strategy", { start_year: yr, end_year: yr + w });
-                }
-              }}
+              // Exit year changes ONLY the exit year — the divestment schedule has
+              // its own controls below and is never auto-shifted.
+              onChange={e => updateNestedConfig("career_path", { exit_year: parseInt(e.target.value) })}
             />
           </div>
 

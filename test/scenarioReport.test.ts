@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { buildScenarioReport } from "@/lib/scenarioReport";
-import { runSimulation } from "@/engine/calculator";
+import { runSimulation, netWorthToday } from "@/engine/calculator";
 import { DEFAULT_SIM_CONFIG, DEFAULT_SNAPSHOT } from "@/config/sharedConfig";
 
 const snap = () => structuredClone(DEFAULT_SNAPSHOT);
@@ -39,6 +39,32 @@ describe("buildScenarioReport", () => {
     // The headline FI number is formatted with thousands separators.
     const expected = `$${Math.round(today.swrTarget).toLocaleString("en-US")}`;
     expect(text).toContain(expected);
+  });
+
+  it("headlines net worth AS ENTERED, ties to the balance sheet (not the month-in point)", () => {
+    const c = cfg();
+    const s = snap();
+    // Fund the balance sheet so the month-of-growth gap actually shows.
+    s.liquid_assets.cash_savings = 150_000;
+    s.liquid_assets.vanguard_bridge = 400_000;
+    s.retirement_assets.k401 = 500_000;
+    const nwt = netWorthToday(s, c, 180);
+    const traj = runSimulation(s, c, 180);
+    const monthIn = traj[0].totalNetWorth;
+
+    // Composition mirrors the engine's net worth: investable + 529 − consumer debt.
+    expect(Math.round(nwt.netWorth)).toBe(
+      Math.round(nwt.investable + nwt.education - (s.liabilities.consumer_debt || 0)),
+    );
+    expect(nwt.netWorth).toBeGreaterThan(0);
+
+    // The engine's month-0 point is a month into the projection, so it differs
+    // from the as-entered figure — the very gap this headline fix removes.
+    expect(monthIn).not.toBe(Math.round(nwt.netWorth));
+
+    // The report headlines the as-entered figure (so §2/§10 reconcile with the table).
+    const text = buildScenarioReport({ scenarioName: "X", snapshot: s, config: c, liveGoogPrice: 180, includeMonteCarlo: false });
+    expect(text).toContain(`Net worth today: $${Math.round(nwt.netWorth).toLocaleString("en-US")}`);
   });
 
   it("includes the Monte Carlo section only when requested", () => {

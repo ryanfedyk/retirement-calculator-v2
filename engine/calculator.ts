@@ -1517,6 +1517,54 @@ const simulate = (
 };
 
 /**
+ * Net worth AS ENTERED, today — the balance-sheet figure the user typed, before
+ * the projection applies its first month of growth/contributions/vesting. The
+ * trajectory's month-0 point (`trajectory[0]`) is actually one month INTO the
+ * simulation, so its `totalNetWorth` runs a little higher; for the headline "net
+ * worth today" (and the report's balance sheet) we want the value that ties out
+ * to the holdings the user entered, exactly. This is the single source of truth
+ * for that figure — both the report and the dashboard cards read it, so they
+ * can't drift. Composition mirrors the engine's `totalNetWorth`: investable money
+ * (cash + brokerage + retirement + concentrated equity + holdings) + 529 − consumer
+ * debt, with the home reported separately (never folded into the headline).
+ */
+export function netWorthToday(
+  snapshot: FinancialSnapshot,
+  config: SimulationConfiguration,
+  liveGoogPrice = 0,
+): { investable: number; education: number; netWorth: number; homeEquity: number; netWorthWithHome: number } {
+  const la = snapshot.liquid_assets;
+  const ra = snapshot.retirement_assets;
+  const liab = snapshot.liabilities;
+  const taxable = la.vanguard_bridge + la.cash_savings;
+  const trad = ra.k401 + ra.traditional_ira;
+  const roth = ra.roth_ira;
+  // The concentrated employer position: portfolio-held shares of the symbol PLUS
+  // the out-of-portfolio RSU grants tracked in `share_counts`, priced at the live
+  // quote (falling back to the last-known price). Filtered out of the generic
+  // holdings sum below so it isn't double-counted — the same split the engine and
+  // the report use so this ties to the month-0 aggregate.
+  const concSym = config.use_equity_comp ? (config.concentrated_symbol ?? "").toUpperCase() : "";
+  const isConc = (s: string) => concSym !== "" && (s ?? "").toUpperCase() === concSym;
+  const concShares = (snapshot.other_investments ?? []).filter((i) => isConc(i.symbol)).reduce((s, i) => s + i.shares, 0)
+    + (snapshot.share_counts?.google_shares ?? 0);
+  const concPrice = liveGoogPrice > 0 ? liveGoogPrice : (snapshot.share_counts?.live_stock_price || 175);
+  const concValue = config.use_equity_comp ? concShares * concPrice : 0;
+  const otherHoldings = (snapshot.other_investments ?? [])
+    .filter((i) => !isConc(i.symbol))
+    .reduce((s, i) => s + i.shares * i.current_price, 0);
+  const education = (snapshot.education_assets?.accounts ?? []).reduce((s, a) => s + a.balance, 0);
+  const debt = liab.consumer_debt || 0;
+
+  const investable = taxable + trad + roth + concValue + otherHoldings;
+  const netWorth = investable + education - debt;
+  const propertyValue = liab.property_value ?? 0;
+  const isRent = config.spending.housing_type === "rent";
+  const homeEquity = (!isRent && propertyValue > 0) ? propertyValue - (liab.mortgage_balance || 0) : 0;
+  return { investable, education, netWorth, homeEquity, netWorthWithHome: netWorth + homeEquity };
+}
+
+/**
  * The normal deterministic projection. Behavior is unchanged: the ACA subsidy uses
  * the prior-year MAGI proxy. This is the hot path — the FI-date scan and Monte
  * Carlo call it many times — so it stays a single pass.

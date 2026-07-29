@@ -7,8 +7,9 @@ import { exitDateString } from "@/lib/exitDate";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
-import { runSimulationConverged, findCashflowFiPoint, assessPlan, toDisplayDollars, findRetirementWindow } from "@/engine/calculator";
+import { runSimulationConverged, findCashflowFiPoint, netWorthToday, assessPlan, toDisplayDollars, findRetirementWindow } from "@/engine/calculator";
 import { runMonteCarlo } from "@/engine/montecarlo";
+import { useFiConfidence } from "@/hooks/useFiConfidence";
 import { getLifeEvents } from "@/lib/horizonUtils";
 import { useHorizonProfile } from "@/config/horizonConfig";
 import AiAnalysis from "@/components/finance/AiAnalysis";
@@ -83,7 +84,12 @@ export default function MobileFinancial({ livePrices, onOpenConfig }: Props) {
   // afford pushes FI out of reach.
   const indepShown = plan.health === "on-track" && indep ? indep : undefined;
   const today    = traj[0];
-  const currentNW = today?.totalNetWorth ?? 0;
+  // Net worth AS ENTERED (ties to the balance sheet the user typed); the engine's
+  // month-0 point is already a month in, so it runs a touch higher.
+  const nwToday  = useMemo(() => netWorthToday(enrichedSnapshot, config, liveGoogPrice), [enrichedSnapshot, config, liveGoogPrice]);
+  const currentNW = nwToday.netWorth;
+  // Sequence-of-returns odds for the FI date (async, off the render path).
+  const fiConfidence = useFiConfidence(enrichedSnapshot, config, liveGoogPrice, indepShown?.date ?? null);
   // Progress to FI tracks SPENDABLE assets (what the FI test uses), not net worth —
   // so illiquid home equity can't push the bar past 100% before the FI date.
   const spendable = today?.investableAfterTax ?? 0;
@@ -213,8 +219,10 @@ export default function MobileFinancial({ livePrices, onOpenConfig }: Props) {
           to FI · Alerts. */}
       <SummaryCards
         indepDate={indepShown ? indepShown.date : null}
+        fiSuccessPct={fiConfidence.pct}
+        fiSuccessLoading={fiConfidence.loading}
         netWorth={currentNW}
-        netWorthWithHome={today?.netWorthWithHome ?? 0}
+        netWorthWithHome={nwToday.netWorthWithHome}
         spendable={spendable}
         grossInvestable={today?.investableAssets ?? 0}
         fiNumber={fiTarget}

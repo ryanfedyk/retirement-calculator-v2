@@ -3,6 +3,7 @@ import { useState, useMemo } from "react";
 import { ResponsiveContainer, AreaChart, Area, Line, XAxis, YAxis, Tooltip, ReferenceLine, CartesianGrid } from "recharts";
 import HorizonZoomButton from "@/components/finance/HorizonZoomButton";
 import { type HorizonZoom, horizonCapYear, horizonZoomIn, horizonZoomOut } from "@/lib/horizonZoom";
+import { exitDateString } from "@/lib/exitDate";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
@@ -155,7 +156,8 @@ export default function MobileFinancial({ livePrices, onOpenConfig }: Props) {
 
   const cp = config.career_path;
   const findDate = (pred: (p: typeof traj[number]) => boolean) => traj.find(pred)?.date;
-  const retireDate = findDate(p => p.date.includes(String(cp.exit_year)));
+  const retireTarget = exitDateString(cp);
+  const retireDate = findDate(p => p.date === retireTarget) ?? findDate(p => p.date.includes(String(cp.exit_year)));
   const hasPostPhases = cp.use_sabbatical || cp.use_jump || cp.use_bridge;
   const fullRetireDate = hasPostPhases ? findDate(d => d.currentPhase === "RETIRED") : undefined;
 

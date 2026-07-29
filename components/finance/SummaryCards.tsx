@@ -29,7 +29,7 @@ function tickerSymbols(holdings: FinancialSnapshot["other_investments"] | undefi
  * differentiation; a small "?" opens an explanation; tapping the FI Number card
  * opens finances; the Alerts card opens the full list in a popover.
  */
-export default function SummaryCards({ indepDate, netWorth, netWorthWithHome, spendable, grossInvestable, swrTarget, progress, notices, onOpenFinances, holdings, livePrices, concentratedSymbol, housingType }: {
+export default function SummaryCards({ indepDate, netWorth, netWorthWithHome, spendable, grossInvestable, fiNumber, fiIsCashflow = false, progress, notices, onOpenFinances, holdings, livePrices, concentratedSymbol, housingType }: {
   indepDate: string | null;
   /** Headline net worth (investable money; excludes the home/mortgage) — matches
    *  the wealth chart's first point. */
@@ -44,7 +44,12 @@ export default function SummaryCards({ indepDate, netWorth, netWorthWithHome, sp
   /** Gross investable assets (before the withdrawal-tax haircut), shown as a
    *  smaller secondary figure so the familiar pre-tax number stays visible. */
   grossInvestable?: number;
-  swrTarget: number;
+  /** The FI number the Progress bar tracks toward. When `fiIsCashflow`, this is
+   *  the honest cash-flow FI target (the investable you need at your earliest
+   *  funded retirement date), so the bar hits 100% exactly at the FI date. Falls
+   *  back to the Rule-of-25 target when no FI date exists. */
+  fiNumber: number;
+  fiIsCashflow?: boolean;
   progress: number;
   notices: Notice[];
   onOpenFinances: () => void;
@@ -80,7 +85,7 @@ export default function SummaryCards({ indepDate, netWorth, netWorthWithHome, sp
   const fiExplain = (
     <>
       <p style={{ margin: 0 }}>The earliest date you could <strong>stop working entirely</strong> and still fund every projected expense — your mortgage until it’s paid off, healthcare (which outpaces inflation), college, taxes — all the way to age 100, offset by Social Security and rental income as they begin, <strong>with a real cushion left</strong> (not just scraping past $0).</p>
-      <p style={{ margin: "10px 0 0" }}>This is the honest test: we run your retirement cash-flow forward and find the earliest funded month. It reflects <strong>your actual plan</strong> — set your exit <em>before</em> you can afford it and you stop saving and start drawing down without ever recovering, so this reads <strong>“not reached.”</strong> Push your exit out (or trim spending, save more, adjust returns) and a date appears. (The <em>FI Number</em> card is the simpler 25× rule of thumb — a useful reference, but real spending isn’t level, so it’s not the exact target.)</p>
+      <p style={{ margin: "10px 0 0" }}>This is the honest test: we run your retirement cash-flow forward and find the earliest funded month. It reflects <strong>your actual plan</strong> — set your exit <em>before</em> you can afford it and you stop saving and start drawing down without ever recovering, so this reads <strong>“not reached.”</strong> Push your exit out (or trim spending, save more, adjust returns) and a date appears. The <em>Progress to FI</em> card tracks toward the savings this date needs, so its bar fills to 100% right as this date arrives.</p>
       {indepDate
         ? <p style={{ margin: "10px 0 0" }}>For this scenario that’s <strong>{indepDate}</strong>.</p>
         : <p style={{ margin: "10px 0 0" }}>This scenario doesn’t reach FI — you’d run down your savings. Work a little longer or spend less and a date will appear.</p>}
@@ -88,10 +93,10 @@ export default function SummaryCards({ indepDate, netWorth, netWorthWithHome, sp
   );
   const numExplain = (
     <>
-      <p style={{ margin: 0 }}>Your <strong>FI number</strong> is 25× your annual living expenses — lifestyle + healthcare{housingType === "rent" ? " + rent" : ""}, net of rental income &amp; Social Security — sustaining a 4% withdrawal rate.{housingType === "rent"
-        ? " Rent is a permanent expense, so it’s capitalized into the target (×25)."
-        : " It also adds enough to pay off any remaining mortgage; the mortgage payment itself isn’t capitalized, since it ends once the balance is cleared."}</p>
-      <p style={{ margin: "10px 0 0" }}>You have <strong>{fmtMM(spendable)}</strong> of a <strong>{fmtMM(swrTarget)}</strong> target ({progress.toFixed(0)}%){grossInvestable != null && grossInvestable > spendable + 5000 ? <> — that’s your <strong>after-tax spendable</strong> figure, out of <strong>{fmtMM(grossInvestable)}</strong> gross (before the tax owed on pre-tax 401k/IRA balances and embedded gains). Progress tracks the after-tax number so it lines up with your FI date.</> : "."} Tap the card to open your finances.</p>
+      <p style={{ margin: 0 }}>{fiIsCashflow
+        ? <>Your <strong>FI number</strong> is the investable savings you need to fully retire and fund every expense to age 100 — accounting for your mortgage ending, healthcare, and Social Security &amp; rental income as they begin. It’s what you’ll have at your <strong>earliest funded retirement date</strong>, so this bar and your FI date agree.</>
+        : <>Your <strong>FI number</strong> is 25× your annual living expenses — lifestyle + healthcare{housingType === "rent" ? " + rent" : ""}, net of rental income &amp; Social Security — sustaining a 4% withdrawal rate. (Shown as a rule-of-thumb because this scenario doesn’t reach a funded retirement date.)</>}</p>
+      <p style={{ margin: "10px 0 0" }}>You have <strong>{fmtMM(spendable)}</strong> of a <strong>{fmtMM(fiNumber)}</strong> target ({progress.toFixed(0)}%){grossInvestable != null && grossInvestable > spendable + 5000 ? <> — that’s your <strong>after-tax spendable</strong> figure, out of <strong>{fmtMM(grossInvestable)}</strong> gross (before the tax owed on pre-tax 401k/IRA balances and embedded gains). Progress tracks the after-tax number so it lines up with your FI date.</> : "."} Tap the card to open your finances.</p>
     </>
   );
   const nwExplain = (
@@ -174,7 +179,7 @@ export default function SummaryCards({ indepDate, netWorth, netWorthWithHome, sp
             <div style={{ minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 6 }}><Label>Progress to FI</Label><Help onClick={() => open("FI Number", numExplain)} /></div>
               <div style={{ fontSize: 23, fontWeight: 300, color: C.ink, whiteSpace: "nowrap" }}>
-                {fmtMM(spendable)} <span style={{ fontSize: 12.5, fontWeight: 400, color: C.inkSoft }}>of {fmtMM(swrTarget)}</span>
+                {fmtMM(spendable)} <span style={{ fontSize: 12.5, fontWeight: 400, color: C.inkSoft }}>of {fmtMM(fiNumber)}</span>
               </div>
               <div style={{ fontSize: 10.5, color: C.inkFaint, marginTop: 3 }}>after-tax spendable</div>
             </div>

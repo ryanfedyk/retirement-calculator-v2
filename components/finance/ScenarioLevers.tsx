@@ -104,13 +104,10 @@ export default function ScenarioLevers({ onOpenEditor, livePrices, retireWindow,
   const maxExit = Math.max((config.birth_year || 1985) + 70, cp.exit_year);
   const earliestExit = retireWindow?.earliest ?? null;
 
-  const setExit = (yr: number) => {
-    updateNestedConfig("career_path", { exit_year: yr });
-    if (config.divestment_strategy.type === "progressive") {
-      const w = config.divestment_strategy.end_year - config.divestment_strategy.start_year;
-      updateNestedConfig("divestment_strategy", { start_year: yr, end_year: yr + w });
-    }
-  };
+  // Changing the exit year changes ONLY the exit year. The divestment schedule
+  // (and every other setting) is left exactly as the user configured it — it has
+  // its own controls in the detailed editor.
+  const setExit = (yr: number) => updateNestedConfig("career_path", { exit_year: yr });
 
   // `bare` drops the card chrome so the section lives directly on the canvas
   // (mobile uses this to cut visual complexity).

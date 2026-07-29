@@ -7,6 +7,7 @@ import {
 import { CalendarDays } from "lucide-react";
 import HorizonZoomButton from "./HorizonZoomButton";
 import { type HorizonZoom, horizonCapYear, horizonZoomIn, horizonZoomOut } from "@/lib/horizonZoom";
+import { exitDateString } from "@/lib/exitDate";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
 import { runSimulation, runSimulationConverged, findCashflowFiPoint, assessPlan, toDisplayDollars, findRetirementWindow } from "@/engine/calculator";
@@ -321,7 +322,11 @@ export default function RightPanel({ livePrices }: Props) {
   // Reference lines for phases / milestones
   const findDate = (pred: (p: TrajectoryPoint) => boolean) => trajectoryData.find(pred)?.date;
 
-  const retireDateStr  = findDate(p => p.date.includes(String(config.career_path.exit_year)));
+  // The exit flag lands on the exact exit month (honoring exit_month), falling
+  // back to the first point of the exit year if that month isn't on the curve.
+  const retireTargetStr = exitDateString(config.career_path);
+  const retireDateStr  = findDate(p => p.date === retireTargetStr)
+    ?? findDate(p => p.date.includes(String(config.career_path.exit_year)));
   const sabbDateStr    = trajectoryData.some(d => d.currentPhase === "SABBATICAL") ? findDate(d => d.currentPhase === "SABBATICAL") : null;
   const jumpDateStr    = trajectoryData.some(d => d.currentPhase === "JUMP")       ? findDate(d => d.currentPhase === "JUMP")       : null;
   const bridgeDateStr  = trajectoryData.some(d => d.currentPhase === "BRIDGE")     ? findDate(d => d.currentPhase === "BRIDGE")     : null;

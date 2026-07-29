@@ -24,7 +24,7 @@ import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
 import { usePartnerStore } from "@/store/usePartnerStore";
 import { decodeAnswers } from "@/lib/partnerAlignment";
-import { useBrowserBackNav } from "@/hooks/useBrowserBackNav";
+import { useBackLayer } from "@/lib/backNav";
 import { useMonthlyPlanSnapshot } from "@/hooks/useMonthlyPlanSnapshot";
 
 export default function DashboardShell() {
@@ -37,6 +37,12 @@ export default function DashboardShell() {
   const setFinancesOpen = useUIStore((s) => s.setFinancesOpen);
   const compareOpen = useUIStore((s) => s.compareOpen);
   const setCompareOpen = useUIStore((s) => s.setCompareOpen);
+  const partnerOpen = useUIStore((s) => s.partnerOpen);
+  const setPartnerOpen = useUIStore((s) => s.setPartnerOpen);
+  const planPanelOpen = useUIStore((s) => s.planPanelOpen);
+  const setPlanPanelOpen = useUIStore((s) => s.setPlanPanelOpen);
+  const reportScenarioId = useUIStore((s) => s.reportScenarioId);
+  const closeReport = useUIStore((s) => s.closeReport);
   // The active scenario's remembered view (Trajectory/Reclaim), so returning to a
   // scenario lands you where you left it.
   const appView = useUIStore((s) => s.viewByScenario[activeScenarioId] ?? "financial");
@@ -79,18 +85,20 @@ export default function DashboardShell() {
     window.history.replaceState({}, "", window.location.pathname + (qs ? `?${qs}` : ""));
   }, []);
 
-  // Let the browser Back button step back through the in-memory navigation (close
-  // an overlay, then leave the compare view). Ordered top-most first. Disabled on
-  // mobile, which has its own nav.
-  useBrowserBackNav({
-    enabled: !isMobile,
-    layers: [
-      { open: settingsOpen, close: () => setSettingsOpen(false) },
-      { open: financesOpen, close: () => setFinancesOpen(false) },
-      { open: appView === "forecasting" && !!forecastTool, close: () => setForecastTool(null) },
-      { open: compareOpen, close: () => setCompareOpen(false) },
-    ],
-  });
+  // Let the browser Back button step back through the in-memory navigation the
+  // way a normal web page would: overlays close top-most first, then the plan
+  // panel, the Reclaim tool subpage, the Reclaim tab (back to Trajectory), and
+  // finally the Compare destination. Each layer is gated on `!isMobile` so it
+  // contributes nothing when MobileApp (below) owns the same surfaces.
+  const dt = !isMobile;
+  useBackLayer("d:report",    100, dt && reportScenarioId != null,          closeReport);
+  useBackLayer("d:settings",   95, dt && settingsOpen,                       () => setSettingsOpen(false));
+  useBackLayer("d:finances",   92, dt && financesOpen,                       () => setFinancesOpen(false));
+  useBackLayer("d:partner",    90, dt && partnerOpen,                        () => setPartnerOpen(false));
+  useBackLayer("d:planPanel",  80, dt && planPanelOpen,                      () => setPlanPanelOpen(false));
+  useBackLayer("d:tool",       50, dt && appView === "forecasting" && !!forecastTool, () => setForecastTool(null));
+  useBackLayer("d:tab",        20, dt && appView === "forecasting",          () => setAppView("financial"));
+  useBackLayer("d:compare",    10, dt && compareOpen,                        () => setCompareOpen(false));
 
   if (isMobile) return <MobileApp />;
 

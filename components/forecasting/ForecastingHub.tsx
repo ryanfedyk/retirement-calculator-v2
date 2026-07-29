@@ -5,6 +5,7 @@ import MacroSeasonsTimeline from "@/components/MacroSeasonsTimeline";
 import ReclaimedTimeCalculator from "@/components/ReclaimedTimeCalculator";
 import ReclaimJourney from "./ReclaimJourney";
 import ToolStage from "./ToolStage";
+import { useBackLayer } from "@/lib/backNav";
 import { R, SERIF } from "./reclaimTheme";
 
 export type ToolId = "seasons" | "design" | "reclaim";
@@ -45,6 +46,11 @@ export function ForecastingToolBody({ id }: { id: ToolId }) {
 export default function ForecastingHub({ onLaunch }: { onLaunch?: (id: ToolId) => void } = {}) {
   const [launched, setLaunched] = useState<ToolId | null>(null);
   const open = (id: ToolId) => (onLaunch ? onLaunch(id) : setLaunched(id));
+
+  // Mobile only: the full-screen tool overlay is a Back layer, nested just above
+  // the Reclaim tab. On desktop the parent shell owns the tool subpage (via
+  // `onLaunch`), so `launched` stays null and this contributes nothing.
+  useBackLayer("hub:tool", 50, !onLaunch && !!launched, () => setLaunched(null));
 
   return (
     <div>

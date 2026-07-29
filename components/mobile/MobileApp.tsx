@@ -4,7 +4,7 @@ import { LineChart, Compass, SlidersHorizontal, LogOut, Settings, ChevronLeft, W
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
-import { useBrowserBackNav } from "@/hooks/useBrowserBackNav";
+import { useBackLayer } from "@/lib/backNav";
 import { useMonthlyPlanSnapshot } from "@/hooks/useMonthlyPlanSnapshot";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { useConfirm } from "@/components/ui/DialogProvider";
@@ -37,6 +37,8 @@ export default function MobileApp() {
   const setSettingsOpen = useUIStore((s) => s.setSettingsOpen);
   const reportScenarioId = useUIStore((s) => s.reportScenarioId);
   const closeReport = useUIStore((s) => s.closeReport);
+  const partnerOpen = useUIStore((s) => s.partnerOpen);
+  const setPartnerOpen = useUIStore((s) => s.setPartnerOpen);
   // Full-screen "Compare" destination (transient — we always land in a scenario).
   const compareOpen = useUIStore((s) => s.compareOpen);
   const setCompareOpen = useUIStore((s) => s.setCompareOpen);
@@ -59,19 +61,18 @@ export default function MobileApp() {
   // Entering compare or switching tabs lands at the top of the page.
   useEffect(() => { window.scrollTo(0, 0); }, [compareOpen, view]);
 
-  // Device/browser Back steps back through the app: close a sheet/overlay first,
-  // then leave the compare destination. Ordered top-most first.
-  useBrowserBackNav({
-    enabled: true,
-    layers: [
-      { open: !!reportScenarioId, close: closeReport },
-      { open: settingsOpen, close: () => setSettingsOpen(false) },
-      { open: financesOpen, close: () => setFinancesOpen(false) },
-      { open: configOpen, close: () => setConfigOpen(false) },
-      { open: switcherOpen, close: () => setSwitcherOpen(false) },
-      { open: compareOpen, close: () => setCompareOpen(false) },
-    ],
-  });
+  // Device/browser Back steps back through the app the way a normal web page
+  // would: close a sheet/overlay top-most first, then leave the Reclaim tab
+  // (back to Trajectory), then the compare destination. The Reclaim tool overlay
+  // itself (order 50) registers from inside ForecastingHub, nesting above the tab.
+  useBackLayer("m:report",   100, !!reportScenarioId,          closeReport);
+  useBackLayer("m:settings",  95, settingsOpen,                () => setSettingsOpen(false));
+  useBackLayer("m:finances",  92, financesOpen,                () => setFinancesOpen(false));
+  useBackLayer("m:partner",   90, partnerOpen,                 () => setPartnerOpen(false));
+  useBackLayer("m:config",    85, configOpen,                  () => setConfigOpen(false));
+  useBackLayer("m:switcher",  84, switcherOpen,                () => setSwitcherOpen(false));
+  useBackLayer("m:tab",       20, view === "forecasting",      () => setView("financial"));
+  useBackLayer("m:compare",   10, compareOpen,                 () => setCompareOpen(false));
 
   // ── Live prices (shared with the chart) ─────────────────────────────────────
   const [livePrices, setLivePrices]         = useState<LivePrices>({});

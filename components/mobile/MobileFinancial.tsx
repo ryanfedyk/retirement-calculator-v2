@@ -9,7 +9,7 @@ import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
 import { runSimulationConverged, findCashflowFiPoint, netWorthToday, assessPlan, toDisplayDollars, findRetirementWindow } from "@/engine/calculator";
 import { runMonteCarlo } from "@/engine/montecarlo";
-import { useFiConfidence } from "@/hooks/useFiConfidence";
+import { useSafeFiYear } from "@/hooks/useSafeFiYear";
 import { getLifeEvents } from "@/lib/horizonUtils";
 import { useHorizonProfile } from "@/config/horizonConfig";
 import AiAnalysis from "@/components/finance/AiAnalysis";
@@ -88,15 +88,21 @@ export default function MobileFinancial({ livePrices, onOpenConfig }: Props) {
   // month-0 point is already a month in, so it runs a touch higher.
   const nwToday  = useMemo(() => netWorthToday(enrichedSnapshot, config, liveGoogPrice), [enrichedSnapshot, config, liveGoogPrice]);
   const currentNW = nwToday.netWorth;
-  // Sequence-of-returns odds for the FI date (async, off the render path).
-  const fiConfidence = useFiConfidence(enrichedSnapshot, config, liveGoogPrice, indepShown?.date ?? null);
+  // Headline FI date = earliest year funded across ≥90% of randomized market paths
+  // (a date you can plan around, not the arithmetic earliest). Computed off-render;
+  // fall back to the deterministic funded date while it resolves so the card isn't
+  // blank. No 90% year in the horizon ⇒ no safe FI date.
+  const safeFi   = useSafeFiYear(enrichedSnapshot, config, liveGoogPrice);
+  const safeFiPoint = safeFi.year != null ? traj.find((p) => Number(p.date.split(" ")[1]) === safeFi.year) : undefined;
+  const fiDisplayPoint = safeFiPoint ?? (safeFi.loading ? indepShown : undefined);
+  const fiLoading = safeFi.loading && !safeFiPoint;
   // Progress to FI tracks SPENDABLE assets (what the FI test uses), not net worth —
   // so illiquid home equity can't push the bar past 100% before the FI date.
   const spendable = today?.investableAfterTax ?? 0;
   const swrTarget = today?.swrTarget ?? 0;
-  // Track progress toward the cash-flow FI number (what you need at your earliest
-  // funded date) so the bar aligns with the FI date; Rule-of-25 fallback.
-  const fiTarget  = indep?.investableAfterTax ?? swrTarget;
+  // Track progress toward the 90%-safe FI number (what you need at that date) so the
+  // bar aligns with the FI date; Rule-of-25 fallback when no safe date exists.
+  const fiTarget  = fiDisplayPoint?.investableAfterTax ?? swrTarget;
   const progress  = fiTarget > 0 ? Math.min(100, (spendable / fiTarget) * 100) : 0;
   const birthYear = config.birth_year ?? 1980;
   const capYear = horizonCapYear(zoom, birthYear, new Date().getFullYear());
@@ -191,7 +197,7 @@ export default function MobileFinancial({ livePrices, onOpenConfig }: Props) {
   if (fullRetireDate)    addMile(fullRetireDate, "Full retirement 🌿", "#7a6da8");
   if (children.length > 0 && config.spending.use_empty_nest !== false && config.spending.empty_nest_year) addMile(findDate(p => p.date.includes(String(config.spending.empty_nest_year))), "Empty nest", C.warm);
   if (snapshot.liabilities.mortgage_balance > 0) addMile(findDate(p => p.date === "Jun 2051"), "Mortgage paid off", "#9bbdb4");
-  if (indepShown) addMile(indepShown.date, "Financial independence 🎉", "#80c4ae");
+  if (fiDisplayPoint) addMile(fiDisplayPoint.date, "Financial independence 🎉", "#80c4ae");
   if (config.social_security) addMile(findDate(p => p.date.includes(String(by + config.social_security.start_age))), "Social Security starts", C.warm);
   if (config.medicare)        addMile(findDate(p => p.date.includes(String(by + config.medicare.start_age))),        "Medicare starts", "#9bbdb4");
   for (const ev of config.life_events ?? []) addMile(findDate(p => p.date.includes(String(ev.year))), ev.name, "#b9895e");
@@ -207,7 +213,7 @@ export default function MobileFinancial({ livePrices, onOpenConfig }: Props) {
     fullRetireDate    && { x: snap(fullRetireDate), c: "#7a6da8", l: "Retire" },
     children.length > 0 && config.spending.use_empty_nest !== false && config.spending.empty_nest_year && { x: snap(findDate(p => p.date.includes(String(config.spending.empty_nest_year)))), c: C.warm, l: "Nest" },
     snapshot.liabilities.mortgage_balance > 0 && { x: snap(findDate(p => p.date === "Jun 2051")), c: "#9bbdb4", l: "Paid" },
-    indepShown && { x: snap(indepShown.date), c: "#80c4ae", l: "FI" },
+    fiDisplayPoint && { x: snap(fiDisplayPoint.date), c: "#80c4ae", l: "FI" },
   ].filter(Boolean) as { x?: string; c: string; l: string }[]).filter(m => m.x) as { x: string; c: string; l: string }[];
 
   return (
@@ -218,15 +224,14 @@ export default function MobileFinancial({ livePrices, onOpenConfig }: Props) {
       {/* Summary cards — identical to desktop: Financial Independence · Progress
           to FI · Alerts. */}
       <SummaryCards
-        indepDate={indepShown ? indepShown.date : null}
-        fiSuccessPct={fiConfidence.pct}
-        fiSuccessLoading={fiConfidence.loading}
+        indepDate={fiDisplayPoint ? fiDisplayPoint.date : null}
+        fiLoading={fiLoading}
         netWorth={currentNW}
         netWorthWithHome={nwToday.netWorthWithHome}
         spendable={spendable}
         grossInvestable={today?.investableAssets ?? 0}
         fiNumber={fiTarget}
-        fiIsCashflow={!!indep}
+        fiIsCashflow={!!fiDisplayPoint}
         progress={progress}
         notices={notices}
         onOpenFinances={() => useUIStore.getState().setFinancesOpen(true)}

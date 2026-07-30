@@ -29,14 +29,12 @@ function tickerSymbols(holdings: FinancialSnapshot["other_investments"] | undefi
  * differentiation; a small "?" opens an explanation; tapping the FI Number card
  * opens finances; the Alerts card opens the full list in a popover.
  */
-export default function SummaryCards({ indepDate, fiSuccessPct = null, fiSuccessLoading = false, netWorth, netWorthWithHome, spendable, grossInvestable, fiNumber, fiIsCashflow = false, progress, notices, onOpenFinances, holdings, livePrices, concentratedSymbol, housingType }: {
+export default function SummaryCards({ indepDate, fiLoading = false, netWorth, netWorthWithHome, spendable, grossInvestable, fiNumber, fiIsCashflow = false, progress, notices, onOpenFinances, holdings, livePrices, concentratedSymbol, housingType }: {
+  /** The headline FI date — the earliest date that clears ≥90% of simulated market
+   *  paths (so it's safe to plan around, not the arithmetic earliest). */
   indepDate: string | null;
-  /** Monte-Carlo success rate (%) for fully retiring at `indepDate`. The FI date is
-   *  the earliest funded month under ONE smooth return path, so it ignores
-   *  sequence-of-returns risk; this qualifies it with the share of randomized
-   *  market paths that survive, so the date isn't misread as a green light. */
-  fiSuccessPct?: number | null;
-  fiSuccessLoading?: boolean;
+  /** True while the (async) safety scan is still resolving the FI date. */
+  fiLoading?: boolean;
   /** Headline net worth (investable money; excludes the home/mortgage) — the
    *  as-entered balance sheet today, so it ties out to the holdings the user
    *  entered (not the projection's month-0 point, which is already a month in). */
@@ -69,10 +67,6 @@ export default function SummaryCards({ indepDate, fiSuccessPct = null, fiSuccess
   const [modal, setModal] = useState<{ title: string; node: React.ReactNode } | null>(null);
   const open = (title: string, node: React.ReactNode) => setModal({ title, node });
 
-  // Sequence-of-returns cue for the FI date: green if the date survives most
-  // simulated market paths, amber/red if it leans on a lucky return order.
-  const pctColor = fiSuccessPct == null ? C.inkFaint : fiSuccessPct >= 85 ? "#2a7a68" : fiSuccessPct >= 70 ? C.warm : "#c0492b";
-
   const cardBase: React.CSSProperties = {
     position: "relative", flex: "1 0 230px", borderRadius: 14, padding: "15px 16px",
     minHeight: 128, display: "flex", flexDirection: "column", textAlign: "left",
@@ -95,14 +89,12 @@ export default function SummaryCards({ indepDate, fiSuccessPct = null, fiSuccess
 
   const fiExplain = (
     <>
-      <p style={{ margin: 0 }}>The earliest date you could <strong>stop working entirely</strong> and still fund every projected expense — your mortgage until it’s paid off, healthcare (which outpaces inflation), college, taxes — all the way to age 100, offset by Social Security and rental income as they begin, <strong>with a real cushion left</strong> (not just scraping past $0).</p>
-      <p style={{ margin: "10px 0 0" }}>This is the honest test: we run your retirement cash-flow forward and find the earliest funded month. It reflects <strong>your actual plan</strong> — set your exit <em>before</em> you can afford it and you stop saving and start drawing down without ever recovering, so this reads <strong>“not reached.”</strong> Push your exit out (or trim spending, save more, adjust returns) and a date appears. The <em>Progress to FI</em> card tracks toward the savings this date needs, so its bar fills to 100% right as this date arrives.</p>
+      <p style={{ margin: 0 }}>The earliest date you could <strong>stop working entirely</strong> and still fund every projected expense — your mortgage until it’s paid off, healthcare (which outpaces inflation), college, taxes — all the way to age 100, offset by Social Security and rental income as they begin.</p>
+      <p style={{ margin: "10px 0 0" }}>Crucially, this is a date you can <strong>actually plan around</strong>: it’s the earliest year that stays funded across <strong>at least 90% of simulated market paths</strong>, including ones where returns arrive in a bad order early on (the biggest risk in early retirement). We don’t show the arithmetic-earliest date that only works if the market cooperates — just the one with a real safety margin.</p>
+      <p style={{ margin: "10px 0 0" }}>Push your exit earlier than this and a bad decade could sink the plan, so it reads <strong>“not reached”</strong> until the odds clear the bar. Trim spending, save more, or adjust returns and the date moves in. The <em>Progress to FI</em> card tracks toward the savings this date needs, so its bar fills to 100% right as this date arrives.</p>
       {indepDate
-        ? <p style={{ margin: "10px 0 0" }}>For this scenario that’s <strong>{indepDate}</strong>.</p>
-        : <p style={{ margin: "10px 0 0" }}>This scenario doesn’t reach FI — you’d run down your savings. Work a little longer or spend less and a date will appear.</p>}
-      {indepDate && fiSuccessPct != null && (
-        <p style={{ margin: "10px 0 0" }}>That date is the earliest under a single <em>smooth</em> return path. Real markets deliver returns in an <strong>order</strong>, and a bad first few years can sink an otherwise-fine plan. Across randomized market paths, retiring exactly here succeeds <strong style={{ color: pctColor }}>≈{fiSuccessPct}%</strong> of the time{fiSuccessPct < 85 ? <> — so read it as the <em>earliest conceivable</em> date, not a safe one. Waiting a year or two, spending less, or dialing back return assumptions raises the odds; the <strong>Risk</strong> view charts the full spread.</> : ", a comfortable cushion against sequence risk."}</p>
-      )}
+        ? <p style={{ margin: "10px 0 0" }}>For this scenario that’s <strong>{indepDate}</strong> (90%+ safe). Want to see the full range of outcomes? Open the <strong>Risk</strong> view.</p>
+        : <p style={{ margin: "10px 0 0" }}>This scenario doesn’t reach a 90%-safe FI date within the horizon — you’d be leaning on market luck. Work a little longer or spend less and a date will appear.</p>}
     </>
   );
   const numExplain = (
@@ -149,16 +141,11 @@ export default function SummaryCards({ indepDate, fiSuccessPct = null, fiSuccess
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
             <div style={{ minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 6 }}><Label>Financial Independence</Label><Help onClick={() => open("Financial Independence", fiExplain)} /></div>
-              <div style={{ fontSize: 23, fontWeight: 300, color: indepDate ? C.tealDark : C.inkSoft, whiteSpace: "nowrap" }}>{indepDate ?? "30+ Yrs"}</div>
-              {indepDate && (fiSuccessPct != null || fiSuccessLoading) && (
-                <div style={{ fontSize: 10.5, fontWeight: 700, marginTop: 4, color: pctColor, whiteSpace: "nowrap" }}>
-                  {fiSuccessPct != null ? `≈${fiSuccessPct}% safe in market sims` : "checking the odds…"}
-                </div>
-              )}
+              <div style={{ fontSize: 23, fontWeight: 300, color: indepDate ? C.tealDark : C.inkSoft, whiteSpace: "nowrap" }}>{indepDate ?? (fiLoading ? "…" : "30+ Yrs")}</div>
             </div>
             <Chip bg={indepDate ? "#ffffffcc" : C.borderSoft} color={indepDate ? C.teal : C.inkFaint} icon={Flag} />
           </div>
-          <div style={{ fontSize: 10, color: indepDate ? C.tealDark : C.inkFaint, opacity: 0.8, marginTop: "auto", paddingTop: 8 }}>{indepDate ? "Earliest funded date — base-case returns" : "Adjust strategy to reach FI"}</div>
+          <div style={{ fontSize: 10, color: indepDate ? C.tealDark : C.inkFaint, opacity: 0.8, marginTop: "auto", paddingTop: 8 }}>{indepDate ? "Earliest date with 90%+ market-path success" : fiLoading ? "Checking the odds…" : "Adjust strategy to reach FI"}</div>
         </div>
 
         {/* Net Worth — your investable money; matches the wealth chart's first point */}

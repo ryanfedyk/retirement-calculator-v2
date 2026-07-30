@@ -13,7 +13,7 @@ import { useUIStore } from "@/store/useUIStore";
 import { runSimulation, runSimulationConverged, findCashflowFiPoint, netWorthToday, assessPlan, toDisplayDollars, findRetirementWindow } from "@/engine/calculator";
 import type { TrajectoryPoint } from "@/engine/calculator";
 import { runMonteCarlo } from "@/engine/montecarlo";
-import { useFiConfidence } from "@/hooks/useFiConfidence";
+import { useSafeFiYear } from "@/hooks/useSafeFiYear";
 import { MomentumGrid } from "./MotivationWidgets";
 import AiAnalysis from "./AiAnalysis";
 import { C } from "@/config/colors";
@@ -225,19 +225,25 @@ export default function RightPanel({ livePrices }: Props) {
   // month-0 point is already a month into the projection, so it runs a touch higher.
   const nwToday        = useMemo(() => netWorthToday(enrichedSnapshot, config, liveGoogPrice), [enrichedSnapshot, config, liveGoogPrice]);
   const currentNW      = nwToday.netWorth;
-  // How safe is that FI date once return ORDER is randomized? (async, off-render)
-  const fiConfidence   = useFiConfidence(enrichedSnapshot, config, liveGoogPrice, fiShown?.date ?? null);
+  // The headline FI date is the earliest year that stays funded across ≥90% of
+  // randomized market paths — a date you can safely plan around, not the arithmetic
+  // earliest. Computed off-render; until it resolves we fall back to the
+  // deterministic funded date so the card isn't blank. When nothing clears 90%
+  // within the horizon there's no safe FI date.
+  const safeFi         = useSafeFiYear(enrichedSnapshot, config, liveGoogPrice);
+  const safeFiPoint    = safeFi.year != null ? trajectoryData.find((p) => Number(p.date.split(" ")[1]) === safeFi.year) : undefined;
+  const fiDisplayPoint = safeFiPoint ?? (safeFi.loading ? fiShown : undefined);
+  const fiLoading      = safeFi.loading && !safeFiPoint;
   // Progress toward FI is measured on SPENDABLE (after-tax investable) assets —
   // the exact quantity the FI test uses — so the bar hits 100% precisely at the
   // FI date. Net worth would over-count illiquid wealth (e.g. home equity) and
   // push the bar past 100% while FI is still years away.
   const spendable      = todayPoint?.investableAfterTax ?? 0;
   const swrTarget      = todayPoint?.swrTarget ?? 0;
-  // The FI number the Progress bar tracks: the investable you need at your earliest
-  // funded (cash-flow) retirement date — so the bar hits 100% exactly when the FI
-  // flag on the chart arrives. Falls back to the Rule-of-25 heuristic only when no
-  // funded date exists within the horizon.
-  const fiTarget       = fiPoint?.investableAfterTax ?? swrTarget;
+  // The FI number the Progress bar tracks: the investable you need at the 90%-safe
+  // FI date — so the bar hits 100% exactly when the FI flag on the chart arrives.
+  // Falls back to the Rule-of-25 heuristic only when no safe date exists.
+  const fiTarget       = fiDisplayPoint?.investableAfterTax ?? swrTarget;
   const progress       = fiTarget > 0 ? Math.min(100, (spendable / fiTarget) * 100) : 0;
   const birthYear      = config.birth_year ?? 1980;
   const currentYear    = new Date().getFullYear();
@@ -369,7 +375,7 @@ export default function RightPanel({ livePrices }: Props) {
     const m: Milestone[] = [];
     // Primary — the headline financial milestones
     if (retireDateStr)   m.push({ x: retireDateStr,   stroke: "#2a7a68", label: hasPostPhases ? "Career Exit" : "Retire", primary: true  });
-    if (fiShown)         m.push({ x: fiShown.date, stroke: "#80c4ae", label: "FI",         primary: true  });
+    if (fiDisplayPoint)  m.push({ x: fiDisplayPoint.date, stroke: "#80c4ae", label: "FI",    primary: true  });
     if (mortgageDateStr && config.spending.housing_type !== "rent") m.push({ x: mortgageDateStr, stroke: "#9bbdb4", label: "Paid Off",   primary: true  });
     if (enDateStr)       m.push({ x: enDateStr,       stroke: C.warm,    label: "Empty Nest", primary: true  });
     // Career-phase transitions — prominent (always visible), since they're the
@@ -430,15 +436,14 @@ export default function RightPanel({ livePrices }: Props) {
 
       {/* ── Summary cards: Financial Independence · Progress to FI · Alerts ── */}
       <SummaryCards
-        indepDate={fiShown ? fiShown.date : null}
-        fiSuccessPct={fiConfidence.pct}
-        fiSuccessLoading={fiConfidence.loading}
+        indepDate={fiDisplayPoint ? fiDisplayPoint.date : null}
+        fiLoading={fiLoading}
         netWorth={currentNW}
         netWorthWithHome={nwToday.netWorthWithHome}
         spendable={spendable}
         grossInvestable={todayPoint?.investableAssets ?? 0}
         fiNumber={fiTarget}
-        fiIsCashflow={!!fiPoint}
+        fiIsCashflow={!!fiDisplayPoint}
         progress={progress}
         notices={notices}
         onOpenFinances={() => useUIStore.getState().setFinancesOpen(true)}

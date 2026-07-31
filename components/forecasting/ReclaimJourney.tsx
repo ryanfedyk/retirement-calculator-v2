@@ -19,6 +19,7 @@ import WizardShell from "./WizardShell";
 import PerfectDay from "./PerfectDay";
 import PerfectYear from "./PerfectYear";
 import ArcMap from "./ArcMap";
+import { buildArcLifeEvents } from "@/lib/arcLifeEvents";
 import { R, SERIF, DAY_COLOR, YEAR_COLOR, presenceWord } from "./reclaimTheme";
 
 const VALID_CATS: AdventureCategory[] = ["Immersive Travel", "Creative Mastery", "Endurance/Active", "Slow Living", "People & Belonging"];
@@ -97,6 +98,12 @@ export default function ReclaimJourney({ framed = false }: { framed?: boolean } 
   const usePartnerIncome = useFinancialStore((s) => s.config.income_profile.use_partner_income);
   const birthYear = useFinancialStore((s) => s.config.birth_year);
   const exitYear = useFinancialStore((s) => s.config.career_path.exit_year);
+  // Real life events, to plot the arc in real time (same milestones as the charts).
+  const spending = useFinancialStore((s) => s.config.spending);
+  const liabilities = useFinancialStore((s) => s.snapshot.liabilities);
+  const socialSecurity = useFinancialStore((s) => s.config.social_security);
+  const medicare = useFinancialStore((s) => s.config.medicare);
+  const oneOffEvents = useFinancialStore((s) => s.config.life_events);
 
   const seedInputs: SeedInputs = useMemo(() => ({
     childNames: (children ?? []).map((c) => c.name).filter(Boolean),
@@ -309,6 +316,18 @@ export default function ReclaimJourney({ framed = false }: { framed?: boolean } 
   // Arc
   const exitAge = birthYear && exitYear ? Math.max(40, exitYear - birthYear) : null;
   const arc = useMemo(() => retirementArc({ exitAge, mix, pursuitIds: pursuits, catalog }), [exitAge, mix, pursuits, catalog]);
+  const arcLifeEvents = useMemo(() => {
+    if (!birthYear || exitAge == null) return [];
+    return buildArcLifeEvents({
+      birthYear, exitAge, horizonAge: 90, nowYear: new Date().getFullYear(),
+      children: (children ?? []).map((c) => ({ name: c.name, birthDate: c.birthDate })),
+      mortgage: { balance: liabilities.mortgage_balance ?? 0, annualRatePct: liabilities.mortgage_interest_rate || 3.5, monthlyPayment: spending.mortgage_payment ?? 0, isRent: spending.housing_type === "rent" },
+      emptyNestYear: (children?.length && spending.use_empty_nest !== false) ? (spending.empty_nest_year ?? null) : null,
+      socialSecurityStartAge: socialSecurity?.start_age ?? null,
+      medicareStartAge: medicare?.start_age ?? null,
+      oneOffs: (oneOffEvents ?? []).map((e) => ({ year: e.year, name: e.name })),
+    });
+  }, [birthYear, exitAge, children, liabilities, spending, socialSecurity, medicare, oneOffEvents]);
 
   // In immersive mode a movement takes over the whole screen. Standalone
   // (mobile) that's a fixed canvas on the warm-grey ground, sized to the dynamic
@@ -657,7 +676,7 @@ export default function ReclaimJourney({ framed = false }: { framed?: boolean } 
       onBack={() => setStage("year")}
       headerAction={headerMenu}
     >
-      <ArcMap arc={arc} exitAge={exitAge} horizonAge={90} headline={mix.length > 0 ? synthesis.title : undefined} tail={arcTail} onAddPursuit={addToArc} optimizingSeason={optimizingSeason} building={buildingArc} />
+      <ArcMap arc={arc} exitAge={exitAge} horizonAge={90} lifeEvents={arcLifeEvents} headline={mix.length > 0 ? synthesis.title : undefined} tail={arcTail} onAddPursuit={addToArc} optimizingSeason={optimizingSeason} building={buildingArc} />
     </WizardShell>
   );
 }

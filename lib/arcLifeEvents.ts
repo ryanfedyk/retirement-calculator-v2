@@ -7,6 +7,8 @@
 // path at the age each actually happens. Everything here is derived from the
 // plan's own inputs, so the arc and the charts agree.
 
+import { amortizationMonths } from "@/engine/calculator";
+
 export interface ArcLifeEvent {
   /** Age (of the primary) when it happens — the arc's axis is age. */
   age: number;
@@ -30,16 +32,6 @@ export interface ArcLifeEventInputs {
   medicareStartAge?: number | null;
   /** One-off life events from the plan (year + name). */
   oneOffs?: { year: number; name: string }[];
-}
-
-/** Months until a fixed-payment mortgage is paid off, from today. null if the
- *  payment never covers the interest (so it never amortizes) or nothing's owed. */
-export function mortgagePayoffMonths(balance: number, annualRatePct: number, monthlyPayment: number): number | null {
-  if (balance <= 0 || monthlyPayment <= 0) return null;
-  const r = annualRatePct / 100 / 12;
-  if (r <= 0) return Math.ceil(balance / monthlyPayment);
-  if (monthlyPayment <= balance * r) return null; // payment ≤ interest → never pays down
-  return Math.ceil(-Math.log(1 - (r * balance) / monthlyPayment) / Math.log(1 + r));
 }
 
 const firstName = (s: string) => (s || "").trim().split(/\s+/)[0] || "";
@@ -83,7 +75,7 @@ export function buildArcLifeEvents(inp: ArcLifeEventInputs): ArcLifeEvent[] {
   // Mortgage paid off.
   const m = inp.mortgage;
   if (m && !m.isRent) {
-    const months = mortgagePayoffMonths(m.balance, m.annualRatePct, m.monthlyPayment);
+    const months = amortizationMonths(m.balance, m.annualRatePct, m.monthlyPayment);
     if (months != null) push((nowYear + months / 12) - birthYear, "🏡", "Mortgage paid off");
   }
 

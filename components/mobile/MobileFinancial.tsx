@@ -7,7 +7,7 @@ import { exitDateString } from "@/lib/exitDate";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
-import { runSimulationConverged, findCashflowFiPoint, netWorthToday, assessPlan, toDisplayDollars, findRetirementWindow } from "@/engine/calculator";
+import { runSimulationConverged, findCashflowFiPoint, netWorthToday, mortgagePaidOffDate, assessPlan, toDisplayDollars, findRetirementWindow } from "@/engine/calculator";
 import { runMonteCarlo } from "@/engine/montecarlo";
 import { useSafeFiYear } from "@/hooks/useSafeFiYear";
 import { getLifeEvents } from "@/lib/horizonUtils";
@@ -168,6 +168,7 @@ export default function MobileFinancial({ livePrices, onOpenConfig }: Props) {
 
   const cp = config.career_path;
   const findDate = (pred: (p: typeof traj[number]) => boolean) => traj.find(pred)?.date;
+  const mortgagePaidStr = mortgagePaidOffDate(traj); // real payoff month, off the curve
   const retireTarget = exitDateString(cp);
   const retireDate = findDate(p => p.date === retireTarget) ?? findDate(p => p.date.includes(String(cp.exit_year)));
   const hasPostPhases = cp.use_sabbatical || cp.use_jump || cp.use_bridge;
@@ -196,7 +197,7 @@ export default function MobileFinancial({ livePrices, onOpenConfig }: Props) {
   if (cp.use_bridge)     addMile(findDate(d => d.currentPhase === "BRIDGE"),     "Bridge job begins", "#3a7d9c");
   if (fullRetireDate)    addMile(fullRetireDate, "Full retirement 🌿", "#7a6da8");
   if (children.length > 0 && config.spending.use_empty_nest !== false && config.spending.empty_nest_year) addMile(findDate(p => p.date.includes(String(config.spending.empty_nest_year))), "Empty nest", C.warm);
-  if (snapshot.liabilities.mortgage_balance > 0) addMile(findDate(p => p.date === "Jun 2051"), "Mortgage paid off", "#9bbdb4");
+  if (mortgagePaidStr) addMile(mortgagePaidStr, "Mortgage paid off", "#9bbdb4");
   if (fiDisplayPoint) addMile(fiDisplayPoint.date, "Financial independence 🎉", "#80c4ae");
   if (config.social_security) addMile(findDate(p => p.date.includes(String(by + config.social_security.start_age))), "Social Security starts", C.warm);
   if (config.medicare)        addMile(findDate(p => p.date.includes(String(by + config.medicare.start_age))),        "Medicare starts", "#9bbdb4");
@@ -212,7 +213,7 @@ export default function MobileFinancial({ livePrices, onOpenConfig }: Props) {
     cp.use_bridge     && { x: snap(findDate(d => d.currentPhase === "BRIDGE")),     c: "#3a7d9c", l: "Bridge" },
     fullRetireDate    && { x: snap(fullRetireDate), c: "#7a6da8", l: "Retire" },
     children.length > 0 && config.spending.use_empty_nest !== false && config.spending.empty_nest_year && { x: snap(findDate(p => p.date.includes(String(config.spending.empty_nest_year)))), c: C.warm, l: "Nest" },
-    snapshot.liabilities.mortgage_balance > 0 && { x: snap(findDate(p => p.date === "Jun 2051")), c: "#9bbdb4", l: "Paid" },
+    mortgagePaidStr && { x: snap(mortgagePaidStr), c: "#9bbdb4", l: "Paid" },
     fiDisplayPoint && { x: snap(fiDisplayPoint.date), c: "#80c4ae", l: "FI" },
   ].filter(Boolean) as { x?: string; c: string; l: string }[]).filter(m => m.x) as { x: string; c: string; l: string }[];
 

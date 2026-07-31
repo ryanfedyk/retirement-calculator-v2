@@ -496,9 +496,19 @@ const simulate = (
       : { type: 'keep' });
 
   const mortgageRate       = snapshot.liabilities.mortgage_interest_rate || 3.5;
+  // Payoff date: an explicit one if set, else amortize the loan from its balance,
+  // rate, and payment so it lands on the REAL date rather than a placeholder. (For
+  // a loan that amortizes normally this matches when the balance hits $0 anyway, so
+  // it's a no-op there; it only corrects loans that would run past the old fixed
+  // default. A payment that never covers the interest never pays off → full horizon.)
   const mortgagePayoffDate = snapshot.liabilities.mortgage_payoff_date
     ? new Date(snapshot.liabilities.mortgage_payoff_date)
-    : new Date(2051, 5, 1);
+    : (() => {
+        const months = config.spending.housing_type === "rent"
+          ? null
+          : amortizationMonths(snapshot.liabilities.mortgage_balance ?? 0, snapshot.liabilities.mortgage_interest_rate || 3.5, config.spending.mortgage_payment ?? 0);
+        return months != null ? new Date(startYear, startMonth + months, 1) : new Date(2100, 0, 1);
+      })();
 
   // Phase boundaries as calendar-month indices (year*12 + month0), so the exit —
   // and every downstream phase — is precise to the month, not just the year. This
@@ -1562,6 +1572,30 @@ export function netWorthToday(
   const isRent = config.spending.housing_type === "rent";
   const homeEquity = (!isRent && propertyValue > 0) ? propertyValue - (liab.mortgage_balance || 0) : 0;
   return { investable, education, netWorth, homeEquity, netWorthWithHome: netWorth + homeEquity };
+}
+
+/** Months to fully amortize a fixed-payment loan; null if it never pays down
+ *  (payment ≤ interest) or nothing is owed. Standard amortization — the same math
+ *  the engine applies month-by-month to the mortgage balance. */
+export function amortizationMonths(balance: number, annualRatePct: number, monthlyPayment: number): number | null {
+  if (balance <= 0 || monthlyPayment <= 0) return null;
+  const r = annualRatePct / 100 / 12;
+  if (r <= 0) return Math.ceil(balance / monthlyPayment);
+  if (monthlyPayment <= balance * r) return null;
+  return Math.ceil(-Math.log(1 - (r * balance) / monthlyPayment) / Math.log(1 + r));
+}
+
+/** The trajectory month a mortgage is paid off — where the monthly mortgage
+ *  payment drops from >0 to 0 as the homeowner clears the loan. Reads straight off
+ *  the plotted curve, so a chart marker lands exactly on the real payoff. null for
+ *  renters (rent never ends) or when no mortgage payment is modeled. */
+export function mortgagePaidOffDate(points: TrajectoryPoint[]): string | null {
+  let seen = false;
+  for (const p of points) {
+    if (p.mortgagePayment > 0) { seen = true; continue; }
+    if (seen) return p.date;
+  }
+  return null;
 }
 
 /**

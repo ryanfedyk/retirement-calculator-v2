@@ -4,7 +4,7 @@ import { Sliders, Wallet, Trash2, PlusCircle, ChevronDown, Pencil, ChevronLeft }
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { C } from "@/config/colors";
 import { DEFAULT_SNAPSHOT, DEFAULT_SIM_CONFIG } from "@/config/sharedConfig";
-import { IRS_401K } from "@/engine/calculator";
+import { IRS_401K, amortizationMonths } from "@/engine/calculator";
 import TickerAutocomplete from "./TickerAutocomplete";
 import LinkedNumberField from "./LinkedNumberField";
 import BaselineLinkBadge from "./BaselineLinkBadge";
@@ -233,6 +233,21 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
   const ip = config.income_profile;
   const ma = config.market_assumptions;
   const sp = config.spending;
+  // When the mortgage payment ends — the real amortized payoff (or an explicit
+  // payoff date), not a placeholder. Mirrors what the engine and charts now use.
+  const mortgageEndsLabel = (() => {
+    const MMM = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    if (sp.housing_type === "rent") return "Rent — a perpetual expense (never ends)";
+    if (snapshot.liabilities.mortgage_payoff_date) {
+      const d = new Date(snapshot.liabilities.mortgage_payoff_date);
+      return `Automatically ends ${MMM[d.getMonth()]} ${d.getFullYear()}`;
+    }
+    const months = amortizationMonths(snapshot.liabilities.mortgage_balance ?? 0, snapshot.liabilities.mortgage_interest_rate || 3.5, sp.mortgage_payment ?? 0);
+    if (months == null) return "At this payment the balance never fully amortizes";
+    const n = new Date();
+    const d = new Date(n.getFullYear(), n.getMonth() + months, 1);
+    return `Automatically ends ${MMM[d.getMonth()]} ${d.getFullYear()}`;
+  })();
   // Finances variant edits the shared baseline cash flow (income & spending) and
   // the shared equity-comp assumptions.
   const bip = baseline.income_profile;
@@ -710,7 +725,7 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
             <div><FieldLabel>Monthly Mortgage / Rent Payment ($)</FieldLabel>
               <Input type="number" value={sp.mortgage_payment}
                 onChange={e => updateNestedConfig("spending", { mortgage_payment: +e.target.value || 0 })} />
-              <div style={{ fontSize: 9, color: C.inkFaint, marginTop: 3 }}>Automatically ends Jun 2051</div>
+              <div style={{ fontSize: 9, color: C.inkFaint, marginTop: 3 }}>{mortgageEndsLabel}</div>
             </div>
             <div><FieldLabel>Healthcare Premium ($/mo)</FieldLabel>
               <Input type="number" step={100} value={sp.healthcare_premium}

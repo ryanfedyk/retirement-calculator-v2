@@ -1,17 +1,18 @@
 import { describe, it, expect } from "vitest";
-import { buildArcLifeEvents, mortgagePayoffMonths } from "@/lib/arcLifeEvents";
+import { buildArcLifeEvents } from "@/lib/arcLifeEvents";
+import { amortizationMonths } from "@/engine/calculator";
 
-describe("mortgagePayoffMonths", () => {
+describe("amortizationMonths", () => {
   it("amortizes a fixed-payment mortgage", () => {
     // $100k at 6%/yr, $1,000/mo → ~139 months.
-    expect(mortgagePayoffMonths(100_000, 6, 1_000)).toBe(139);
+    expect(amortizationMonths(100_000, 6, 1_000)).toBe(139);
   });
   it("returns null when the payment never covers the interest", () => {
     // $100k at 6%/yr → $500/mo interest; a $400 payment never pays down.
-    expect(mortgagePayoffMonths(100_000, 6, 400)).toBeNull();
+    expect(amortizationMonths(100_000, 6, 400)).toBeNull();
   });
   it("returns null for nothing owed", () => {
-    expect(mortgagePayoffMonths(0, 6, 1_000)).toBeNull();
+    expect(amortizationMonths(0, 6, 1_000)).toBeNull();
   });
 });
 

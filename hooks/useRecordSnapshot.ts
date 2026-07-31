@@ -1,7 +1,8 @@
 "use client";
 import { useCallback } from "react";
 import { useFinancialStore } from "@/store/useFinancialStore";
-import { runSimulationConverged, findCashflowFiPoint, assessPlan } from "@/engine/calculator";
+import { runSimulationConverged, netWorthToday } from "@/engine/calculator";
+import { findMonteCarloFiYears } from "@/engine/montecarlo";
 import type { LivePrices } from "@/components/finance/FinancialDashboard";
 
 /**
@@ -14,10 +15,11 @@ import type { LivePrices } from "@/components/finance/FinancialDashboard";
  * position's) come only from the live-quote fetch, so we enrich with `livePrices`
  * before simulating — otherwise every holding would value to $0.
  *
- * The net worth / spendable / FI Number / FI date are computed EXACTLY as the
- * Trajectory summary cards do — the converged run (runSimulationConverged), the
- * cash-flow FI point (findCashflowFiPoint), and the same "on-track" gating — so a
- * recorded snapshot always matches what the card shows for the primary plan.
+ * The net worth and FI date are computed EXACTLY as the Trajectory summary cards
+ * do — net worth as the AS-ENTERED balance sheet (netWorthToday, matching the Net
+ * Worth card), and the FI date as the earliest 90%-safe Monte-Carlo year (matching
+ * the Financial Independence card) — so a recorded snapshot always matches what the
+ * cards show for the primary plan.
  *
  * Returns `record(mode)`: "month" refreshes the current month's point (the
  * automatic trail); "manual" appends a distinct, timestamped capture. Returns
@@ -45,17 +47,22 @@ export function useRecordSnapshot(livePrices: LivePrices) {
       }),
     };
 
-    // Match the Trajectory card: converged run, cash-flow FI, on-track gating.
+    // Match the Trajectory cards exactly.
     const traj = runSimulationConverged(enriched, primary.config, concPrice);
     const today = traj[0];
     if (!today) return false;
-    const fiPoint = findCashflowFiPoint(enriched, primary.config, concPrice, traj);
-    const onTrack = assessPlan(traj).health === "on-track";
+    // Net worth: the as-entered balance sheet (same as the Net Worth card), NOT the
+    // engine's month-0 point (which is already a month into the projection).
+    const netWorth = netWorthToday(enriched, primary.config, concPrice).netWorth;
+    // FI date: the earliest year that clears ≥90% of market paths (same as the
+    // Financial Independence card), mapped to that year's point on the curve.
+    const safeYear = findMonteCarloFiYears(enriched, primary.config, concPrice, { probabilities: [0.9], runsPerYear: 120 }).thresholds[0]?.year ?? null;
+    const safePoint = safeYear != null ? traj.find((p) => Number(p.date.split(" ")[1]) === safeYear) : undefined;
     const pt = {
-      netWorth: today.totalNetWorth,
+      netWorth,
       spendable: today.investableAfterTax,
       swrTarget: today.swrTarget,
-      fiDate: onTrack && fiPoint ? fiPoint.date : null,
+      fiDate: safePoint ? safePoint.date : null,
       scenarioName: primary.name,
     };
     (mode === "manual" ? addManualSnapshot : recordHistoryPoint)(pt);

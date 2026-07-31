@@ -10,7 +10,7 @@ import { type HorizonZoom, horizonCapYear, horizonZoomIn, horizonZoomOut } from 
 import { exitDateString } from "@/lib/exitDate";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import { useUIStore } from "@/store/useUIStore";
-import { runSimulation, runSimulationConverged, findCashflowFiPoint, netWorthToday, assessPlan, toDisplayDollars, findRetirementWindow } from "@/engine/calculator";
+import { runSimulation, runSimulationConverged, findCashflowFiPoint, netWorthToday, mortgagePaidOffDate, assessPlan, toDisplayDollars, findRetirementWindow } from "@/engine/calculator";
 import type { TrajectoryPoint } from "@/engine/calculator";
 import { runMonteCarlo } from "@/engine/montecarlo";
 import { useSafeFiYear } from "@/hooks/useSafeFiYear";
@@ -349,7 +349,7 @@ export default function RightPanel({ livePrices }: Props) {
   const fullRetireDateStr = hasPostPhases ? findDate(d => d.currentPhase === "RETIRED") : null;
   const ssDateStr      = config.social_security ? findDate(p => p.date.includes(String(birthYear + config.social_security!.start_age))) : null;
   const medDateStr     = config.medicare        ? findDate(p => p.date.includes(String(birthYear + config.medicare!.start_age)))        : null;
-  const mortgageDateStr = snapshot.liabilities.mortgage_balance > 0 ? findDate(p => p.date === "Jun 2051") : null;
+  const mortgageDateStr = mortgagePaidOffDate(trajectoryData); // the real payoff month, off the curve
   const enDateStr      = (children.length > 0 && config.spending.use_empty_nest !== false && config.spending.empty_nest_year) ? findDate(p => p.date.includes(String(config.spending.empty_nest_year))) : null;
 
   // Compact label for a life event ("Oona — College Year 1" → "🎓 Oona Yr1")

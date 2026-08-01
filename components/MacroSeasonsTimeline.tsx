@@ -41,6 +41,10 @@ export default function MacroSeasonsTimeline() {
 
   return (
     <div>
+      <style>{`
+        @keyframes wd-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+        .wd-shimmer { background: linear-gradient(90deg, ${C.borderSoft} 25%, ${C.bgCard} 50%, ${C.borderSoft} 75%); background-size: 200% 100%; animation: wd-shimmer 1.5s linear infinite; }
+      `}</style>
       {/* ── Header ── */}
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-2">
@@ -190,10 +194,18 @@ export default function MacroSeasonsTimeline() {
 
       {/* ── Season Cards — expandable (the current season opens by default and
           carries the "you are here" detail, so there's no separate callout) ── */}
-      {/* Dimmed while Gemini is still tailoring the names/guidance, so the
-          placeholder prose reads as provisional rather than final. */}
-      <div className="space-y-3" aria-busy={source === "building"}
-           style={{ opacity: source === "building" ? 0.5 : 1, transition: "opacity 0.45s ease" }}>
+      {/* While Gemini is still tailoring the names & guidance, show shimmering
+          skeleton cards instead of the deterministic placeholder prose — so there's
+          nothing to mistake for final content. The colored left bar (structure we
+          already know) stays; the words fill in when the tailored copy arrives. */}
+      {source === "building" ? (
+        <div className="space-y-3" aria-busy="true">
+          {seasons.map((s, i) => (
+            <SeasonSkeleton key={s.id} accent={s.color} expanded={i === currentIndex} />
+          ))}
+        </div>
+      ) : (
+      <div className="space-y-3">
         {seasons.map((s, i) => {
           const isActive   = i === currentIndex;
           const isPast     = i < currentIndex;
@@ -312,6 +324,39 @@ export default function MacroSeasonsTimeline() {
           );
         })}
       </div>
+      )}
+    </div>
+  );
+}
+
+/** A shimmering placeholder card shown while Gemini tailors the season copy — the
+ *  colored bar hints at the (already-known) structure while the text fills in. */
+function SeasonSkeleton({ accent, expanded }: { accent: string; expanded: boolean }) {
+  const bar = (w: number | string, h = 10) => (
+    <div className="wd-shimmer" style={{ width: w, height: h, borderRadius: 6 }} />
+  );
+  return (
+    <div className="rounded-2xl border overflow-hidden" style={{ borderColor: C.borderSoft, background: expanded ? C.bgCard : "transparent" }}>
+      <div className="p-5 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-4 min-w-0 flex-1">
+          <div className="w-2 h-10 rounded-full shrink-0" style={{ background: accent, opacity: 0.55 }} />
+          <div className="min-w-0 flex-1 flex flex-col gap-2">
+            {bar(84, 10)}
+            {bar("52%", 15)}
+            {bar("72%", 10)}
+          </div>
+        </div>
+        <div className="wd-shimmer shrink-0" style={{ width: 44, height: 22, borderRadius: 6 }} />
+      </div>
+      {expanded && (
+        <div className="px-5 pb-6 border-t flex flex-col gap-3" style={{ borderColor: C.borderSoft, paddingTop: 16 }}>
+          {bar("90%", 10)}
+          <div className="wd-shimmer" style={{ height: 56, borderRadius: 12 }} />
+          {bar("82%", 10)}
+          {bar("68%", 10)}
+          {bar("74%", 10)}
+        </div>
+      )}
     </div>
   );
 }

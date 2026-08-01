@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
-import { ChevronDown, ChevronUp, Sparkles } from "lucide-react";
+import { ChevronDown, ChevronUp, Sparkles, Loader2 } from "lucide-react";
 import { C } from "@/config/colors";
 import { useMacroSeasons } from "@/hooks/useMacroSeasons";
 
@@ -53,11 +53,31 @@ export default function MacroSeasonsTimeline() {
               <Sparkles size={10} /> AI-mapped
             </span>
           )}
+          {source === "building" && (
+            <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full"
+                  style={{ background: C.tealWash, color: C.tealDark }}>
+              <Loader2 size={10} className="animate-spin" /> Personalizing…
+            </span>
+          )}
         </div>
         <p style={{ color: C.inkSoft }} className="text-sm">
           {seasons.length} seasons from {seasons[0].startYear} to {lastYear} — your full glide path
           from peak intensity to freedom, mapped to your retirement model.
         </p>
+
+        {/* While Gemini tailors the season names & guidance, say so — otherwise the
+            deterministic placeholder text reads as final and quietly changes under
+            the user a few seconds later. */}
+        {source === "building" && (
+          <div className="mt-3 flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl"
+               style={{ background: C.tealWash, border: `1px solid ${C.tealLight}` }}>
+            <Loader2 size={15} className="animate-spin shrink-0" style={{ color: C.tealDark }} />
+            <p className="text-xs font-medium" style={{ color: C.tealDark }}>
+              Personalizing your seasons to your plan…{" "}
+              <span style={{ color: C.inkSoft, fontWeight: 400 }}>the names &amp; guidance below update in a moment.</span>
+            </p>
+          </div>
+        )}
       </div>
 
       {/* ── Phase Roadmap Bar ── */}
@@ -170,7 +190,10 @@ export default function MacroSeasonsTimeline() {
 
       {/* ── Season Cards — expandable (the current season opens by default and
           carries the "you are here" detail, so there's no separate callout) ── */}
-      <div className="space-y-3">
+      {/* Dimmed while Gemini is still tailoring the names/guidance, so the
+          placeholder prose reads as provisional rather than final. */}
+      <div className="space-y-3" aria-busy={source === "building"}
+           style={{ opacity: source === "building" ? 0.5 : 1, transition: "opacity 0.45s ease" }}>
         {seasons.map((s, i) => {
           const isActive   = i === currentIndex;
           const isPast     = i < currentIndex;

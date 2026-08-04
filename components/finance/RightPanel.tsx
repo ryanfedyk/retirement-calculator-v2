@@ -642,7 +642,7 @@ export default function RightPanel({ livePrices }: Props) {
 
       {/* ── AI Analysis ── */}
       {insightTab === "ai" && (
-        <AiAnalysis config={config} snapshot={snapshot} trajectory={trajectoryData} />
+        <AiAnalysis config={config} snapshot={snapshot} trajectory={trajectoryData} liveGoogPrice={liveGoogPrice} />
       )}
     </main>
   );

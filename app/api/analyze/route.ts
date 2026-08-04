@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { estimatePIA, estimateMonthlySocialSecurity, estimateSpousalBenefit } from "@/engine/social_security";
+import { buildScenarioReport } from "@/lib/scenarioReport";
 
 // The LLM call can take longer than the default serverless budget; give it room.
 export const runtime = "nodejs";
@@ -29,27 +30,8 @@ export async function POST(req: Request) {
       );
     }
 
-    const { config, snapshot, trajectory } = await req.json();
-
+    const { config, snapshot, liveGoogPrice } = await req.json();
     const currentYear = new Date().getFullYear();
-
-    let trueRetirementYear = config.career_path.exit_year;
-    if (config.career_path.use_sabbatical) trueRetirementYear += (config.career_path.sabbatical_duration || 0);
-    if (config.career_path.use_jump)       trueRetirementYear += (config.career_path.jump_duration || 0);
-    if (config.career_path.use_bridge)     trueRetirementYear += (config.career_path.bridge_duration || 0);
-
-    const finalNW     = trajectory?.length > 0 ? trajectory[trajectory.length - 1].totalNetWorth : "N/A";
-    const fiAchieved  = trajectory?.some((p: any) => p.isIndependent) ? "Yes" : "No";
-    const indepPoint  = trajectory?.find((p: any) => p.isIndependent);
-
-    // Sanitize the config before showing it to the model. Two ACA fields are
-    // vestigial — the engine derives household size from the ACTUAL household
-    // (adults + kids still on the plan) and ignores these — but they persist in
-    // saved configs and mislead the analysis (e.g. a stale `aca_family_size: 1`
-    // reads as a data inconsistency). Strip them so the model doesn't flag them.
-    const { aca_family_size: _afs, aca_benchmark_monthly_premium: _abp, ...taxOpt } =
-      config.tax_optimization ?? {};
-    const displayConfig = { ...config, tax_optimization: taxOpt };
 
     // Social Security is normally DERIVED from salary (`social_security_linked` /
     // `partner_ss_linked` default true), so the stored `monthly_amount` and
@@ -73,48 +55,52 @@ export async function POST(req: Request) {
           ? Math.max(estimateMonthlySocialSecurity(ipCfg.partner_gross_annual_salary || 0, claimAge), estimateSpousalBenefit(primaryPIA, claimAge))
           : (ssCfg.partner_monthly_amount || 0);
       }
-      displayConfig.social_security = {
-        ...ssCfg,
-        resolved_primary_monthly_benefit: primaryMonthly,
-        ...(ipCfg.use_partner_income ? { resolved_partner_monthly_benefit: partnerMonthly } : {}),
-      };
-      ssContext = `\n- Social Security is DERIVED from income when \`*_linked\` is true (the default), so the raw \`monthly_amount\` / \`partner_monthly_amount\` fields may read 0 even though the modeled benefit is not. The engine's RESOLVED monthly benefits (claimed at age ${claimAge}) are: primary ≈ $${primaryMonthly}/mo${ipCfg.use_partner_income ? `, partner ≈ $${partnerMonthly}/mo — the greater of her own record or a spousal benefit (a married partner ALWAYS draws Social Security, even with no earnings record). Do NOT state the partner has no Social Security income.` : "."}`;
+      ssContext = `\n- Resolved Social Security monthly benefits (claimed at age ${claimAge}): primary ≈ $${primaryMonthly}/mo${ipCfg.use_partner_income ? `, partner ≈ $${partnerMonthly}/mo — the greater of her own record or a spousal benefit (a married partner ALWAYS draws Social Security, even with no earnings record). Do NOT state the partner has no Social Security income.` : "."}`;
+    }
+
+    // The FULL, auditable plan report — balance sheet, assumptions, taxes, Social
+    // Security, the exact FI test, the deterministic results, the Monte-Carlo
+    // sequence-of-returns risk (§11) and the sensitivity table (§12) — so the model
+    // weighs EVERY factor, not a thin summary. Falls back to raw JSON if it can't build.
+    let planReport: string;
+    try {
+      planReport = buildScenarioReport({
+        scenarioName: "This scenario",
+        snapshot, config,
+        liveGoogPrice: typeof liveGoogPrice === "number" ? liveGoogPrice : 0,
+        includeMonteCarlo: true,
+        monteCarloRuns: 1500, // solid odds (±~1% at the 90% mark) while keeping the request within budget
+        generatedAt: new Date().toISOString(),
+      });
+    } catch (e: any) {
+      console.warn("buildScenarioReport failed; using raw JSON:", e?.message);
+      planReport = `### Configuration\n\`\`\`json\n${JSON.stringify(config, null, 2)}\n\`\`\`\n\n### Snapshot\n\`\`\`json\n${JSON.stringify({ ...snapshot, other_investments: snapshot.other_investments?.slice(0, 10) }, null, 2)}\n\`\`\``;
     }
 
     const prompt = `
 You are a world-class financial planner analyzing a retirement plan for a tech professional.
 
 IMPORTANT CONTEXT:
-- Current year: ${currentYear}
-- True retirement year (after all career phases): ${trueRetirementYear}
-- All time references must be relative to ${currentYear}
-- Rental income ($${config.income_profile.monthly_rental_income || 0}/mo) is RELIABLE PASSIVE income continuing forever in retirement
-- Healthcare household size (for ACA/FPL subsidies and per-capita premiums) is derived automatically from filing status + children still on the plan; it is NOT a config field, so do not flag any household-size inconsistency.
-- \`partner_has_health_insurance: false\` means the partner's employer does NOT supply the family's coverage, so the model conservatively assumes the household buys its own (ACA/self-paid) coverage. It does NOT mean anyone is uninsured — it is the safer assumption, not a coverage gap. Do not raise it as an uncovered risk.${ssContext}
+- Current year: ${currentYear}; all time references must be relative to it.
+- Rental income ($${config.income_profile?.monthly_rental_income || 0}/mo) is RELIABLE PASSIVE income continuing throughout retirement.
+- Healthcare household size (for ACA/FPL subsidies and per-capita premiums) is derived automatically from filing status + children still on the plan; do not flag any household-size inconsistency.
+- \`partner_has_health_insurance: false\` means the household conservatively buys its OWN (ACA/self-paid) coverage — the safer assumption, NOT a coverage gap. Do not raise it as an uncovered risk.${ssContext}
 
-### Configuration:
-\`\`\`json
-${JSON.stringify(displayConfig, null, 2)}
-\`\`\`
+Below is the COMPLETE, auditable plan report. Base your analysis on ALL of it — do not stop at the base-case/deterministic path. You MUST explicitly weigh:
+- **§11 Sequence-of-returns risk (Monte Carlo):** the success rate, the confidence-graded FI dates (90/95/99%), and the ending net-worth bands. A low Monte-Carlo success rate is a MATERIAL risk even when the base case "works" — reflect it in the status ratings.
+- **§12 Sensitivity:** which assumptions actually move the FI date (employer-stock underperformance or a crash, lost rental income, higher healthcare, a Social Security cut).
+- Every other factor: taxes, healthcare inflation, Social Security & rental timing, the mortgage payoff, RMDs, and single-stock / employer-equity concentration.
 
-### Financial Snapshot:
-\`\`\`json
-${JSON.stringify({
-  ...snapshot,
-  other_investments: snapshot.other_investments?.slice(0, 10), // truncate for token budget
-}, null, 2)}
-\`\`\`
+Your two status ratings and the risks list must REFLECT the Monte-Carlo odds and these sensitivities, not just the median path.
 
-### Trajectory Summary:
-- Final Net Worth (30-year horizon): $${finalNW}
-- Financial Independence Achieved? ${fiAchieved}
-${indepPoint ? `- FI Date: ${indepPoint.date}` : ""}
+### Plan report
+${planReport}
 
 Please evaluate TWO separate goals:
-1. **Retirement Track** — Is the user on track to retire at ${config.career_path.exit_year} with sustainable income?
-2. **FI Track** — Is the user on track to achieve Financial Independence where assets cover expenses indefinitely?
+1. **Retirement Track** — Is the user on track to retire at ${config.career_path?.exit_year} with sustainable, high-confidence income?
+2. **FI Track** — Is the user on track to achieve Financial Independence where assets fund every expense to age 100 across most market paths?
 
-Be specific: reference actual numbers from the data (salary, concentrated/employer stock, spending, market rates, etc). Do NOT name a specific employer or company. Be direct and personal — this is their actual plan, not a hypothetical.
+Be specific: cite actual numbers from the report (net worth, spendable vs the FI number, the Monte-Carlo success rate, sensitivity shifts, market/employer-stock rates, spending). Do NOT name a specific employer or company. Be direct and personal — this is their actual plan.
 
 Return ONLY raw JSON in this exact shape (no markdown, no code fences):
 {

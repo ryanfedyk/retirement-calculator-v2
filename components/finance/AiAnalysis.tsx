@@ -22,8 +22,8 @@ const statusColors: Record<string, { bg: string; border: string; text: string }>
   "Needs Attention": { bg: C.warmWash, border: C.warmLight, text: C.warm     },
 };
 
-export default function AiAnalysis({ config, snapshot, trajectory }: {
-  config: SimulationConfiguration; snapshot: FinancialSnapshot; trajectory: TrajectoryPoint[];
+export default function AiAnalysis({ config, snapshot, trajectory, liveGoogPrice = 0 }: {
+  config: SimulationConfiguration; snapshot: FinancialSnapshot; trajectory: TrajectoryPoint[]; liveGoogPrice?: number;
 }) {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
@@ -33,7 +33,7 @@ export default function AiAnalysis({ config, snapshot, trajectory }: {
     try {
       const res = await fetch("/api/analyze", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ config, snapshot, trajectory }),
+        body: JSON.stringify({ config, snapshot, trajectory, liveGoogPrice }),
       });
       const data = await res.json();
       if (!res.ok || !data.analysis) {

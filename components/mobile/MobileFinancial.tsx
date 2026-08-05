@@ -1,5 +1,5 @@
 "use client";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { ResponsiveContainer, AreaChart, Area, Line, XAxis, YAxis, Tooltip, ReferenceLine, CartesianGrid } from "recharts";
 import HorizonZoomButton from "@/components/finance/HorizonZoomButton";
 import { type HorizonZoom, horizonCapYear, horizonZoomIn, horizonZoomOut } from "@/lib/horizonZoom";
@@ -65,9 +65,17 @@ export default function MobileFinancial({ livePrices, onOpenConfig }: Props) {
     () => runSimulationConverged(enrichedSnapshot, config, liveGoogPrice),
     [enrichedSnapshot, config, liveGoogPrice]
   );
+  // The retirement-window scan (a full sim per candidate exit year) is the
+  // heaviest thing on mount and only feeds the "Earliest {year}" caption — defer
+  // it until after the first paint so the chart and cards render immediately.
+  const [deferHeavy, setDeferHeavy] = useState(false);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => requestAnimationFrame(() => setDeferHeavy(true)));
+    return () => cancelAnimationFrame(id);
+  }, []);
   const retireWindow = useMemo(
-    () => findRetirementWindow(enrichedSnapshot, config, liveGoogPrice),
-    [enrichedSnapshot, config, liveGoogPrice],
+    () => (deferHeavy ? findRetirementWindow(enrichedSnapshot, config, liveGoogPrice) : null),
+    [deferHeavy, enrichedSnapshot, config, liveGoogPrice],
   );
 
   // FI date = earliest month you could fully retire and fund every modeled expense
@@ -312,7 +320,7 @@ export default function MobileFinancial({ livePrices, onOpenConfig }: Props) {
                   <ReferenceLine key={m.l} x={m.x} stroke={m.c} strokeDasharray="2 3" strokeOpacity={0.5}
                     label={<MileLabel value={m.l} fill={m.c} row={i % 2} />} />
                 ))}
-                <Area type="monotone" dataKey="totalNetWorth" stroke={C.teal} strokeWidth={2.5} fill="url(#mWealth)" name="Net Worth" />
+                <Area type="monotone" dataKey="totalNetWorth" stroke={C.teal} strokeWidth={2.5} fill="url(#mWealth)" name="Net Worth" animationDuration={650} />
               </>
             )}
             {view === "income" && (
@@ -337,7 +345,7 @@ export default function MobileFinancial({ livePrices, onOpenConfig }: Props) {
 
       {/* Scenario levers — directly under the chart so tuning and watching the
           trajectory react stays one tight feedback loop. "What if…" lives in here. */}
-      <ScenarioLevers onOpenEditor={onOpenConfig} livePrices={livePrices} retireWindow={retireWindow} bare />
+      <ScenarioLevers onOpenEditor={onOpenConfig} livePrices={livePrices} retireWindow={retireWindow ?? undefined} bare />
 
       {/* Plan history — monthly net-worth + FI-date trail (only once a trend exists). */}
       <PlanHistory hideUntilTrend livePrices={livePrices} />

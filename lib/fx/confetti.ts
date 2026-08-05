@@ -4,8 +4,8 @@
  */
 export function launchConfetti(opts?: { count?: number; duration?: number }) {
   if (typeof window === "undefined") return;
-  const count = opts?.count ?? 150;
-  const duration = opts?.duration ?? 2800;
+  const count = opts?.count ?? 110;
+  const duration = opts?.duration ?? 2400;
 
   const canvas = document.createElement("canvas");
   canvas.style.cssText = "position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:99999";

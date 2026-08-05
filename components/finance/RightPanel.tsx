@@ -1,5 +1,5 @@
 "use client";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   ResponsiveContainer, AreaChart, Area, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine,
@@ -183,9 +183,18 @@ export default function RightPanel({ livePrices }: Props) {
 
   // ── Simulations (all use enriched snapshot) ───────────────────────────────
   // Earliest exit year that stays funded, and the soonest with a real cushion.
+  // The retirement-window scan runs a full simulation per candidate exit year, so
+  // it's the heaviest thing on the page. It feeds only the "Earliest {year}"
+  // caption, so defer it until after the first paint — the chart and cards render
+  // immediately, then the caption fills in a beat later.
+  const [deferHeavy, setDeferHeavy] = useState(false);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => requestAnimationFrame(() => setDeferHeavy(true)));
+    return () => cancelAnimationFrame(id);
+  }, []);
   const retireWindow = useMemo(
-    () => findRetirementWindow(enrichedSnapshot, config, liveGoogPrice),
-    [enrichedSnapshot, config, liveGoogPrice],
+    () => (deferHeavy ? findRetirementWindow(enrichedSnapshot, config, liveGoogPrice) : null),
+    [deferHeavy, enrichedSnapshot, config, liveGoogPrice],
   );
 
   // Converged run: the ACA subsidy uses each coverage year's OWN MAGI (see
@@ -560,11 +569,13 @@ export default function RightPanel({ livePrices }: Props) {
                 {chartView === "wealth" && (
                   <>
                     <Area type="monotone" dataKey="totalNetWorth" stroke={C.teal} strokeWidth={2.5}
-                      fill="url(#wealthGrad)" name="Active Strategy" />
+                      fill="url(#wealthGrad)" name="Active Strategy" animationDuration={650} />
+                    {/* Secondary comparison lines: no draw animation, so the three
+                        series don't animate at once and stutter the initial load. */}
                     <Line type="monotone" dataKey="earlierNetWorth" stroke={C.warm} strokeWidth={1.5}
-                      strokeDasharray="4 4" dot={false} name="Exit 1yr Early" />
+                      strokeDasharray="4 4" dot={false} name="Exit 1yr Early" isAnimationActive={false} />
                     <Line type="monotone" dataKey="laterNetWorth" stroke="#3a7d9c" strokeWidth={1.5}
-                      strokeDasharray="4 4" dot={false} name="Exit 1yr Late" />
+                      strokeDasharray="4 4" dot={false} name="Exit 1yr Late" isAnimationActive={false} />
                     {renderRefLines()}
                   </>
                 )}
@@ -617,7 +628,7 @@ export default function RightPanel({ livePrices }: Props) {
       <ScenarioLevers
         onOpenEditor={planPanelOpen ? undefined : () => setPlanPanelOpen(true)}
         livePrices={livePrices}
-        retireWindow={retireWindow}
+        retireWindow={retireWindow ?? undefined}
       />
 
       {/* ── Plan history — monthly net-worth + FI-date trail (wealth view only,

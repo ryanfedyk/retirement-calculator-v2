@@ -19,15 +19,35 @@ export default function FireMoments(metrics: FireMetrics) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   useEffect(() => {
-    for (const ms of MILESTONES) {
-      if (FIRED.has(ms.id)) continue;
-      if (!ms.active(metrics)) continue;
-      FIRED.add(ms.id);
-      setToasts((t) => [...t, { id: ms.id, title: ms.title, sub: ms.sub, emoji: ms.emoji }]);
-      if (ms.confetti) launchConfetti();
-      const id = ms.id;
-      setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 6000);
-    }
+    let cancelled = false;
+    const idle = window as unknown as {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      cancelIdleCallback?: (h: number) => void;
+    };
+    const celebrate = () => {
+      if (cancelled) return;
+      let burst = false; // at most one confetti canvas per batch, so several
+                         // milestones landing on load don't stack animations
+      for (const ms of MILESTONES) {
+        if (FIRED.has(ms.id)) continue;
+        if (!ms.active(metrics)) continue;
+        FIRED.add(ms.id);
+        setToasts((t) => [...t, { id: ms.id, title: ms.title, sub: ms.sub, emoji: ms.emoji }]);
+        if (ms.confetti && !burst) { launchConfetti(); burst = true; }
+        const id = ms.id;
+        setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 6000);
+      }
+    };
+    // Let the page paint and the charts/sims settle before celebrating, so the
+    // confetti doesn't compete with the initial render (the source of load jank).
+    const handle = idle.requestIdleCallback
+      ? idle.requestIdleCallback(celebrate, { timeout: 1500 })
+      : window.setTimeout(celebrate, 1000);
+    return () => {
+      cancelled = true;
+      if (idle.requestIdleCallback && idle.cancelIdleCallback) idle.cancelIdleCallback(handle);
+      else clearTimeout(handle);
+    };
   }, [metrics.netWorth, metrics.swrTarget, metrics.isIndependent, metrics.savingsRate, metrics.coastFI]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!toasts.length) return null;

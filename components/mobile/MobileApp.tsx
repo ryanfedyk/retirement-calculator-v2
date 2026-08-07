@@ -15,6 +15,7 @@ import ScenariosHub from "@/components/ScenariosHub";
 import ConfigSheet from "./ConfigSheet";
 import BottomSheet from "./BottomSheet";
 import FinancesOverlay from "@/components/finance/FinancesOverlay";
+import AllocationOverlay from "@/components/finance/AllocationOverlay";
 import SettingsPanel from "@/components/SettingsPanel";
 import ScenarioReportModal from "@/components/ScenarioReportModal";
 import PartnerAlignment from "@/components/partner/PartnerAlignment";
@@ -39,6 +40,8 @@ export default function MobileApp() {
   const closeReport = useUIStore((s) => s.closeReport);
   const partnerOpen = useUIStore((s) => s.partnerOpen);
   const setPartnerOpen = useUIStore((s) => s.setPartnerOpen);
+  const allocationOpen = useUIStore((s) => s.allocationOpen);
+  const setAllocationOpen = useUIStore((s) => s.setAllocationOpen);
   // Full-screen "Compare" destination (transient — we always land in a scenario).
   const compareOpen = useUIStore((s) => s.compareOpen);
   const setCompareOpen = useUIStore((s) => s.setCompareOpen);
@@ -68,6 +71,7 @@ export default function MobileApp() {
   useBackLayer("m:report",   100, !!reportScenarioId,          closeReport);
   useBackLayer("m:settings",  95, settingsOpen,                () => setSettingsOpen(false));
   useBackLayer("m:finances",  92, financesOpen,                () => setFinancesOpen(false));
+  useBackLayer("m:allocation", 91, allocationOpen,             () => setAllocationOpen(false));
   useBackLayer("m:partner",   90, partnerOpen,                 () => setPartnerOpen(false));
   useBackLayer("m:config",    85, configOpen,                  () => setConfigOpen(false));
   useBackLayer("m:switcher",  84, switcherOpen,                () => setSwitcherOpen(false));
@@ -174,6 +178,7 @@ export default function MobileApp() {
       <MobileScenarioSheet open={switcherOpen} onClose={() => setSwitcherOpen(false)} />
       <ConfigSheet open={configOpen} onClose={() => setConfigOpen(false)} />
       <FinancesOverlay livePrices={livePrices} />
+      <AllocationOverlay livePrices={livePrices} />
       <PartnerAlignment />
       <SettingsPanel />
       <ScenarioReportModal livePrices={livePrices} />

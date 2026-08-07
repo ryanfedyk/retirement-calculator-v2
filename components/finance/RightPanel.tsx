@@ -23,7 +23,7 @@ import { getLifeEvents } from "@/lib/horizonUtils";
 import { useHorizonProfile } from "@/config/horizonConfig";
 import ScenarioLevers from "./ScenarioLevers";
 import SummaryCards from "./SummaryCards";
-import AllocationCard from "./AllocationCard";
+import AllocationPreview from "./AllocationPreview";
 import PlanHistory from "./PlanHistory";
 import FireMoments from "@/components/fx/FireMoments";
 import { isCoastFI } from "@/lib/fire/moments";
@@ -462,9 +462,9 @@ export default function RightPanel({ livePrices }: Props) {
            summary card stays text-only here; the card-ticker is mobile-only. */
       />
 
-      {/* ── Portfolio allocation: how the investable pie is split, and how much
-          rides on the concentrated single-stock position ── */}
-      <AllocationCard snapshot={enrichedSnapshot} config={config} liveGoogPrice={liveGoogPrice} />
+      {/* ── Portfolio allocation: a compact preview; tap opens the full breakdown
+          (single-stock concentration, buckets, toggle) in the allocation overlay ── */}
+      <AllocationPreview snapshot={enrichedSnapshot} config={config} liveGoogPrice={liveGoogPrice} />
 
       {/* ── Main chart (the hero) ── */}
       {/* flexShrink:0 — the panel is a fixed-height flex column that scrolls; without

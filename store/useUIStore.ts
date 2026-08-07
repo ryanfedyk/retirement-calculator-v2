@@ -18,6 +18,9 @@ export const useUIStore = create<{
   /** The "Partner alignment" overlay. */
   partnerOpen: boolean;
   setPartnerOpen: (v: boolean) => void;
+  /** The Portfolio Allocation breakdown overlay (sheet on mobile, modal on desktop). */
+  allocationOpen: boolean;
+  setAllocationOpen: (v: boolean) => void;
   /** Mobile only: whether a scenario deep-dive is open (vs. the scenarios hub).
    *  Persisted so a refresh keeps you where you were. Desktop now always lands in
    *  the primary scenario and uses `compareOpen` for the comparison destination. */
@@ -51,6 +54,8 @@ export const useUIStore = create<{
       setFinancesOpen: (v) => set({ financesOpen: v }),
       partnerOpen: false,
       setPartnerOpen: (v) => set({ partnerOpen: v }),
+      allocationOpen: false,
+      setAllocationOpen: (v) => set({ allocationOpen: v }),
       scenarioOpen: false,
       setScenarioOpen: (v) => set({ scenarioOpen: v }),
       compareOpen: false,

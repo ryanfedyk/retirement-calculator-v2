@@ -245,14 +245,13 @@ export default function MobileFinancial({ livePrices, onOpenConfig }: Props) {
         progress={progress}
         notices={notices}
         onOpenFinances={() => useUIStore.getState().setFinancesOpen(true)}
+        onOpenAllocation={() => useUIStore.getState().setAllocationOpen(true)}
+        allocationCard={<AllocationPreview snapshot={enrichedSnapshot} config={config} liveGoogPrice={liveGoogPrice} />}
         holdings={snapshot.other_investments}
         livePrices={livePrices}
         concentratedSymbol={config.use_equity_comp ? config.concentrated_symbol : ""}
         housingType={config.spending.housing_type}
       />
-
-      {/* Portfolio allocation — compact preview; tap opens the full breakdown sheet */}
-      <AllocationPreview snapshot={enrichedSnapshot} config={config} liveGoogPrice={liveGoogPrice} />
 
       {/* Chart lives directly on the canvas (no card) to cut visual complexity.
           touchAction pan-y so dragging the chart never scrolls the page sideways. */}

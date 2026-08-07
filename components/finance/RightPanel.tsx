@@ -457,14 +457,12 @@ export default function RightPanel({ livePrices }: Props) {
         progress={progress}
         notices={notices}
         onOpenFinances={() => useUIStore.getState().setFinancesOpen(true)}
+        onOpenAllocation={() => useUIStore.getState().setAllocationOpen(true)}
+        allocationCard={<AllocationPreview snapshot={enrichedSnapshot} config={config} liveGoogPrice={liveGoogPrice} />}
         housingType={config.spending.housing_type}
         /* Live prices ride on the desktop countdown strip (PriceTicker), so the
            summary card stays text-only here; the card-ticker is mobile-only. */
       />
-
-      {/* ── Portfolio allocation: a compact preview; tap opens the full breakdown
-          (single-stock concentration, buckets, toggle) in the allocation overlay ── */}
-      <AllocationPreview snapshot={enrichedSnapshot} config={config} liveGoogPrice={liveGoogPrice} />
 
       {/* ── Main chart (the hero) ── */}
       {/* flexShrink:0 — the panel is a fixed-height flex column that scrolls; without

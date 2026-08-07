@@ -29,7 +29,7 @@ function tickerSymbols(holdings: FinancialSnapshot["other_investments"] | undefi
  * differentiation; a small "?" opens an explanation; tapping the FI Number card
  * opens finances; the Alerts card opens the full list in a popover.
  */
-export default function SummaryCards({ indepDate, fiLoading = false, netWorth, netWorthWithHome, spendable, grossInvestable, fiNumber, fiIsCashflow = false, progress, notices, onOpenFinances, holdings, livePrices, concentratedSymbol, housingType }: {
+export default function SummaryCards({ indepDate, fiLoading = false, netWorth, netWorthWithHome, spendable, grossInvestable, fiNumber, fiIsCashflow = false, progress, notices, onOpenFinances, onOpenAllocation, allocationCard, holdings, livePrices, concentratedSymbol, housingType }: {
   /** The headline FI date — the earliest date that clears ≥90% of simulated market
    *  paths (so it's safe to plan around, not the arithmetic earliest). */
   indepDate: string | null;
@@ -58,6 +58,11 @@ export default function SummaryCards({ indepDate, fiLoading = false, netWorth, n
   progress: number;
   notices: Notice[];
   onOpenFinances: () => void;
+  /** Opens the Portfolio hub (allocation + balance-sheet editing). The Net Worth
+   *  card routes here so the balance-sheet number leads straight to editing it. */
+  onOpenAllocation?: () => void;
+  /** The allocation preview card, rendered inline in this row (after Net Worth). */
+  allocationCard?: React.ReactNode;
   holdings?: FinancialSnapshot["other_investments"];
   livePrices?: LivePrices;
   concentratedSymbol?: string;
@@ -148,8 +153,8 @@ export default function SummaryCards({ indepDate, fiLoading = false, netWorth, n
           <div style={{ fontSize: 10, color: indepDate ? C.tealDark : C.inkFaint, opacity: 0.8, marginTop: "auto", paddingTop: 8 }}>{indepDate ? "Earliest date with 90%+ market-path success" : fiLoading ? "Checking the odds…" : "Adjust strategy to reach FI"}</div>
         </div>
 
-        {/* Net Worth — your investable money; matches the wealth chart's first point */}
-        <button onClick={onOpenFinances} title="Open your finances" style={{ ...cardBase, cursor: "pointer", font: "inherit" }}>
+        {/* Net Worth — your investable money; opens the Portfolio hub (see + edit) */}
+        <button onClick={onOpenAllocation ?? onOpenFinances} title="Open your portfolio" style={{ ...cardBase, cursor: "pointer", font: "inherit" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
             <div style={{ minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 6 }}><Label>Net Worth</Label><Help onClick={() => open("Net Worth", nwExplain)} /></div>
@@ -178,6 +183,9 @@ export default function SummaryCards({ indepDate, fiLoading = false, netWorth, n
             )}
           </div>
         </button>
+
+        {/* Allocation — the portfolio mix; opens the Portfolio hub */}
+        {allocationCard}
 
         {/* Progress to FI — after-tax spendable vs the FI number; opens finances */}
         <button onClick={onOpenFinances} title="Open your finances" style={{ ...cardBase, cursor: "pointer", font: "inherit" }}>

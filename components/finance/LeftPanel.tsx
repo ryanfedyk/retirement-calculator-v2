@@ -1,7 +1,8 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Sliders, Wallet, Trash2, PlusCircle, ChevronDown, Pencil, ChevronLeft } from "lucide-react";
+import { Sliders, Wallet, Trash2, PlusCircle, ChevronDown, Pencil, ChevronLeft, ChevronRight, PieChart as PieChartIcon } from "lucide-react";
 import { useFinancialStore } from "@/store/useFinancialStore";
+import { useUIStore } from "@/store/useUIStore";
 import { C } from "@/config/colors";
 import { DEFAULT_SNAPSHOT, DEFAULT_SIM_CONFIG } from "@/config/sharedConfig";
 import { IRS_401K, amortizationMonths } from "@/engine/calculator";
@@ -268,7 +269,7 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
     });
 
   // Accordion: essentials open by default; everything else collapsed.
-  const [openIds, setOpenIds] = useState<Set<string>>(new Set(variant === "finances" ? ["fin_income", "assets"] : ["career", "market"]));
+  const [openIds, setOpenIds] = useState<Set<string>>(new Set(variant === "finances" ? ["fin_income"] : ["career", "market"]));
   const toggle = (id: string) => setOpenIds(prev => {
     const next = new Set(prev);
     next.has(id) ? next.delete(id) : next.add(id);
@@ -308,6 +309,20 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
 
         {/* Plan history — monthly net-worth + FI-date trail (finances view only). */}
         {showFacts && <PlanHistory livePrices={livePrices} />}
+
+        {/* Assets, holdings, cash, home & 529 now live in the Portfolio hub — one
+            balance-sheet editor. This view keeps the cash-flow assumptions. */}
+        {showFacts && (
+          <button onClick={() => useUIStore.getState().setAllocationOpen(true)}
+            style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", marginBottom: 12, borderRadius: 12, border: `1px solid ${C.border}`, background: C.bgCard, cursor: "pointer", textAlign: "left" }}>
+            <span style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 9, background: C.tealWash, display: "flex", alignItems: "center", justifyContent: "center" }}><PieChartIcon size={16} color={C.teal} /></span>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ display: "block", fontSize: 13, fontWeight: 700, color: C.ink }}>Assets & holdings</span>
+              <span style={{ display: "block", fontSize: 11, color: C.inkSoft }}>Holdings, cash, retirement, home & 529 — in Portfolio</span>
+            </span>
+            <ChevronRight size={16} color={C.inkFaint} />
+          </button>
+        )}
 
         {/* ── Income (baseline cash flow) ── */}
         <AccCard {...acc("fin_income")} hidden={!showFacts} title="Income" color="#4aab92">
@@ -479,7 +494,8 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
         </AccCard>
 
         {/* ── Assets & Liabilities ── */}
-        <AccCard {...acc("assets")} hidden={!showFacts} title="Assets & Liabilities" color={C.teal}>
+        {/* Moved to the Portfolio hub (single balance-sheet editor) — kept hidden. */}
+        <AccCard {...acc("assets")} hidden title="Assets & Liabilities" color={C.teal}>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <div>
               <FieldLabel>Cash Savings</FieldLabel>
@@ -932,7 +948,7 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
         {/* Family (kids & partner) now lives in Settings (profile menu). */}
 
         {/* ── Portfolio Holdings ── */}
-        <AccCard {...acc("holdings")} hidden={!showFacts} title="Portfolio Holdings" color="#c4784e">
+        <AccCard {...acc("holdings")} hidden title="Portfolio Holdings" color="#c4784e">
           <div style={{ marginBottom: 8 }}>
             {(snapshot.other_investments || []).map((inv, idx) => (
               <InvestmentItem key={inv.id || idx} inv={inv} liveInfo={livePrices[inv.symbol.toUpperCase()]}
@@ -984,7 +1000,7 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
 
         {/* ── Education (529) — only relevant with kids ── */}
         {kids.length > 0 && (
-        <AccCard {...acc("edu")} hidden={!showFacts} title="Education Assets (529)" color={C.teal}>
+        <AccCard {...acc("edu")} hidden title="Education Assets (529)" color={C.teal}>
           <div style={{ marginBottom: 8 }}>
             {(snapshot.education_assets?.accounts || []).map((acc, idx) => (
               <div key={acc.id || idx} className="group" style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", background: C.bg, borderRadius: 6, border: `1px solid ${C.borderSoft}`, marginBottom: 6 }}>

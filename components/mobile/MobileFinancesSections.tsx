@@ -1,96 +1,24 @@
 "use client";
 import { useState } from "react";
-import { Trash2, Plus, Pencil, Check, X } from "lucide-react";
+import { Trash2, Plus, PieChart, ChevronRight } from "lucide-react";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
+import { useUIStore } from "@/store/useUIStore";
 import { IRS_401K } from "@/engine/calculator";
 import TickerAutocomplete from "@/components/finance/TickerAutocomplete";
-import LinkedNumberField from "@/components/finance/LinkedNumberField";
 import PlanHistory from "@/components/finance/PlanHistory";
 import type { LivePrices } from "@/components/finance/FinancialDashboard";
 import { Field, Num, Two, Section, Toggle, TextInput, money, inputStyle, labelStyle } from "./sheetUI";
 
-type Holding = { id?: string; name: string; symbol: string; shares: number; expected_return?: number; current_price?: number; [k: string]: unknown };
-
-/** A single saved holding — tap the pencil to edit shares / expected return
- * inline (mobile previously only allowed delete + re-add). Shows the holding's
- * live dollar value (shares × latest price) on the right. */
-function HoldingRow({ inv, liveInfo, onUpdate, onRemove }: { inv: Holding; liveInfo?: LivePrices[string]; onUpdate: (v: Holding) => void; onRemove: () => void }) {
-  const [editing, setEditing] = useState(false);
-  const [shares, setShares] = useState(String(inv.shares));
-  const [ret, setRet] = useState(inv.expected_return != null ? String(inv.expected_return) : "");
-
-  if (editing) {
-    return (
-      <div style={{ padding: "12px", borderRadius: 10, background: C.warmWash, border: `1px solid ${C.warmLight}`, marginBottom: 8 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: C.ink, marginBottom: 8 }}>{inv.symbol}</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          <div><span style={labelStyle}>Shares</span>
-            <input type="number" inputMode="decimal" value={shares} onChange={e => setShares(e.target.value)} style={inputStyle} /></div>
-          <div><span style={labelStyle}>Expected Return %</span>
-            <input type="number" inputMode="decimal" placeholder="7" value={ret} onChange={e => setRet(e.target.value)} style={inputStyle} /></div>
-        </div>
-        <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-          <button onClick={() => {
-            const sh = parseFloat(shares);
-            if (!sh) return;
-            onUpdate({ ...inv, shares: sh, expected_return: ret ? parseFloat(ret) : undefined });
-            setEditing(false);
-          }} style={{ flex: 1, padding: "10px", borderRadius: 9, border: "none", background: C.teal, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-            <Check size={15} /> Save
-          </button>
-          <button onClick={() => { setShares(String(inv.shares)); setRet(inv.expected_return != null ? String(inv.expected_return) : ""); setEditing(false); }}
-            style={{ flex: 1, padding: "10px", borderRadius: 9, border: `1px solid ${C.border}`, background: C.bgCard, color: C.inkMid, fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-            <X size={15} /> Cancel
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  const displayPrice = liveInfo?.price ?? inv.current_price ?? 0;
-  const totalValue = inv.shares * displayPrice;
-  const isLive = liveInfo?.source === "yahoo";
-
-  return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "10px 12px", borderRadius: 10, background: C.bgCard, border: `1px solid ${C.borderSoft}`, marginBottom: 8 }}>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: C.ink, display: "flex", alignItems: "center", gap: 6 }}>
-          {inv.symbol}
-          {liveInfo && (
-            <span style={{ fontSize: 8, fontWeight: 700, padding: "1px 5px", borderRadius: 99, background: isLive ? C.tealWash : C.warmWash, color: isLive ? C.tealDark : C.warm, border: `1px solid ${isLive ? C.tealLight : C.warmLight}` }}>
-              {isLive ? "LIVE" : "DELAYED"}
-            </span>
-          )}
-        </div>
-        <div style={{ fontSize: 11, color: C.inkSoft }}>
-          {inv.shares.toLocaleString(undefined, { maximumFractionDigits: 3 })} sh{inv.expected_return != null ? ` · ${inv.expected_return}% return` : ""}
-        </div>
-      </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-        <div style={{ textAlign: "right", marginRight: 2 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: C.ink, fontVariantNumeric: "tabular-nums" }}>
-            ${totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-          </div>
-          {displayPrice > 0 && (
-            <div style={{ fontSize: 10, color: C.inkFaint, fontVariantNumeric: "tabular-nums" }}>@${displayPrice.toFixed(2)}/sh</div>
-          )}
-        </div>
-        <button onClick={() => setEditing(true)} aria-label={`Edit ${inv.symbol}`} style={{ background: "none", border: "none", cursor: "pointer", color: C.teal, padding: 6 }}><Pencil size={16} /></button>
-        <button onClick={onRemove} aria-label={`Remove ${inv.symbol}`} style={{ background: "none", border: "none", cursor: "pointer", color: C.inkFaint, padding: 6 }}><Trash2 size={16} /></button>
-      </div>
-    </div>
-  );
-}
-
-// The shared "Your finances" picture — cash flow (income & spending) plus the
-// balance sheet (assets/liabilities, holdings, 529s). Income & spending edit the
-// shared **baseline** (they flow to every scenario unless overridden); the
-// balance sheet edits the global snapshot (identical across scenarios). Touch-
-// friendly twin of LeftPanel's `variant="finances"`.
+// The shared "Your finances" picture — now the CASH-FLOW assumptions only:
+// income, company equity, spending, and life events (all editing the shared
+// **baseline** that flows to every scenario). What you *own* — holdings, cash,
+// retirement, home, 529 — lives in the Portfolio hub (a single balance-sheet
+// editor), reachable from the button below. Touch-friendly twin of LeftPanel's
+// `variant="finances"`.
 export default function MobileFinancesSections({ livePrices = {} }: { livePrices?: LivePrices }) {
-  const { snapshot, config, profile, baseline, updateNestedSnapshot, updateBaseline, setEquityComp } = useFinancialStore();
-  const kids = profile.children;
+  const { config, baseline, updateBaseline, setEquityComp } = useFinancialStore();
+  const setAllocationOpen = useUIStore((s) => s.setAllocationOpen);
   const ip = baseline.income_profile;
   const sp = baseline.spending;
   const ma = baseline.market_assumptions;
@@ -98,7 +26,6 @@ export default function MobileFinancesSections({ livePrices = {} }: { livePrices
   const setEvents = (next: typeof events) => updateBaseline("life_events", next);
   const thisYear = new Date().getFullYear();
   const [openId, setOpenId] = useState<string | null>("income");
-  const [newInv, setNewInv] = useState({ symbol: "", name: "", shares: "", ret: "7", retLinked: true });
   const [newEvent, setNewEvent] = useState({ name: "", year: thisYear + 3, cost: 50_000 });
   const sec = (id: string) => ({ openId, setOpenId, id });
 
@@ -106,6 +33,17 @@ export default function MobileFinancesSections({ livePrices = {} }: { livePrices
     <>
       {/* Plan history — monthly net-worth + FI-date trail. */}
       <PlanHistory livePrices={livePrices} />
+
+      {/* Assets, holdings, cash, home & 529 live in the Portfolio hub. */}
+      <button onClick={() => setAllocationOpen(true)}
+        style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "14px", marginBottom: 12, borderRadius: 14, border: `1px solid ${C.border}`, background: C.bgCard, cursor: "pointer", textAlign: "left" }}>
+        <span style={{ width: 34, height: 34, flexShrink: 0, borderRadius: 10, background: C.tealWash, display: "flex", alignItems: "center", justifyContent: "center" }}><PieChart size={17} color={C.teal} /></span>
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <span style={{ display: "block", fontSize: 14, fontWeight: 700, color: C.ink }}>Assets & holdings</span>
+          <span style={{ display: "block", fontSize: 11.5, color: C.inkSoft }}>Holdings, cash, retirement, home & 529 — in Portfolio</span>
+        </span>
+        <ChevronRight size={18} color={C.inkFaint} />
+      </button>
 
       {/* ── Income (baseline cash flow) ── */}
       <Section title="Income" accent="#4aab92" {...sec("income")}>
@@ -149,7 +87,7 @@ export default function MobileFinancesSections({ livePrices = {} }: { livePrices
               <Field label="Unvested Shares"><Num value={ip.initial_unvested_shares ?? 0} onChange={v => updateBaseline("income_profile", { initial_unvested_shares: v })} /></Field>
               <Field label="Vesting (yrs)"><Num value={ip.vesting_years ?? 4} onChange={v => updateBaseline("income_profile", { vesting_years: v })} /></Field>
             </Two>
-            <div style={{ fontSize: 11, color: C.inkFaint, lineHeight: 1.5 }}>Shared across every scenario. How you sell this position down is a per-scenario lever, in each scenario’s plan.</div>
+            <div style={{ fontSize: 11, color: C.inkFaint, lineHeight: 1.5 }}>Shared across every scenario. Your holdings of this stock (and how you sell it down) live in Portfolio and the per-scenario plan.</div>
           </>
         )}
       </Section>
@@ -216,89 +154,6 @@ export default function MobileFinancesSections({ livePrices = {} }: { livePrices
           </button>
         </div>
       </Section>
-
-      {/* ── Assets & Liabilities ── */}
-      <Section title="Assets & Liabilities" accent={C.teal} {...sec("assets")}>
-        <Field label="Cash Savings"><Num prefix="$" step={1000} value={snapshot.liquid_assets.cash_savings} onChange={v => updateNestedSnapshot("liquid_assets", { cash_savings: v })} /></Field>
-        <Two>
-          <Field label="401(k)"><Num prefix="$" step={1000} value={snapshot.retirement_assets.k401} onChange={v => updateNestedSnapshot("retirement_assets", { k401: v })} /></Field>
-          <Field label="Roth IRA"><Num prefix="$" step={1000} value={snapshot.retirement_assets.roth_ira} onChange={v => updateNestedSnapshot("retirement_assets", { roth_ira: v })} /></Field>
-        </Two>
-        <Field label="Traditional IRA"><Num prefix="$" step={1000} value={snapshot.retirement_assets.traditional_ira} onChange={v => updateNestedSnapshot("retirement_assets", { traditional_ira: v })} /></Field>
-        {(sp.housing_type ?? "mortgage") !== "rent" ? (
-          <>
-            <Two>
-              <Field label="Mortgage Balance"><Num prefix="$" step={1000} value={snapshot.liabilities.mortgage_balance} onChange={v => updateNestedSnapshot("liabilities", { mortgage_balance: v })} /></Field>
-              <Field label="Home / Building Value"><Num prefix="$" step={5000} value={snapshot.liabilities.property_value ?? 0} onChange={v => updateNestedSnapshot("liabilities", { property_value: v })} /></Field>
-            </Two>
-            {(snapshot.liabilities.property_value ?? 0) > 0 && (
-              <p className="-mt-1 text-xs text-neutral-500">Equity today: ${Math.max(0, (snapshot.liabilities.property_value ?? 0) - snapshot.liabilities.mortgage_balance).toLocaleString()} — tracked separately, not in your headline net worth or FI assets.</p>
-            )}
-            {(snapshot.liabilities.property_value ?? 0) > 0 && (
-              <>
-                <Field label="Home Cost Basis (capital gains if sold)"><Num prefix="$" step={5000} value={snapshot.liabilities.property_cost_basis ?? 0} onChange={v => updateNestedSnapshot("liabilities", { property_cost_basis: v })} /></Field>
-                <p className="-mt-1 text-xs text-neutral-500">Whether to keep, sell/downsize, or rent out this home is planned per scenario — see &ldquo;Home Plan&rdquo; in the scenario plan.</p>
-              </>
-            )}
-            <Field label="Consumer Debt"><Num prefix="$" step={500} value={snapshot.liabilities.consumer_debt} onChange={v => updateNestedSnapshot("liabilities", { consumer_debt: v })} /></Field>
-          </>
-        ) : (
-          <Field label="Consumer Debt"><Num prefix="$" step={500} value={snapshot.liabilities.consumer_debt} onChange={v => updateNestedSnapshot("liabilities", { consumer_debt: v })} /></Field>
-        )}
-      </Section>
-
-      {/* ── Portfolio Holdings ── */}
-      <Section title="Portfolio Holdings" accent="#c4784e" {...sec("holdings")}>
-        {(snapshot.other_investments || []).map((inv, idx) => (
-          <HoldingRow key={inv.id || idx} inv={inv as Holding} liveInfo={livePrices[inv.symbol.toUpperCase()]}
-            onUpdate={updated => { const a = [...(snapshot.other_investments || [])]; a[idx] = updated as any; updateNestedSnapshot("other_investments", a as any); }}
-            onRemove={() => { const a = [...(snapshot.other_investments || [])]; a.splice(idx, 1); updateNestedSnapshot("other_investments", a as any); }} />
-        ))}
-        <div style={{ marginTop: 4 }}>
-          <TickerAutocomplete placeholder="Search ticker or company" value={newInv.symbol} inputStyle={inputStyle}
-            onChange={v => setNewInv(prev => ({ ...prev, symbol: v }))}
-            onSelect={r => setNewInv(prev => ({ ...prev, symbol: r.symbol, name: r.name }))} />
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 8 }}>
-          <div><span style={labelStyle}>Shares</span>
-            <input type="number" inputMode="decimal" placeholder="0" value={newInv.shares} onChange={e => setNewInv({ ...newInv, shares: e.target.value })} style={inputStyle} /></div>
-          <div><span style={labelStyle}>Expected Return %</span>
-            <LinkedNumberField variant="mobile" step={0.5}
-              linked={newInv.retLinked}
-              displayValue={newInv.retLinked ? 7 : (parseFloat(newInv.ret) || 0)}
-              onOverride={() => setNewInv(p => ({ ...p, retLinked: false, ret: "7" }))}
-              onChange={v => setNewInv(p => ({ ...p, ret: String(v), retLinked: false }))}
-              onRelink={() => setNewInv(p => ({ ...p, retLinked: true, ret: "7" }))} /></div>
-        </div>
-        <button onClick={() => {
-          const sh = parseFloat(newInv.shares);
-          if (newInv.symbol && sh) {
-            const ret = newInv.retLinked ? 7 : (newInv.ret ? parseFloat(newInv.ret) : 7);
-            const inv = { id: Date.now().toString(), name: newInv.name || newInv.symbol, symbol: newInv.symbol, shares: sh, cost_basis: 0, current_price: 0, expected_return: ret };
-            updateNestedSnapshot("other_investments", [...(snapshot.other_investments || []), inv] as any);
-            setNewInv({ symbol: "", name: "", shares: "", ret: "7", retLinked: true });
-          }
-        }} style={{ marginTop: 10, width: "100%", padding: "12px", borderRadius: 10, border: `1px solid ${C.warmLight}`, background: C.warmWash, color: C.warm, fontSize: 14, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-          <Plus size={15} /> Add Holding
-        </button>
-      </Section>
-
-      {/* ── Education (529) — only relevant with kids ── */}
-      {kids.length > 0 && (
-      <Section title="Education (529)" accent={C.teal} {...sec("edu")}>
-        {(snapshot.education_assets?.accounts || []).map((acc, idx) => (
-          <div key={acc.id || idx} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
-            <input value={acc.name} onChange={e => { const a = [...(snapshot.education_assets.accounts || [])]; a[idx] = { ...acc, name: e.target.value }; updateNestedSnapshot("education_assets", { accounts: a }); }} style={{ ...inputStyle, flex: 1 }} />
-            <input type="number" inputMode="decimal" value={acc.balance} onChange={e => { const a = [...(snapshot.education_assets.accounts || [])]; a[idx] = { ...acc, balance: +e.target.value }; updateNestedSnapshot("education_assets", { accounts: a }); }} style={{ ...inputStyle, width: 120, textAlign: "right" }} />
-            <button onClick={() => { const a = (snapshot.education_assets.accounts || []).filter((_, i) => i !== idx); updateNestedSnapshot("education_assets", { accounts: a }); }} style={{ background: "none", border: "none", cursor: "pointer", color: C.inkFaint }}><Trash2 size={16} /></button>
-          </div>
-        ))}
-        <button onClick={() => { const a = [...(snapshot.education_assets.accounts || []), { id: crypto.randomUUID(), name: "New 529", balance: 0 }]; updateNestedSnapshot("education_assets", { accounts: a }); }}
-          style={{ marginTop: 4, width: "100%", padding: "12px", borderRadius: 10, border: `1px dashed ${C.border}`, background: C.bgCard, color: C.inkSoft, fontSize: 14, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-          <Plus size={15} /> Add 529 Account
-        </button>
-      </Section>
-      )}
     </>
   );
 }

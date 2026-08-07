@@ -7,6 +7,7 @@ import { useIsMobile } from "@/hooks/useIsMobile";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import BottomSheet from "@/components/mobile/BottomSheet";
 import AllocationCard from "./AllocationCard";
+import BalanceSheetEditor from "./BalanceSheetEditor";
 import type { LivePrices } from "./FinancialDashboard";
 
 // The full Portfolio Allocation breakdown, surfaced as an overlay opened from the
@@ -38,9 +39,23 @@ export default function AllocationOverlay({ livePrices = {} }: { livePrices?: Li
   const title = (
     <>
       <h2 style={{ fontSize: 20, fontWeight: 300, color: C.ink, display: "flex", alignItems: "center", gap: 8 }}>
-        <PieIcon size={18} color={C.teal} /> Portfolio Allocation
+        <PieIcon size={18} color={C.teal} /> Portfolio
       </h2>
-      <span style={{ fontSize: 11, fontWeight: 600, color: C.inkFaint }}>How your assets are spread</span>
+      <span style={{ fontSize: 11, fontWeight: 600, color: C.inkFaint }}>See and edit what you own</span>
+    </>
+  );
+
+  const sectionLabel = (t: string) => (
+    <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: C.inkSoft, margin: "22px 2px 12px", paddingTop: 18, borderTop: `1px solid ${C.borderSoft}` }}>{t}</div>
+  );
+
+  // The hub body: the allocation view, then the editable balance sheet — one
+  // surface to see the mix and adjust the holdings behind it.
+  const body = (
+    <>
+      <AllocationCard snapshot={enrichedSnapshot} config={config} liveGoogPrice={liveGoogPrice} bare />
+      {sectionLabel("Edit your investments")}
+      <BalanceSheetEditor livePrices={livePrices} scope="investments" />
     </>
   );
 
@@ -57,7 +72,7 @@ export default function AllocationOverlay({ livePrices = {} }: { livePrices?: Li
         }
       >
         <div style={{ padding: "0 16px calc(28px + env(safe-area-inset-bottom))" }}>
-          <AllocationCard snapshot={enrichedSnapshot} config={config} liveGoogPrice={liveGoogPrice} bare />
+          {body}
         </div>
       </BottomSheet>
     );
@@ -94,7 +109,7 @@ export default function AllocationOverlay({ livePrices = {} }: { livePrices?: Li
           </button>
         </div>
         <div style={{ overflowY: "auto", padding: "16px 20px 22px" }}>
-          <AllocationCard snapshot={enrichedSnapshot} config={config} liveGoogPrice={liveGoogPrice} bare />
+          {body}
         </div>
       </div>
     </div>

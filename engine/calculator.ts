@@ -1574,6 +1574,60 @@ export function netWorthToday(
   return { investable, education, netWorth, homeEquity, netWorthWithHome: netWorth + homeEquity };
 }
 
+/** A single wedge of the current investable portfolio, for the allocation view. */
+export interface AllocationSlice {
+  key: "concentrated" | "brokerage" | "retirement" | "cash";
+  label: string;
+  value: number;      // dollars, live-priced
+  detail?: string;    // small caption (share count / holdings / account mix)
+}
+
+/** Break today's INVESTABLE assets into the buckets a diversification view needs,
+ *  tied to `netWorthToday` (same concentrated-position split and live pricing, so
+ *  the slices sum to `netWorthToday(...).investable`). Home equity and 529 college
+ *  savings are deliberately excluded — this is a view of the investment portfolio
+ *  you'd rebalance, not the whole balance sheet. `concentration` is the
+ *  concentrated employer position as a share of the investable total (0 when
+ *  equity comp is off), which is the headline the view is built around. */
+export function portfolioAllocation(
+  snapshot: FinancialSnapshot,
+  config: SimulationConfiguration,
+  liveGoogPrice = 0,
+): { slices: AllocationSlice[]; investable: number; concentration: number; concentratedSymbol: string; concentratedValue: number } {
+  const la = snapshot.liquid_assets;
+  const ra = snapshot.retirement_assets;
+
+  const concSym = config.use_equity_comp ? (config.concentrated_symbol ?? "").toUpperCase() : "";
+  const isConc = (s: string) => concSym !== "" && (s ?? "").toUpperCase() === concSym;
+  const holdings = snapshot.other_investments ?? [];
+  const concShares = holdings.filter((i) => isConc(i.symbol)).reduce((s, i) => s + i.shares, 0)
+    + (snapshot.share_counts?.google_shares ?? 0);
+  const concPrice = liveGoogPrice > 0 ? liveGoogPrice : (snapshot.share_counts?.live_stock_price || 175);
+  const concValue = config.use_equity_comp ? concShares * concPrice : 0;
+
+  const otherHoldings = holdings.filter((i) => !isConc(i.symbol));
+  const otherHoldingsValue = otherHoldings.reduce((s, i) => s + i.shares * i.current_price, 0);
+  const brokerage = la.vanguard_bridge + otherHoldingsValue; // taxable brokerage + individual funds/stocks
+  const retirement = ra.k401 + ra.traditional_ira + ra.roth_ira;
+  const cash = la.cash_savings;
+
+  const fundCount = otherHoldings.filter((i) => i.shares * i.current_price > 0).length;
+  const retMix = [ra.k401 > 0 && "401(k)", (ra.traditional_ira > 0 || ra.roth_ira > 0) && "IRAs"].filter(Boolean).join(" · ");
+
+  const all: AllocationSlice[] = [
+    { key: "concentrated", label: concSym || "Concentrated", value: concValue,
+      detail: concShares > 0 ? `${Math.round(concShares).toLocaleString()} shares` : undefined },
+    { key: "brokerage", label: "Brokerage & funds", value: brokerage,
+      detail: fundCount > 0 ? `${fundCount} holding${fundCount === 1 ? "" : "s"} + brokerage` : "Taxable brokerage" },
+    { key: "retirement", label: "Retirement", value: retirement, detail: retMix || undefined },
+    { key: "cash", label: "Cash", value: cash },
+  ];
+  const slices = all.filter((s) => s.value > 0);
+  const investable = slices.reduce((s, x) => s + x.value, 0);
+  const concentration = investable > 0 ? concValue / investable : 0;
+  return { slices, investable, concentration, concentratedSymbol: concSym, concentratedValue: concValue };
+}
+
 /** Months to fully amortize a fixed-payment loan; null if it never pays down
  *  (payment ≤ interest) or nothing is owed. Standard amortization — the same math
  *  the engine applies month-by-month to the mortgage balance. */

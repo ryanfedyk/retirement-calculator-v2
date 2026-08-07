@@ -13,7 +13,7 @@ import type { FinancialSnapshot, SimulationConfiguration } from "@/engine/calcul
 // Home equity additionally carries a diagonal HATCH texture (see hatchId) so it's
 // distinguishable from cash even under full colour-blindness, where its violet and
 // cash's blue collapse together — texture is the secondary encoding there.
-const SLICE_COLOR: Record<AllocationSlice["key"], string> = {
+export const SLICE_COLOR: Record<AllocationSlice["key"], string> = {
   concentrated: "#d55e00", // vermillion — the single-stock position
   brokerage:    "#cc79a7", // mauve
   retirement:   "#009e73", // green
@@ -21,22 +21,25 @@ const SLICE_COLOR: Record<AllocationSlice["key"], string> = {
   education:    "#56b4e9", // sky
   home:         "#8a4fbf", // violet (hatched)
 };
-const HATCHED = new Set<AllocationSlice["key"]>(["home"]);
+export const HATCHED = new Set<AllocationSlice["key"]>(["home"]);
 
-function fmtM(v: number) {
+export function fmtM(v: number) {
   if (Math.abs(v) >= 1_000_000) return `$${(v / 1_000_000).toFixed(2)}M`;
   if (Math.abs(v) >= 1_000)     return `$${(v / 1_000).toFixed(0)}k`;
   return `$${v.toFixed(0)}`;
 }
-const pctStr = (share: number) => {
+export const pctStr = (share: number) => {
   const p = share * 100;
   return `${p < 10 && p > 0 ? p.toFixed(1) : Math.round(p)}%`;
 };
 
 type Mode = "investable" | "total";
 
-export default function AllocationCard({ snapshot, config, liveGoogPrice = 0 }: {
-  snapshot: FinancialSnapshot; config: SimulationConfiguration; liveGoogPrice?: number;
+// `bare` drops the outer card chrome + icon header so the full view can be
+// embedded inside the allocation overlay (bottom sheet / modal), which supplies
+// its own surface and title.
+export default function AllocationCard({ snapshot, config, liveGoogPrice = 0, bare = false }: {
+  snapshot: FinancialSnapshot; config: SimulationConfiguration; liveGoogPrice?: number; bare?: boolean;
 }) {
   const [mode, setMode] = useState<Mode>("investable");
   const a = useMemo(() => portfolioAllocation(snapshot, config, liveGoogPrice), [snapshot, config, liveGoogPrice]);
@@ -70,9 +73,9 @@ export default function AllocationCard({ snapshot, config, liveGoogPrice = 0 }: 
 
   if (assetTotal <= 0 || ordered.length === 0) {
     return (
-      <div style={CARD}>
-        <CardHeader />
-        <p style={{ fontSize: 12, color: C.inkSoft, margin: "14px 0 0" }}>
+      <div style={bare ? undefined : CARD}>
+        {!bare && <CardHeader />}
+        <p style={{ fontSize: 12, color: C.inkSoft, margin: bare ? 0 : "14px 0 0" }}>
           Add your holdings, cash and retirement balances in the Scenario plan to see how your portfolio is spread.
         </p>
       </div>
@@ -92,9 +95,9 @@ export default function AllocationCard({ snapshot, config, liveGoogPrice = 0 }: 
         msg: `No single-stock concentration — your ${baseLabel} is spread across brokerage, retirement and cash.` };
 
   return (
-    <div style={CARD}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-        <CardHeader />
+    <div style={bare ? undefined : CARD}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: bare ? "flex-end" : "space-between", gap: 12, flexWrap: "wrap", minHeight: bare ? 0 : undefined }}>
+        {!bare && <CardHeader />}
         {hasTotal && (
           <div style={{ display: "flex", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 999, padding: 2 }}>
             {(["investable", "total"] as Mode[]).map((m) => (

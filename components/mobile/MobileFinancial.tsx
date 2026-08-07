@@ -15,7 +15,7 @@ import { useHorizonProfile } from "@/config/horizonConfig";
 import AiAnalysis from "@/components/finance/AiAnalysis";
 import ScenarioLevers from "@/components/finance/ScenarioLevers";
 import SummaryCards from "@/components/finance/SummaryCards";
-import AllocationCard from "@/components/finance/AllocationCard";
+import AllocationPreview from "@/components/finance/AllocationPreview";
 import PlanHistory from "@/components/finance/PlanHistory";
 import FireMoments from "@/components/fx/FireMoments";
 import { isCoastFI } from "@/lib/fire/moments";
@@ -251,8 +251,8 @@ export default function MobileFinancial({ livePrices, onOpenConfig }: Props) {
         housingType={config.spending.housing_type}
       />
 
-      {/* Portfolio allocation — the concentrated position vs the diversified rest */}
-      <AllocationCard snapshot={enrichedSnapshot} config={config} liveGoogPrice={liveGoogPrice} />
+      {/* Portfolio allocation — compact preview; tap opens the full breakdown sheet */}
+      <AllocationPreview snapshot={enrichedSnapshot} config={config} liveGoogPrice={liveGoogPrice} />
 
       {/* Chart lives directly on the canvas (no card) to cut visual complexity.
           touchAction pan-y so dragging the chart never scrolls the page sideways. */}

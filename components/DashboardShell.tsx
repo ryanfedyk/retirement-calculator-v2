@@ -7,6 +7,7 @@ import CountdownStrip        from "@/components/CountdownStrip";
 import PriceTicker           from "@/components/finance/PriceTicker";
 import ScenariosHub          from "@/components/ScenariosHub";
 import FinancesOverlay       from "@/components/finance/FinancesOverlay";
+import AllocationOverlay      from "@/components/finance/AllocationOverlay";
 import { useIsMobile }       from "@/hooks/useIsMobile";
 import { useLivePrices }     from "@/hooks/useLivePrices";
 import MobileApp             from "@/components/mobile/MobileApp";
@@ -39,6 +40,8 @@ export default function DashboardShell() {
   const setCompareOpen = useUIStore((s) => s.setCompareOpen);
   const partnerOpen = useUIStore((s) => s.partnerOpen);
   const setPartnerOpen = useUIStore((s) => s.setPartnerOpen);
+  const allocationOpen = useUIStore((s) => s.allocationOpen);
+  const setAllocationOpen = useUIStore((s) => s.setAllocationOpen);
   const planPanelOpen = useUIStore((s) => s.planPanelOpen);
   const setPlanPanelOpen = useUIStore((s) => s.setPlanPanelOpen);
   const reportScenarioId = useUIStore((s) => s.reportScenarioId);
@@ -94,6 +97,7 @@ export default function DashboardShell() {
   useBackLayer("d:report",    100, dt && reportScenarioId != null,          closeReport);
   useBackLayer("d:settings",   95, dt && settingsOpen,                       () => setSettingsOpen(false));
   useBackLayer("d:finances",   92, dt && financesOpen,                       () => setFinancesOpen(false));
+  useBackLayer("d:allocation", 91, dt && allocationOpen,                     () => setAllocationOpen(false));
   useBackLayer("d:partner",    90, dt && partnerOpen,                        () => setPartnerOpen(false));
   useBackLayer("d:planPanel",  80, dt && planPanelOpen,                      () => setPlanPanelOpen(false));
   useBackLayer("d:tool",       50, dt && appView === "forecasting" && !!forecastTool, () => setForecastTool(null));
@@ -126,6 +130,7 @@ export default function DashboardShell() {
       />
       <SettingsPanel />
       <FinancesOverlay livePrices={prices.livePrices} />
+      <AllocationOverlay livePrices={prices.livePrices} />
       <PartnerAlignment />
       <ScenarioReportModal livePrices={prices.livePrices} />
 

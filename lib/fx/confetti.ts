@@ -1,18 +1,21 @@
 /**
  * Dependency-free confetti cannon. Two bursts fire up from the bottom corners,
  * arc toward the middle, tumble, and fall under gravity — a proper celebratory
- * "pop", not a gentle drift. Spawns a short-lived full-screen canvas, runs
- * time-based physics (so it's smooth on 60 and 120 Hz displays), then removes
+ * "pop". Pieces are EMITTED OVER A SHORT WINDOW (a streaming fountain) rather than
+ * all spawned in one frame, so the animation stays smooth instead of paying the
+ * full draw cost from the very first frame. Time-based physics keep it consistent
+ * on 60 and 120 Hz displays. Spawns a short-lived full-screen canvas, then removes
  * itself. Safe to call from anywhere.
  */
 export function launchConfetti(opts?: { count?: number; duration?: number }) {
   if (typeof window === "undefined") return;
-  const count = opts?.count ?? 170;      // total across both cannons
-  const duration = opts?.duration ?? 3200;
+  const count = opts?.count ?? 150;      // total across both cannons
+  const lifeBase = opts?.duration ?? 3200; // how long a piece lives after it's emitted
+  const emitMs = 600;                    // stream all the pieces out over this window
 
   const canvas = document.createElement("canvas");
   canvas.style.cssText = "position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:99999";
-  const dpr = Math.min(2, window.devicePixelRatio || 1); // cap DPR — keep the fill cheap
+  const dpr = Math.min(1.5, window.devicePixelRatio || 1); // cap DPR — keep the fill cheap
   const W = window.innerWidth, H = window.innerHeight;
   canvas.width = W * dpr; canvas.height = H * dpr;
   document.body.appendChild(canvas);
@@ -33,8 +36,7 @@ export function launchConfetti(opts?: { count?: number; duration?: number }) {
     x: number; y: number; vx: number; vy: number;
     w: number; h: number; c: string; shape: Shape;
     spin: number; vspin: number; flutter: number; phase: number;
-    // per-particle life so pieces don't all vanish at once
-    life: number;
+    born: boolean; delay: number; life: number; // ms: emit time, lifespan after birth
   }
 
   // Two cannons at the bottom corners, aimed up and inward.
@@ -42,9 +44,10 @@ export function launchConfetti(opts?: { count?: number; duration?: number }) {
     { x: W * 0.08, y: H + 12, dir: 1 },   // bottom-left → up-right
     { x: W * 0.92, y: H + 12, dir: -1 },  // bottom-right → up-left
   ];
+  const half = Math.round(count / 2);
   const parts: P[] = [];
   for (const cannon of cannons) {
-    for (let i = 0; i < count / 2; i++) {
+    for (let i = 0; i < half; i++) {
       const angle = rand(50, 82) * (Math.PI / 180);          // above horizontal
       const speed = rand(820, 1500);                          // strong launch
       const shape: Shape = pick<Shape>(["rect", "rect", "rect", "strip", "circle"]);
@@ -61,30 +64,36 @@ export function launchConfetti(opts?: { count?: number; duration?: number }) {
         vspin: rand(-9, 9),
         flutter: rand(30, 130),
         phase: rand(0, Math.PI * 2),
-        life: rand(0.82, 1),
+        born: false,
+        // steady stream: emit spaced across the window (+ jitter), not all at once
+        delay: (i / half) * emitMs + rand(0, emitMs / half),
+        life: rand(lifeBase * 0.8, lifeBase),
       });
     }
   }
+  const maxEnd = parts.reduce((m, p) => Math.max(m, p.delay + p.life), 0);
 
   const start = performance.now();
   let last = start;
   function frame(now: number) {
-    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    const dt = Math.min(0.032, (now - last) / 1000); last = now; // clamp so a dropped frame doesn't teleport
     const elapsed = now - start;
-    const prog = elapsed / duration;                          // 0 → 1
     ctx!.clearRect(0, 0, W, H);
     for (const p of parts) {
-      // integrate
+      if (elapsed < p.delay) continue;   // not emitted yet — a streaming fountain
+      const age = elapsed - p.delay;
+      if (age > p.life) continue;        // done
+
+      // integrate (only once the piece is live, so it launches from the cannon)
       p.vy += G * dt;
       p.vx *= 1 - DRAG_X * dt;
       p.vy *= 1 - DRAG_Y * dt;
-      p.x += p.vx * dt + Math.sin(p.phase + elapsed * 0.004) * p.flutter * dt; // flutter sway
+      p.x += p.vx * dt + Math.sin(p.phase + elapsed * 0.004) * p.flutter * dt;
       p.y += p.vy * dt;
       p.spin += p.vspin * dt;
 
-      // fade out over each piece's own tail of the timeline
-      const a = prog < p.life ? 1 : Math.max(0, 1 - (prog - p.life) / (1 - p.life));
-      if (a <= 0) continue;
+      // fade over the last 30% of the piece's own life
+      const a = age < p.life * 0.7 ? 1 : Math.max(0, 1 - (age - p.life * 0.7) / (p.life * 0.3));
       ctx!.globalAlpha = a;
       ctx!.fillStyle = p.c;
       ctx!.save();
@@ -95,13 +104,13 @@ export function launchConfetti(opts?: { count?: number; duration?: number }) {
         ctx!.arc(0, 0, p.w / 2, 0, Math.PI * 2);
         ctx!.fill();
       } else {
-        // scale width by the spin to fake a flat piece tumbling in 3D (catches the eye)
+        // scale width by the spin to fake a flat piece tumbling in 3D
         const flip = Math.max(0.15, Math.abs(Math.cos(p.spin * 0.8)));
         ctx!.fillRect((-p.w / 2) * flip, -p.h / 2, p.w * flip, p.h);
       }
       ctx!.restore();
     }
-    if (elapsed < duration) requestAnimationFrame(frame);
+    if (elapsed < maxEnd) requestAnimationFrame(frame);
     else canvas.remove();
   }
   requestAnimationFrame(frame);

@@ -1574,9 +1574,11 @@ export function netWorthToday(
   return { investable, education, netWorth, homeEquity, netWorthWithHome: netWorth + homeEquity };
 }
 
-/** A single wedge of the current investable portfolio, for the allocation view. */
+/** A single wedge of the current portfolio, for the allocation view. The
+ *  investable buckets plus — for the "total net worth" view — home equity and
+ *  529 college savings. */
 export interface AllocationSlice {
-  key: "concentrated" | "brokerage" | "retirement" | "cash";
+  key: "concentrated" | "brokerage" | "retirement" | "cash" | "education" | "home";
   label: string;
   value: number;      // dollars, live-priced
   detail?: string;    // small caption (share count / holdings / account mix)
@@ -1593,9 +1595,14 @@ export function portfolioAllocation(
   snapshot: FinancialSnapshot,
   config: SimulationConfiguration,
   liveGoogPrice = 0,
-): { slices: AllocationSlice[]; investable: number; concentration: number; concentratedSymbol: string; concentratedValue: number } {
+): {
+  slices: AllocationSlice[]; investable: number; concentration: number;
+  concentratedSymbol: string; concentratedValue: number;
+  homeEquity: number; education: number; debt: number;
+} {
   const la = snapshot.liquid_assets;
   const ra = snapshot.retirement_assets;
+  const liab = snapshot.liabilities;
 
   const concSym = config.use_equity_comp ? (config.concentrated_symbol ?? "").toUpperCase() : "";
   const isConc = (s: string) => concSym !== "" && (s ?? "").toUpperCase() === concSym;
@@ -1625,7 +1632,15 @@ export function portfolioAllocation(
   const slices = all.filter((s) => s.value > 0);
   const investable = slices.reduce((s, x) => s + x.value, 0);
   const concentration = investable > 0 ? concValue / investable : 0;
-  return { slices, investable, concentration, concentratedSymbol: concSym, concentratedValue: concValue };
+
+  // Non-investable net-worth pieces, for the "total net worth" view.
+  const education = (snapshot.education_assets?.accounts ?? []).reduce((s, a) => s + a.balance, 0);
+  const propertyValue = liab.property_value ?? 0;
+  const isRent = config.spending.housing_type === "rent";
+  const homeEquity = (!isRent && propertyValue > 0) ? propertyValue - (liab.mortgage_balance || 0) : 0;
+  const debt = liab.consumer_debt || 0;
+
+  return { slices, investable, concentration, concentratedSymbol: concSym, concentratedValue: concValue, homeEquity, education, debt };
 }
 
 /** Months to fully amortize a fixed-payment loan; null if it never pays down

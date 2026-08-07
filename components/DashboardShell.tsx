@@ -106,9 +106,17 @@ export default function DashboardShell() {
   // and let the tool scroll internally — so the app header stays put and nothing
   // falls off the bottom.
   const toolSubpage = appView === "forecasting" && !!forecastTool;
+  // The Financial view is a fixed full-height dashboard (its panels scroll
+  // internally), so pin the whole shell to the viewport there too. Otherwise the
+  // shell is `min-h-screen` and the header (sticky) + countdown + dashboard could
+  // sum a few px past 100vh, giving the page a sliver of scroll — trackpad
+  // overscroll then slides the non-sticky countdown strip up under the sticky
+  // header, so it looks like it "shrinks" and de-centers. Pinning removes that
+  // slack entirely. Compare (ScenariosHub) and the forecasting hub still scroll.
+  const pinned = !compareOpen && (toolSubpage || appView === "financial");
 
   return (
-    <div className={`${toolSubpage ? "h-screen overflow-hidden" : "min-h-screen"} flex flex-col`} style={{ background: C.bg }}>
+    <div className={`${pinned ? "h-screen overflow-hidden" : "min-h-screen"} flex flex-col`} style={{ background: C.bg }}>
 
       <Header
         view={appView}

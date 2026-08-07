@@ -46,7 +46,7 @@ export default function FinancialDashboard({ livePrices }: Props) {
 
   const EASE = "cubic-bezier(0.32,0.72,0,1)";
   return (
-    <div style={{ display: "flex", height: "calc(100vh - 100px)", overflow: "hidden", background: C.bg }}>
+    <div style={{ display: "flex", height: "100%", overflow: "hidden", background: C.bg }}>
       {/* The plan column animates its width between the slim rail (44) and the
           full panel (300); the panel slides in from the left as it widens, so
           opening/closing reads as one smooth motion and RightPanel reflows. */}

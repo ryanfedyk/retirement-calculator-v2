@@ -54,8 +54,8 @@ export default function AllocationOverlay({ livePrices = {} }: { livePrices?: Li
   const body = (
     <>
       <AllocationCard snapshot={enrichedSnapshot} config={config} liveGoogPrice={liveGoogPrice} bare />
-      {sectionLabel("Your assets & holdings")}
-      <BalanceSheetEditor livePrices={livePrices} />
+      {sectionLabel("Edit your investments")}
+      <BalanceSheetEditor livePrices={livePrices} scope="investments" />
     </>
   );
 

@@ -79,8 +79,14 @@ function HoldingRow({ inv, liveInfo, onUpdate, onRemove }: { inv: Holding; liveI
   );
 }
 
-export default function BalanceSheetEditor({ livePrices = {}, defaultOpen = "holdings" }: { livePrices?: LivePrices; defaultOpen?: string }) {
+// `scope` decides how much of the balance sheet shows:
+//  • "investments" — holdings (incl. the concentrated position), cash & every
+//    retirement account. The slices of the allocation donut; used in the Portfolio hub.
+//  • "full" — the above plus home & debt and 529s. The complete balance sheet;
+//    used in "Your finances".
+export default function BalanceSheetEditor({ livePrices = {}, defaultOpen = "holdings", scope = "full" }: { livePrices?: LivePrices; defaultOpen?: string | null; scope?: "investments" | "full" }) {
   const { snapshot, config, profile, baseline, updateNestedSnapshot, setEquityComp } = useFinancialStore();
+  const full = scope === "full";
   const kids = profile.children;
   const housing = baseline.spending.housing_type ?? "mortgage";
   const concSym = config.use_equity_comp ? (config.concentrated_symbol ?? "").toUpperCase() : "";
@@ -143,7 +149,8 @@ export default function BalanceSheetEditor({ livePrices = {}, defaultOpen = "hol
         <Field label="Traditional IRA"><Num prefix="$" step={1000} value={snapshot.retirement_assets.traditional_ira} onChange={v => updateNestedSnapshot("retirement_assets", { traditional_ira: v })} /></Field>
       </Section>
 
-      {/* ── Home & debt ── */}
+      {/* ── Home & debt (full balance sheet only) ── */}
+      {full && (
       <Section title="Home & debt" accent="#8a4fbf" {...sec("home")}>
         {housing !== "rent" && (
           <>
@@ -163,9 +170,10 @@ export default function BalanceSheetEditor({ livePrices = {}, defaultOpen = "hol
         )}
         <Field label="Consumer debt"><Num prefix="$" step={500} value={snapshot.liabilities.consumer_debt} onChange={v => updateNestedSnapshot("liabilities", { consumer_debt: v })} /></Field>
       </Section>
+      )}
 
-      {/* ── Education (529) — only relevant with kids ── */}
-      {kids.length > 0 && (
+      {/* ── Education (529) — full sheet, only relevant with kids ── */}
+      {full && kids.length > 0 && (
         <Section title="529 college savings" accent="#56b4e9" {...sec("edu")}>
           {(snapshot.education_assets?.accounts || []).map((acc, idx) => (
             <div key={acc.id || idx} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
@@ -182,7 +190,9 @@ export default function BalanceSheetEditor({ livePrices = {}, defaultOpen = "hol
       )}
 
       <p style={{ fontSize: 10.5, color: C.inkFaint, margin: "4px 4px 0", lineHeight: 1.5 }}>
-        Your balance sheet is shared across every scenario. Live prices update holdings automatically.
+        {full
+          ? "Your balance sheet is shared across every scenario. Live prices update holdings automatically."
+          : "Shared across every scenario, priced live. Home equity, 529 savings and debt live in Your finances."}
       </p>
     </>
   );

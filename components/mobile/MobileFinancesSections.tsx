@@ -1,24 +1,22 @@
 "use client";
 import { useState } from "react";
-import { Trash2, Plus, PieChart, ChevronRight } from "lucide-react";
+import { Trash2, Plus } from "lucide-react";
 import { C } from "@/config/colors";
 import { useFinancialStore } from "@/store/useFinancialStore";
-import { useUIStore } from "@/store/useUIStore";
 import { IRS_401K } from "@/engine/calculator";
 import TickerAutocomplete from "@/components/finance/TickerAutocomplete";
 import PlanHistory from "@/components/finance/PlanHistory";
+import BalanceSheetEditor from "@/components/finance/BalanceSheetEditor";
 import type { LivePrices } from "@/components/finance/FinancialDashboard";
 import { Field, Num, Two, Section, Toggle, TextInput, money, inputStyle, labelStyle } from "./sheetUI";
 
-// The shared "Your finances" picture — now the CASH-FLOW assumptions only:
-// income, company equity, spending, and life events (all editing the shared
-// **baseline** that flows to every scenario). What you *own* — holdings, cash,
-// retirement, home, 529 — lives in the Portfolio hub (a single balance-sheet
-// editor), reachable from the button below. Touch-friendly twin of LeftPanel's
+// The shared "Your finances" picture — cash-flow assumptions (income, company
+// equity, spending, life events, editing the shared **baseline**) plus the full
+// balance sheet via the shared BalanceSheetEditor (the same component the
+// Portfolio hub uses, so the two can't drift). Touch-friendly twin of LeftPanel's
 // `variant="finances"`.
 export default function MobileFinancesSections({ livePrices = {} }: { livePrices?: LivePrices }) {
   const { config, baseline, updateBaseline, setEquityComp } = useFinancialStore();
-  const setAllocationOpen = useUIStore((s) => s.setAllocationOpen);
   const ip = baseline.income_profile;
   const sp = baseline.spending;
   const ma = baseline.market_assumptions;
@@ -33,17 +31,6 @@ export default function MobileFinancesSections({ livePrices = {} }: { livePrices
     <>
       {/* Plan history — monthly net-worth + FI-date trail. */}
       <PlanHistory livePrices={livePrices} />
-
-      {/* Assets, holdings, cash, home & 529 live in the Portfolio hub. */}
-      <button onClick={() => setAllocationOpen(true)}
-        style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "14px", marginBottom: 12, borderRadius: 14, border: `1px solid ${C.border}`, background: C.bgCard, cursor: "pointer", textAlign: "left" }}>
-        <span style={{ width: 34, height: 34, flexShrink: 0, borderRadius: 10, background: C.tealWash, display: "flex", alignItems: "center", justifyContent: "center" }}><PieChart size={17} color={C.teal} /></span>
-        <span style={{ flex: 1, minWidth: 0 }}>
-          <span style={{ display: "block", fontSize: 14, fontWeight: 700, color: C.ink }}>Assets & holdings</span>
-          <span style={{ display: "block", fontSize: 11.5, color: C.inkSoft }}>Holdings, cash, retirement, home & 529 — in Portfolio</span>
-        </span>
-        <ChevronRight size={18} color={C.inkFaint} />
-      </button>
 
       {/* ── Income (baseline cash flow) ── */}
       <Section title="Income" accent="#4aab92" {...sec("income")}>
@@ -154,6 +141,9 @@ export default function MobileFinancesSections({ livePrices = {} }: { livePrices
           </button>
         </div>
       </Section>
+
+      {/* ── Balance sheet — the shared editor (also in the Portfolio hub) ── */}
+      <BalanceSheetEditor livePrices={livePrices} scope="full" defaultOpen={null} />
     </>
   );
 }

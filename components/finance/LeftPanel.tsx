@@ -1,8 +1,8 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Sliders, Wallet, Trash2, PlusCircle, ChevronDown, Pencil, ChevronLeft, ChevronRight, PieChart as PieChartIcon } from "lucide-react";
+import { Sliders, Wallet, Trash2, PlusCircle, ChevronDown, Pencil, ChevronLeft } from "lucide-react";
 import { useFinancialStore } from "@/store/useFinancialStore";
-import { useUIStore } from "@/store/useUIStore";
+import BalanceSheetEditor from "./BalanceSheetEditor";
 import { C } from "@/config/colors";
 import { DEFAULT_SNAPSHOT, DEFAULT_SIM_CONFIG } from "@/config/sharedConfig";
 import { IRS_401K, amortizationMonths } from "@/engine/calculator";
@@ -310,19 +310,6 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
         {/* Plan history — monthly net-worth + FI-date trail (finances view only). */}
         {showFacts && <PlanHistory livePrices={livePrices} />}
 
-        {/* Assets, holdings, cash, home & 529 now live in the Portfolio hub — one
-            balance-sheet editor. This view keeps the cash-flow assumptions. */}
-        {showFacts && (
-          <button onClick={() => useUIStore.getState().setAllocationOpen(true)}
-            style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", marginBottom: 12, borderRadius: 12, border: `1px solid ${C.border}`, background: C.bgCard, cursor: "pointer", textAlign: "left" }}>
-            <span style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 9, background: C.tealWash, display: "flex", alignItems: "center", justifyContent: "center" }}><PieChartIcon size={16} color={C.teal} /></span>
-            <span style={{ flex: 1, minWidth: 0 }}>
-              <span style={{ display: "block", fontSize: 13, fontWeight: 700, color: C.ink }}>Assets & holdings</span>
-              <span style={{ display: "block", fontSize: 11, color: C.inkSoft }}>Holdings, cash, retirement, home & 529 — in Portfolio</span>
-            </span>
-            <ChevronRight size={16} color={C.inkFaint} />
-          </button>
-        )}
 
         {/* ── Income (baseline cash flow) ── */}
         <AccCard {...acc("fin_income")} hidden={!showFacts} title="Income" color="#4aab92">
@@ -493,8 +480,12 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
           </div>
         </AccCard>
 
-        {/* ── Assets & Liabilities ── */}
-        {/* Moved to the Portfolio hub (single balance-sheet editor) — kept hidden. */}
+        {/* ── Balance sheet — the shared editor (same one the Portfolio hub uses,
+            so desktop & mobile & hub can't drift). The old inline Assets/Holdings/
+            529 cards below are superseded and kept hidden. ── */}
+        {showFacts && <BalanceSheetEditor livePrices={livePrices} scope="full" defaultOpen={null} />}
+
+        {/* ── Assets & Liabilities (superseded by BalanceSheetEditor) ── */}
         <AccCard {...acc("assets")} hidden title="Assets & Liabilities" color={C.teal}>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <div>

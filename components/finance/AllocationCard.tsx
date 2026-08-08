@@ -132,6 +132,7 @@ export default function AllocationCard({ snapshot, config, liveGoogPrice = 0, ba
               </Pie>
               <Tooltip
                 cursor={false}
+                wrapperStyle={{ zIndex: 20 }}
                 content={({ active, payload }) => {
                   if (!active || !payload?.length) return null;
                   const d = payload[0].payload as AllocationSlice;

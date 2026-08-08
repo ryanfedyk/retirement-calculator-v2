@@ -15,13 +15,17 @@ export function launchConfetti(opts?: { count?: number; duration?: number }) {
 
   const canvas = document.createElement("canvas");
   canvas.style.cssText = "position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:99999";
-  const dpr = Math.min(1.5, window.devicePixelRatio || 1); // cap DPR — keep the fill cheap
+  // Backing store at 1× device px. This is a full-screen overlay recomposited
+  // every frame over the (heavy) app behind it, and that compositing cost scales
+  // with the canvas pixel area — so a 2× DPR canvas is ~4× the per-frame GPU work.
+  // Confetti is fast-moving, so 1× is visually indistinguishable while keeping the
+  // frame rate high. `alpha:false` is NOT usable — the overlay must stay transparent.
+  const dpr = 1;
   const W = window.innerWidth, H = window.innerHeight;
-  canvas.width = W * dpr; canvas.height = H * dpr;
+  canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
   document.body.appendChild(canvas);
-  const ctx = canvas.getContext("2d");
+  const ctx = canvas.getContext("2d", { alpha: true });
   if (!ctx) { canvas.remove(); return; }
-  ctx.scale(dpr, dpr);
 
   const colors = ["#2a9d7f", "#37c98f", "#e6c34a", "#f5b942", "#e07a3c", "#3a86c8", "#d6455f", "#8f6fc0"];
   const rand = (a: number, b: number) => a + Math.random() * (b - a);
@@ -78,7 +82,9 @@ export function launchConfetti(opts?: { count?: number; duration?: number }) {
   function frame(now: number) {
     const dt = Math.min(0.032, (now - last) / 1000); last = now; // clamp so a dropped frame doesn't teleport
     const elapsed = now - start;
-    ctx!.clearRect(0, 0, W, H);
+    const g = ctx!;
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.clearRect(0, 0, W, H);
     for (const p of parts) {
       if (elapsed < p.delay) continue;   // not emitted yet — a streaming fountain
       const age = elapsed - p.delay;
@@ -94,21 +100,22 @@ export function launchConfetti(opts?: { count?: number; duration?: number }) {
 
       // fade over the last 30% of the piece's own life
       const a = age < p.life * 0.7 ? 1 : Math.max(0, 1 - (age - p.life * 0.7) / (p.life * 0.3));
-      ctx!.globalAlpha = a;
-      ctx!.fillStyle = p.c;
-      ctx!.save();
-      ctx!.translate(p.x, p.y);
-      ctx!.rotate(p.spin);
+      g.globalAlpha = a;
+      g.fillStyle = p.c;
       if (p.shape === "circle") {
-        ctx!.beginPath();
-        ctx!.arc(0, 0, p.w / 2, 0, Math.PI * 2);
-        ctx!.fill();
+        // No rotation needed; bake position straight into the transform.
+        g.setTransform(1, 0, 0, 1, p.x, p.y);
+        g.beginPath();
+        g.arc(0, 0, p.w / 2, 0, Math.PI * 2);
+        g.fill();
       } else {
-        // scale width by the spin to fake a flat piece tumbling in 3D
+        // One matrix does translate·rotate·(x-scale) — the x-scale by |cos(spin)|
+        // fakes a flat piece tumbling in 3D. Avoids save/restore churn per piece.
+        const cos = Math.cos(p.spin), sin = Math.sin(p.spin);
         const flip = Math.max(0.15, Math.abs(Math.cos(p.spin * 0.8)));
-        ctx!.fillRect((-p.w / 2) * flip, -p.h / 2, p.w * flip, p.h);
+        g.setTransform(cos * flip, sin * flip, -sin, cos, p.x, p.y);
+        g.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
       }
-      ctx!.restore();
     }
     if (elapsed < maxEnd) requestAnimationFrame(frame);
     else canvas.remove();

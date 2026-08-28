@@ -225,6 +225,63 @@ describe("balance-sheet reconciliation", () => {
   });
 });
 
+describe("dated RSU grants vest from their OWN grant date (not N years from today)", () => {
+  // Isolate RSU vesting as the only income and keep prices flat, so a point's
+  // grossIncome is exactly the RSU vest value: shares/(vy*12) per month × 12 × price.
+  function grantCfg(): SimulationConfiguration {
+    const cfg = baseConfig();
+    cfg.use_equity_comp = true;
+    cfg.concentrated_symbol = "GOOG";
+    cfg.career_path.exit_year = YEAR + 30;   // stay in the working (GOOGLE) phase throughout
+    cfg.career_path.use_sabbatical = false;
+    cfg.career_path.use_jump = false;
+    cfg.income_profile.gross_annual_salary = 0;
+    cfg.income_profile.target_bonus_rate = 0;
+    cfg.income_profile.annual_equity_grant = 0;
+    cfg.income_profile.monthly_rental_income = 0;
+    cfg.income_profile.monthly_parttime_income = 0;
+    cfg.income_profile.use_partner_income = false;
+    cfg.income_profile.initial_unvested_shares = 0;
+    cfg.income_profile.income_growth_rate = 0;
+    cfg.market_assumptions.goog_growth_rate = 0; // flat price → units map cleanly to $
+    cfg.market_assumptions.inflation_rate = 0;   // nominal == real
+    return cfg;
+  }
+  function grantSnap(): FinancialSnapshot {
+    const snap = baseSnap();
+    snap.share_counts = { ...snap.share_counts, google_shares: 0, cost_basis: 40, live_stock_price: 100 };
+    return snap;
+  }
+
+  it("a 2-year-old 4-year grant finishes vesting ~2 years out, not 4", () => {
+    const cfg = grantCfg();
+    // 480 shares over 4y = 10 sh/mo × $100 × 12 = $12,000/yr while inside the window.
+    cfg.income_profile.rsu_grants = [{ id: "g1", grant_date: `${YEAR - 2}-01`, shares: 480, vesting_years: 4 }];
+    const traj = runSimulation(grantSnap(), cfg, 72);
+    // salaryAndEquityNet is RSU-only here (salary zeroed), net of FICA/tax → < $12k gross.
+    expect(traj[6].salaryAndEquityNet).toBeGreaterThan(5_000);   // still mid-vest early on (net of tax on ~$12k gross)
+    expect(traj[6].salaryAndEquityNet).toBeLessThan(10_000);
+    // Granted 2y before today → its 4y schedule ends ~2y out, so it's DONE by month 30.
+    expect(traj[30].salaryAndEquityNet).toBeLessThan(500);
+  });
+
+  it("grants REPLACE the aggregate initial_unvested_shares when present", () => {
+    // Aggregate lump: 480 shares over 4y FROM TODAY → still vesting at month 30.
+    const agg = grantCfg();
+    agg.income_profile.initial_unvested_shares = 480;
+    agg.income_profile.vesting_years = 4;
+    expect(runSimulation(grantSnap(), agg, 72)[30].salaryAndEquityNet).toBeGreaterThan(5_000);
+
+    // Same 480 shares as a grant dated 2y ago → finished by month 30. The aggregate
+    // fields are set too, to prove the grant list overrides them.
+    const grant = grantCfg();
+    grant.income_profile.initial_unvested_shares = 480;
+    grant.income_profile.vesting_years = 4;
+    grant.income_profile.rsu_grants = [{ id: "g", grant_date: `${YEAR - 2}-01`, shares: 480, vesting_years: 4 }];
+    expect(runSimulation(grantSnap(), grant, 72)[30].salaryAndEquityNet).toBeLessThan(500);
+  });
+});
+
 // A retired, no-income, no-spend household whose only dynamic is asset growth —
 // used to test compounding cleanly (no salary, 401k, backdoor Roth, SS, or spend).
 function idleRetiree(): SimulationConfiguration {

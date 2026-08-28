@@ -64,6 +64,20 @@ export interface SimulationConfiguration {
     google_net_monthly: number;
     initial_unvested_shares: number;
     vesting_years: number;
+    // Dated RSU grants — the precise alternative to the aggregate
+    // initial_unvested_shares/vesting_years pair. Each grant vests in equal
+    // monthly slivers starting from its OWN grant_date (no cliff), so the schedule
+    // tracks your real vest calendar instead of "N years from today". Enter the
+    // TOTAL shares originally granted; the engine only vests the portion still
+    // ahead of today (already-vested shares live in your holdings). When this list
+    // is non-empty it REPLACES initial_unvested_shares; when empty the legacy
+    // aggregate is used, so existing plans are unaffected until grants are added.
+    rsu_grants?: Array<{
+      id: string;
+      grant_date: string; // ISO "YYYY-MM-DD" (day optional); anchors the vest schedule
+      shares: number;     // total shares originally granted
+      vesting_years: number; // linear monthly vest over this many years from grant_date
+    }>;
     jump_gross_annual: number;
     jump_bonus_rate: number;
     jump_grant_monthly: number;
@@ -696,8 +710,24 @@ const simulate = (
     let monthlyEquityVestUnits = 0;
     if (phase === 'GOOGLE' && equityEnabled) {
       const vy = ip.vesting_years || 4;
-      // Initial (already-held) unvested grant — vests linearly from today.
-      if (yearsPassed < vy) {
+      // Already-held unvested RSUs. Two ways to model them:
+      const grants = ip.rsu_grants;
+      if (grants && grants.length > 0) {
+        // Precise: each dated grant vests in equal monthly slivers from its OWN
+        // grant date. We only add months at/after today (month 0), so shares that
+        // already vested in the past aren't re-counted — they're in your holdings.
+        for (const gr of grants) {
+          const gvy = gr.vesting_years || vy;
+          if (gvy <= 0 || !gr.shares || !gr.grant_date) continue;
+          const [gy, gmRaw] = gr.grant_date.split("-").map(Number);
+          if (!gy) continue;
+          const gMonth = Number.isFinite(gmRaw) ? (gmRaw - 1) : 0; // 0-indexed; default Jan
+          const monthsSinceGrant = (currentYear - gy) * 12 + (monthOfYear - gMonth);
+          if (monthsSinceGrant < 0 || monthsSinceGrant >= gvy * 12) continue; // outside its vest window
+          monthlyEquityVestUnits += gr.shares / (gvy * 12);
+        }
+      } else if (yearsPassed < vy) {
+        // Legacy aggregate: the whole unvested lump vests linearly from today.
         monthlyEquityVestUnits += (ip.initial_unvested_shares || 0) / (vy * 12);
       }
       // Refresher grants land each MARCH and vest linearly over `vy` years. Sum

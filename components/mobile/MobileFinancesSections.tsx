@@ -7,6 +7,7 @@ import { IRS_401K } from "@/engine/calculator";
 import TickerAutocomplete from "@/components/finance/TickerAutocomplete";
 import PlanHistory from "@/components/finance/PlanHistory";
 import BalanceSheetEditor from "@/components/finance/BalanceSheetEditor";
+import RsuGrantsEditor from "@/components/finance/RsuGrantsEditor";
 import type { LivePrices } from "@/components/finance/FinancialDashboard";
 import { Field, Num, Two, Section, Toggle, TextInput, money, inputStyle, labelStyle } from "./sheetUI";
 
@@ -70,10 +71,16 @@ export default function MobileFinancesSections({ livePrices = {} }: { livePrices
               <Field label="Expected Return (%)"><Num step={0.5} value={ma.goog_growth_rate} onChange={v => updateBaseline("market_assumptions", { goog_growth_rate: v })} /></Field>
               <Field label="Annual Equity Refresher"><Num prefix="$" step={1000} value={ip.annual_equity_grant ?? 0} onChange={v => updateBaseline("income_profile", { annual_equity_grant: v })} /></Field>
             </Two>
-            <Two>
-              <Field label="Unvested Shares"><Num value={ip.initial_unvested_shares ?? 0} onChange={v => updateBaseline("income_profile", { initial_unvested_shares: v })} /></Field>
-              <Field label="Vesting (yrs)"><Num value={ip.vesting_years ?? 4} onChange={v => updateBaseline("income_profile", { vesting_years: v })} /></Field>
-            </Two>
+            <Field label="Unvested RSU grants (vest monthly from grant date)"><RsuGrantsEditor /></Field>
+            {(ip.rsu_grants?.length ?? 0) === 0 && (
+              <>
+                <Two>
+                  <Field label="Or unvested shares"><Num value={ip.initial_unvested_shares ?? 0} onChange={v => updateBaseline("income_profile", { initial_unvested_shares: v })} /></Field>
+                  <Field label="Vesting (yrs)"><Num value={ip.vesting_years ?? 4} onChange={v => updateBaseline("income_profile", { vesting_years: v })} /></Field>
+                </Two>
+                <div style={{ fontSize: 11, color: C.inkFaint, lineHeight: 1.5, marginTop: -2 }}>A single lump vesting evenly over N years from today. Add dated grants above for an accurate calendar — they take over when present.</div>
+              </>
+            )}
             <div style={{ fontSize: 11, color: C.inkFaint, lineHeight: 1.5 }}>Shared across every scenario. Your holdings of this stock (and how you sell it down) live in Portfolio and the per-scenario plan.</div>
           </>
         )}

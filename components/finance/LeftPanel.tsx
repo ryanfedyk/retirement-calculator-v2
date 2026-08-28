@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { Sliders, Wallet, Trash2, PlusCircle, ChevronDown, Pencil, ChevronLeft } from "lucide-react";
 import { useFinancialStore } from "@/store/useFinancialStore";
 import BalanceSheetEditor from "./BalanceSheetEditor";
+import RsuGrantsEditor from "./RsuGrantsEditor";
 import { C } from "@/config/colors";
 import { DEFAULT_SNAPSHOT, DEFAULT_SIM_CONFIG } from "@/config/sharedConfig";
 import { IRS_401K, amortizationMonths } from "@/engine/calculator";
@@ -380,14 +381,23 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
                       onChange={e => updateBaseline("market_assumptions", { goog_growth_rate: +e.target.value || 0 })} /></div>
                 </Row>
                 <div>
-                  <FieldLabel>Unvested Shares (count · vesting yrs)</FieldLabel>
-                  <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 6 }}>
-                    <Input type="number" placeholder="Total shares" value={bip.initial_unvested_shares ?? 0}
-                      onChange={e => updateBaseline("income_profile", { initial_unvested_shares: +e.target.value || 0 })} />
-                    <Input type="number" placeholder="Yrs" value={bip.vesting_years ?? 4}
-                      onChange={e => updateBaseline("income_profile", { vesting_years: +e.target.value || 0 })} />
-                  </div>
+                  <FieldLabel>Unvested RSU grants (vest monthly from grant date)</FieldLabel>
+                  <RsuGrantsEditor />
                 </div>
+                {(bip.rsu_grants?.length ?? 0) === 0 && (
+                  <div>
+                    <FieldLabel>Or, aggregate: unvested shares · vesting yrs</FieldLabel>
+                    <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 6 }}>
+                      <Input type="number" placeholder="Total shares" value={bip.initial_unvested_shares ?? 0}
+                        onChange={e => updateBaseline("income_profile", { initial_unvested_shares: +e.target.value || 0 })} />
+                      <Input type="number" placeholder="Yrs" value={bip.vesting_years ?? 4}
+                        onChange={e => updateBaseline("income_profile", { vesting_years: +e.target.value || 0 })} />
+                    </div>
+                    <div style={{ fontSize: 9, color: C.inkFaint, lineHeight: 1.5, marginTop: 4 }}>
+                      A single lump that vests evenly over the next N years from today. Add dated grants above for an accurate vest calendar (they take over when present).
+                    </div>
+                  </div>
+                )}
                 <div><FieldLabel>Annual Equity Refresher ($)</FieldLabel>
                   <Input type="number" step={1000} value={bip.annual_equity_grant ?? 0}
                     onChange={e => updateBaseline("income_profile", { annual_equity_grant: +e.target.value || 0 })} /></div>

@@ -109,7 +109,7 @@ interface FinancialStore extends HorizonState {
   ) => void;
   /** Equity-comp setup (whether you hold company equity + the ticker) is a shared
    *  fact, not a per-scenario lever, so it's written uniformly to every scenario. */
-  setEquityComp: (updates: { use_equity_comp?: boolean; concentrated_symbol?: string }) => void;
+  setEquityComp: (updates: { use_equity_comp?: boolean; concentrated_symbol?: string; auto_sell_rsus?: boolean }) => void;
   /** Re-link a forked field/section on the active scenario back to the baseline. */
   resetToBaseline: (path: string) => void;
   /** Adopt the shared sections of `config` as the baseline (used at onboarding). */

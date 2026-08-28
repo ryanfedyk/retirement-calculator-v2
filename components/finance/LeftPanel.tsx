@@ -401,6 +401,17 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
                 <div><FieldLabel>Annual Equity Refresher ($)</FieldLabel>
                   <Input type="number" step={1000} value={bip.annual_equity_grant ?? 0}
                     onChange={e => updateBaseline("income_profile", { annual_equity_grant: +e.target.value || 0 })} /></div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 11, color: C.inkMid }}>Auto-sell shares as they vest</span>
+                  <input type="checkbox" checked={config.auto_sell_rsus === true}
+                    onChange={e => setEquityComp({ auto_sell_rsus: e.target.checked })}
+                    style={{ accentColor: C.teal }} />
+                </div>
+                <div style={{ fontSize: 9, color: C.inkFaint, lineHeight: 1.5 }}>
+                  {config.auto_sell_rsus
+                    ? "Each vest is sold immediately and the after-tax proceeds diversify into your brokerage (market growth) — no build-up in this stock."
+                    : "Vested shares are held in this position (sell-to-cover). Turn on if your grants auto-sell at vest."}
+                </div>
                 <div style={{ fontSize: 9, color: C.inkFaint, lineHeight: 1.5 }}>
                   Shared across every scenario. How you sell this position down over time is a per-scenario lever, in each scenario’s plan.
                 </div>

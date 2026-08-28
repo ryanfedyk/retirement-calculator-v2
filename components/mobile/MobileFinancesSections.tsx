@@ -81,6 +81,12 @@ export default function MobileFinancesSections({ livePrices = {} }: { livePrices
                 <div style={{ fontSize: 11, color: C.inkFaint, lineHeight: 1.5, marginTop: -2 }}>A single lump vesting evenly over N years from today. Add dated grants above for an accurate calendar — they take over when present.</div>
               </>
             )}
+            <Toggle label="Auto-sell shares as they vest" on={config.auto_sell_rsus === true} onChange={v => setEquityComp({ auto_sell_rsus: v })} />
+            <div style={{ fontSize: 11, color: C.inkFaint, lineHeight: 1.5, marginTop: -2 }}>
+              {config.auto_sell_rsus
+                ? "Each vest is sold immediately; after-tax proceeds diversify into your brokerage (market growth) — no build-up in this stock."
+                : "Vested shares are held (sell-to-cover). Turn on if your grants auto-sell at vest."}
+            </div>
             <div style={{ fontSize: 11, color: C.inkFaint, lineHeight: 1.5 }}>Shared across every scenario. Your holdings of this stock (and how you sell it down) live in Portfolio and the per-scenario plan.</div>
           </>
         )}

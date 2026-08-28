@@ -157,6 +157,12 @@ export interface SimulationConfiguration {
   // Whether the user receives company equity (RSUs). Gates the equity-income
   // inputs and the divestment strategy. Default off.
   use_equity_comp?: boolean;
+  // Autosale: when true, every RSU tranche is sold the moment it vests. The vest is
+  // still ordinary income (unchanged), but the after-tax proceeds go to the
+  // diversified taxable brokerage (market growth, ~$0 further capital gain) instead
+  // of accumulating in the concentrated employer position. Off = sell-to-cover and
+  // HOLD the remaining shares (the historical behavior).
+  auto_sell_rsus?: boolean;
   social_security: {
     start_age: number;
     monthly_amount: number;
@@ -866,11 +872,21 @@ const simulate = (
       rothBalance += backdoorRothAmt; // Now in Roth — grows tax-free
     }
 
-    // RSU shares — added at marginal (not effective) rate, sell-to-cover approximation
+    // RSU vest — taxed as ordinary income at the marginal (not effective) rate.
+    // The after-tax value then either accumulates as shares (sell-to-cover & hold)
+    // or, under autosale, is sold at vest and diversified.
     if (monthlyEquityVestUnits > 0) {
       const netNewShares = monthlyEquityVestUnits * (1 - marginalRate);
-      currentGoogShares += netNewShares;
-      currentGoogByBasis.push({ shares: netNewShares, basis: currentGoogPrice });
+      if (config.auto_sell_rsus) {
+        // Autosale: sold the instant it vests, so basis = vest price → ~$0 further
+        // capital gain. The after-tax proceeds land in the taxable brokerage/cash
+        // (which compounds at the market rate above), not the concentrated position.
+        liquidCash += netNewShares * currentGoogPrice;
+      } else {
+        // Sell-to-cover & HOLD: keep the after-tax shares at their FMV-at-vest basis.
+        currentGoogShares += netNewShares;
+        currentGoogByBasis.push({ shares: netNewShares, basis: currentGoogPrice });
+      }
     }
 
     if (jumpGrantMonthlyGross > 0) {

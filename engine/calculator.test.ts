@@ -280,6 +280,28 @@ describe("dated RSU grants vest from their OWN grant date (not N years from toda
     grant.income_profile.rsu_grants = [{ id: "g", grant_date: `${YEAR - 2}-01`, shares: 480, vesting_years: 4 }];
     expect(runSimulation(grantSnap(), grant, 72)[30].salaryAndEquityNet).toBeLessThan(500);
   });
+
+  it("autosale routes vested RSUs to cash/brokerage, not the concentrated position", () => {
+    const mk = (auto: boolean) => {
+      const c = grantCfg();
+      c.spending.monthly_lifestyle = 0;                 // no deficit → nothing is force-sold
+      c.market_assumptions.market_return_rate = 0;      // isolate routing: no differential growth
+      c.income_profile.rsu_grants = [{ id: "g", grant_date: `${YEAR}-01`, shares: 480, vesting_years: 4 }];
+      c.auto_sell_rsus = auto;
+      return c;
+    };
+    const snapWithCash = () => { const s = grantSnap(); s.liquid_assets.cash_savings = 100_000; return s; };
+    const hold = runSimulation(snapWithCash(), mk(false), 24);
+    const sell = runSimulation(snapWithCash(), mk(true), 24);
+    const m = 12;
+    // Held → after-tax shares pile up in the concentrated position; autosale → ~nothing there.
+    expect(hold[m].googValue).toBeGreaterThan(1_500);
+    expect(sell[m].googValue).toBeLessThan(500);
+    // Autosale puts the after-tax proceeds in cash/brokerage instead.
+    expect(sell[m].liquidCash).toBeGreaterThan(hold[m].liquidCash + 1_500);
+    // Same after-tax value, just a different bucket → total net worth barely moves.
+    expect(Math.abs(sell[m].totalNetWorth - hold[m].totalNetWorth)).toBeLessThan(1_000);
+  });
 });
 
 // A retired, no-income, no-spend household whose only dynamic is asset growth —

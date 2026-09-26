@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { runSimulation, runSimulationConverged, findIndependencePoint, assessPlan, toDisplayDollars, findRetirementWindow, findCashflowFiPoint } from "@/engine/calculator";
+import { runSimulation, runSimulationConverged, findIndependencePoint, assessPlan, toDisplayDollars, findRetirementWindow, findCashflowFiPoint, rsuGrantSplit } from "@/engine/calculator";
 import { estimateMonthlySocialSecurity } from "@/engine/social_security";
 import { calculateTax } from "@/engine/tax_engine";
 import type { FinancialSnapshot, SimulationConfiguration } from "@/engine/calculator";
@@ -301,6 +301,35 @@ describe("dated RSU grants vest from their OWN grant date (not N years from toda
     expect(sell[m].liquidCash).toBeGreaterThan(hold[m].liquidCash + 1_500);
     // Same after-tax value, just a different bucket → total net worth barely moves.
     expect(Math.abs(sell[m].totalNetWorth - hold[m].totalNetWorth)).toBeLessThan(1_000);
+  });
+});
+
+describe("rsuGrantSplit — vested-to-date is day-aware", () => {
+  const g = (grant_date: string, shares = 480, vesting_years = 4) => ({ id: "g", grant_date, shares, vesting_years });
+
+  it("splits a part-vested grant into vested / still-to-vest shares", () => {
+    const s = rsuGrantSplit(g("2024-03-15"), new Date(2026, 8, 26)); // 30 of 48 monthly tranches in
+    expect(s.total).toBe(480);
+    expect(s.vested).toBe(300);
+    expect(s.unvested).toBe(180);
+  });
+
+  it("the grant-date DAY decides whether this month's tranche has vested yet", () => {
+    const before = rsuGrantSplit(g("2024-03-15"), new Date(2026, 8, 10)); // before the 15th
+    const after  = rsuGrantSplit(g("2024-03-15"), new Date(2026, 8, 20)); // after the 15th
+    expect(after.vested - before.vested).toBe(10); // exactly one more monthly tranche (480 / 48)
+  });
+
+  it("a fully-vested grant is all vested, nothing left", () => {
+    const s = rsuGrantSplit(g("2019-01-01"), new Date(2026, 8, 26));
+    expect(s.vested).toBe(480);
+    expect(s.unvested).toBe(0);
+  });
+
+  it("a future grant has vested nothing yet", () => {
+    const s = rsuGrantSplit(g("2030-01-01"), new Date(2026, 8, 26));
+    expect(s.vested).toBe(0);
+    expect(s.unvested).toBe(480);
   });
 });
 

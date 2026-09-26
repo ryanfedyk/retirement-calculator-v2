@@ -285,6 +285,39 @@ const NON_MONETARY_FIELDS = new Set<string>([
  * face-value dollars a statement would actually show in that month. Month 0
  * (today) is unchanged, so headline "now" figures never move.
  */
+/** A single dated RSU grant (see income_profile.rsu_grants). */
+export interface RsuGrant { id: string; grant_date: string; shares: number; vesting_years: number }
+
+/**
+ * How many monthly vest events of a grant have already landed as of `asOf`.
+ * Shares vest in equal monthly tranches; the first tranche lands one month after
+ * the grant date, on the grant's own day-of-month. So this counts the *complete*
+ * months elapsed since the grant — and this month's tranche only counts once its
+ * day-of-month has passed (that's why the grant date carries a day). Clamped to
+ * [0, vesting_years×12]. The projection and the UI both use this, so "vested so
+ * far" on screen matches what the plan treats as already-in-hand.
+ */
+export function rsuVestedTranches(grantDate: string, vestingYears: number, asOf: Date = new Date()): number {
+  const totalMonths = Math.round((vestingYears || 0) * 12);
+  if (totalMonths <= 0 || !grantDate) return 0;
+  const [gy, gmRaw, gdRaw] = grantDate.split("-").map(Number);
+  if (!gy) return 0;
+  const gMonth = Number.isFinite(gmRaw) ? gmRaw - 1 : 0; // 0-indexed; default Jan
+  const gDay   = Number.isFinite(gdRaw) && gdRaw > 0 ? gdRaw : 1;
+  let months = (asOf.getFullYear() - gy) * 12 + (asOf.getMonth() - gMonth);
+  if (asOf.getDate() < gDay) months -= 1; // this month's vest day hasn't arrived yet
+  return Math.max(0, Math.min(totalMonths, months));
+}
+
+/** Split a grant into vested-to-date vs. still-to-vest shares (for display). */
+export function rsuGrantSplit(grant: RsuGrant, asOf: Date = new Date()): { total: number; vested: number; unvested: number } {
+  const total = Math.max(0, grant.shares || 0);
+  const totalMonths = Math.round((grant.vesting_years || 0) * 12);
+  if (totalMonths <= 0) return { total, vested: 0, unvested: total };
+  const vested = Math.round(total * rsuVestedTranches(grant.grant_date, grant.vesting_years, asOf) / totalMonths);
+  return { total, vested: Math.min(total, vested), unvested: Math.max(0, total - vested) };
+}
+
 export function toDisplayDollars(
   trajectory: TrajectoryPoint[],
   mode: DollarMode,
@@ -548,6 +581,24 @@ const simulate = (
       expectedReturn: i.expected_return ?? config.market_assumptions.market_return_rate,
     }));
 
+  // Dated RSU grants, prepared once: each grant's calendar anchor, its per-month
+  // vest amount, and how many tranches have ALREADY vested as of today (day-aware,
+  // via rsuVestedTranches). The loop then only vests tranches still ahead of today,
+  // so it never re-vests shares already in your holdings — and the count here is the
+  // same one the editor shows as "vested so far".
+  const nowForVesting = new Date();
+  const rsuGrantsPrepared = ((config.income_profile.rsu_grants ?? []) as RsuGrant[])
+    .map(g => {
+      const totalMonths = Math.round((g.vesting_years || 0) * 12);
+      const [gy, gmRaw] = (g.grant_date || "").split("-").map(Number);
+      return {
+        gy, gMonth: Number.isFinite(gmRaw) ? gmRaw - 1 : 0, totalMonths,
+        perMonth: totalMonths > 0 ? (g.shares || 0) / totalMonths : 0,
+        vestedTranches: rsuVestedTranches(g.grant_date, g.vesting_years, nowForVesting),
+      };
+    })
+    .filter(g => !!g.gy && g.totalMonths > 0 && g.perMonth > 0);
+
   // IRS 401k limits (single source — see IRS_401K)
   const K401_LIMIT      = IRS_401K.employeeLimit;
   const CATCHUP_LIMIT   = IRS_401K.catchup;  // Age 50+
@@ -717,20 +768,15 @@ const simulate = (
     if (phase === 'GOOGLE' && equityEnabled) {
       const vy = ip.vesting_years || 4;
       // Already-held unvested RSUs. Two ways to model them:
-      const grants = ip.rsu_grants;
-      if (grants && grants.length > 0) {
-        // Precise: each dated grant vests in equal monthly slivers from its OWN
-        // grant date. We only add months at/after today (month 0), so shares that
-        // already vested in the past aren't re-counted — they're in your holdings.
-        for (const gr of grants) {
-          const gvy = gr.vesting_years || vy;
-          if (gvy <= 0 || !gr.shares || !gr.grant_date) continue;
-          const [gy, gmRaw] = gr.grant_date.split("-").map(Number);
-          if (!gy) continue;
-          const gMonth = Number.isFinite(gmRaw) ? (gmRaw - 1) : 0; // 0-indexed; default Jan
-          const monthsSinceGrant = (currentYear - gy) * 12 + (monthOfYear - gMonth);
-          if (monthsSinceGrant < 0 || monthsSinceGrant >= gvy * 12) continue; // outside its vest window
-          monthlyEquityVestUnits += gr.shares / (gvy * 12);
+      if ((ip.rsu_grants?.length ?? 0) > 0) {
+        // Precise: each dated grant vests one equal monthly tranche from its OWN
+        // grant date. `idx` is the tranche index of this sim month (0 = grant month;
+        // first vest at idx 1). We vest it only when it's still ahead of what already
+        // vested by today (vestedTranches) and within the schedule — so shares that
+        // vested in the past aren't re-counted (they're in your holdings).
+        for (const g of rsuGrantsPrepared) {
+          const idx = (currentYear - g.gy) * 12 + (monthOfYear - g.gMonth);
+          if (idx > g.vestedTranches && idx <= g.totalMonths) monthlyEquityVestUnits += g.perMonth;
         }
       } else if (yearsPassed < vy) {
         // Legacy aggregate: the whole unvested lump vests linearly from today.

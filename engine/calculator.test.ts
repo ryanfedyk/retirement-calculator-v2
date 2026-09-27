@@ -333,6 +333,29 @@ describe("rsuGrantSplit — vested-to-date is day-aware", () => {
   });
 });
 
+describe("RSU vest day is independent of the grant date (e.g. Google's 25th)", () => {
+  const g = (grant_date: string, shares = 480, vesting_years = 4) => ({ id: "g", grant_date, shares, vesting_years });
+
+  it("vests on the given day-of-month, not the grant date's day", () => {
+    // Granted mid-March 2024; vests on the 25th. As of 2026-09-27 the Sept-25 vest has landed.
+    const s = rsuGrantSplit(g("2024-03-14"), new Date(2026, 8, 27), 25);
+    expect(s.vested).toBe(310);   // 31 of 48 monthly tranches
+    expect(s.unvested).toBe(170);
+  });
+
+  it("today's tranche counts only once the vest day has passed", () => {
+    const before = rsuGrantSplit(g("2024-03-14"), new Date(2026, 8, 20), 25); // before the 25th
+    const after  = rsuGrantSplit(g("2024-03-14"), new Date(2026, 8, 26), 25); // after the 25th
+    expect(after.vested - before.vested).toBe(10); // one more monthly tranche (480 / 48)
+  });
+
+  it("a grant dated after the vest day starts one month later", () => {
+    const early = rsuGrantSplit(g("2024-03-10"), new Date(2026, 8, 27), 25); // before the 25th → first vest in March
+    const late  = rsuGrantSplit(g("2024-03-28"), new Date(2026, 8, 27), 25); // after the 25th → first vest in April
+    expect(early.vested - late.vested).toBe(10);   // exactly one tranche apart
+  });
+});
+
 // A retired, no-income, no-spend household whose only dynamic is asset growth —
 // used to test compounding cleanly (no salary, 401k, backdoor Roth, SS, or spend).
 function idleRetiree(): SimulationConfiguration {

@@ -71,7 +71,7 @@ export default function MobileFinancesSections({ livePrices = {} }: { livePrices
               <Field label="Expected Return (%)"><Num step={0.5} value={ma.goog_growth_rate} onChange={v => updateBaseline("market_assumptions", { goog_growth_rate: v })} /></Field>
               <Field label="Annual Equity Refresher"><Num prefix="$" step={1000} value={ip.annual_equity_grant ?? 0} onChange={v => updateBaseline("income_profile", { annual_equity_grant: v })} /></Field>
             </Two>
-            <Field label="Unvested RSU grants (vest monthly from grant date)"><RsuGrantsEditor /></Field>
+            <Field label="Unvested RSU grants"><RsuGrantsEditor /></Field>
             {(ip.rsu_grants?.length ?? 0) === 0 && (
               <>
                 <Two>

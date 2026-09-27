@@ -381,7 +381,7 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
                       onChange={e => updateBaseline("market_assumptions", { goog_growth_rate: +e.target.value || 0 })} /></div>
                 </Row>
                 <div>
-                  <FieldLabel>Unvested RSU grants (vest monthly from grant date)</FieldLabel>
+                  <FieldLabel>Unvested RSU grants</FieldLabel>
                   <RsuGrantsEditor />
                 </div>
                 {(bip.rsu_grants?.length ?? 0) === 0 && (

@@ -25,6 +25,7 @@ export default function RsuGrantsEditor() {
   const { baseline, updateBaseline } = useFinancialStore();
   const grants: RsuGrant[] = baseline.income_profile.rsu_grants ?? [];
   const defaultVy = baseline.income_profile.vesting_years || 4;
+  const vestDay = baseline.income_profile.rsu_vest_day ?? 25;
 
   const write = (next: RsuGrant[]) => updateBaseline("income_profile", { rsu_grants: next });
   const patch = (idx: number, p: Partial<RsuGrant>) => write(grants.map((g, i) => (i === idx ? { ...g, ...p } : g)));
@@ -34,22 +35,29 @@ export default function RsuGrantsEditor() {
     write([...grants, { id: crypto.randomUUID(), grant_date: iso, shares: 0, vesting_years: defaultVy }]);
   };
   const remove = (idx: number) => write(grants.filter((_, i) => i !== idx));
+  const setVestDay = (d: number) => updateBaseline("income_profile", { rsu_vest_day: Math.max(1, Math.min(28, Math.round(d) || 25)) });
 
   const label: React.CSSProperties = { fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.inkFaint, marginBottom: 3 };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {/* Company vest day — independent of the grant date (e.g. Google vests on the 25th). */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+        <span style={{ fontSize: 11.5, color: C.inkMid }}>Shares vest on day <strong>{vestDay}</strong> of each month</span>
+        <input type="number" inputMode="numeric" min={1} max={28} value={vestDay}
+          onChange={e => setVestDay(+e.target.value)} style={{ ...inputStyle, width: 64, textAlign: "center" }} />
+      </div>
       {grants.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {/* header row */}
           <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 0.7fr 28px", gap: 7, alignItems: "end" }}>
-            <div style={label}>Grant / vest date</div>
+            <div style={label}>Grant date</div>
             <div style={label}>Total shares</div>
             <div style={label}>Vest yrs</div>
             <div />
           </div>
           {grants.map((g, idx) => {
-            const { total, vested, unvested } = rsuGrantSplit(g);
+            const { total, vested, unvested } = rsuGrantSplit(g, new Date(), vestDay);
             return (
               <div key={g.id} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 0.7fr 28px", gap: 7, alignItems: "center" }}>
@@ -79,7 +87,7 @@ export default function RsuGrantsEditor() {
         <Plus size={14} /> Add grant
       </button>
       <p style={{ fontSize: 10, color: C.inkFaint, lineHeight: 1.5, margin: 0 }}>
-        Enter the <strong>total</strong> shares each grant awarded and its grant date (the <strong>day</strong> is the monthly vest day). Each vests in equal monthly amounts over its vest years; the plan counts only the <strong>still-to-vest</strong> shares — already-vested ones belong in your holdings above.
+        Enter the <strong>total</strong> shares each grant awarded and its <strong>grant date</strong>. Shares vest monthly on the company vest day above (which is independent of the grant date). The plan counts only the <strong>still-to-vest</strong> shares — already-vested ones belong in your holdings above.
       </p>
     </div>
   );

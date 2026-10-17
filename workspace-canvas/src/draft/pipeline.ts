@@ -20,7 +20,7 @@ import { spatialRank, groupsOf } from '../engine/analyze';
 export type BlockSource = 'local' | 'ai' | 'stream' | 'pin' | 'edit';
 export interface DisplayBlock {
   key: string; label: string; kind: BlockKind; seeds: string[]; html: string; source: BlockSource;
-  conflict: boolean; rev: number; frozen?: Frozen; sig: string; idx: number;
+  conflict: boolean; rev: number; frozen?: Frozen; sig: string; idx: number; ackSig?: string;
 }
 interface DraftState {
   blocks: DisplayBlock[];
@@ -101,9 +101,13 @@ export function compose(st: CanvasState, out: Outline, parts: Block[], theme: Dr
   list.forEach((b, idx) => {
     const fr = frozenFor(st, b.key, out.format);
     if (fr) {
-      const cur = seedsSig(st, fr.f.seeds);
-      const conflict = cur !== fr.f.seedSig && st.acks[b.key] !== cur;
-      res.push({ key: b.key, label: b.label, kind: b.kind, seeds: fr.f.seeds, html: fr.f.html, source: fr.kind, conflict, rev: 0, frozen: fr.f, sig: b.sig, idx, needsAI: false });
+      // Only edits can conflict: a pin means "leave this alone", whatever happens on the canvas.
+      // An edit conflicts when the canvas would now write that part differently, or its cards were removed or muted.
+      const gone = fr.f.seeds.some(id => !id.startsWith('auto:') && st.seeds.find(x => x.id === id)?.status !== 'on' && st.seeds.find(x => x.id === id)?.status !== 'must');
+      const cur = (fr.f.baseSig && b.sig !== 'held:' + b.key ? b.sig : seedsSig(st, fr.f.seeds));
+      const base = fr.f.baseSig && b.sig !== 'held:' + b.key ? fr.f.baseSig : fr.f.seedSig;
+      const conflict = fr.kind === 'edit' && (cur !== base || gone) && st.acks[b.key] !== cur;
+      res.push({ key: b.key, label: b.label, kind: b.kind, seeds: fr.f.seeds, html: fr.f.html, source: fr.kind, conflict, rev: 0, frozen: fr.f, sig: b.sig, idx, needsAI: false, ackSig: cur });
       return;
     }
     const cached = st.ai[b.sig];
@@ -134,8 +138,8 @@ function localPass() {
   const changed: string[] = [];
   const blocks: DisplayBlock[] = composed.map(b => {
     const p = prev.get(b.key);
-    const same = p && p.html === b.html && p.conflict === b.conflict && p.source === b.source;
-    if (!same && !initial) changed.push(b.label);
+    const same = p && p.html === b.html && p.source === b.source;
+    if (!same && !initial && b.source !== 'pin' && b.source !== 'edit') changed.push(b.label);
     return { ...b, rev: same && p ? p.rev : revCounter++ };
   });
   const sigsChanged = composed.filter(b => prevSigs.get(b.key) !== b.sig).map(b => b.key);

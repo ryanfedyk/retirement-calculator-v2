@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { useApp, setView, select, setTool, updateSeed, commit, pokeDraft, type Tool, addSeed } from '../state/store';
+import { useApp, setView, select, setTool, updateSeed, commit, pokeDraft, type Tool, addSeed, mutate } from '../state/store';
 import { groupsOf, isLabelNote } from '../engine/analyze';
 import { autoSources } from '../engine/classify';
 import { useTrace } from '../draft/trace';
@@ -18,6 +18,9 @@ const TOOLS: { k: Tool; label: string; icon: string; key: string }[] = [
   { k: 'generate', label: 'Generate', icon: 'auto_awesome', key: 'G' },
   { k: 'at', label: 'Workspace', icon: 'alternate_email', key: '@' },
 ];
+
+/** Lets a card ignore the click that ends a drag. */
+export let dragEndedAt = 0;
 
 export function Board() {
   const S = useApp(s => s.S)!;
@@ -70,7 +73,24 @@ export function Board() {
     setView({ zoom: z, pan: { x: Math.round(Math.max(16, (r.width - (x1 - x0) * z) / 2) - x0 * z), y: Math.round(64 - y0 * z) } });
   }, []);
   useEffect(() => { const f = () => fit(); window.addEventListener('wc:fit', f); return () => window.removeEventListener('wc:fit', f); }, [fit]);
-  useEffect(() => { const t = setTimeout(() => { if (useApp.getState().S!.seeds.length > 1) fit(); }, 80); return () => clearTimeout(t); }, [S.id, fit]);
+  // On open: nudge apart any cards that overlap (sizes are only known once rendered), then fit the view.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const st = useApp.getState().S!; if (st.seeds.length < 2) return;
+      const items = st.seeds.filter(s => s.type !== 'edits').map(s => ({ id: s.id, x: s.x, y: s.y, w: cardEl(s.id)?.offsetWidth || 250, h: cardEl(s.id)?.offsetHeight || 120 })).sort((a, b) => a.y - b.y || a.x - b.x);
+      let moved = false;
+      for (let i = 0; i < items.length; i++) {
+        const a = items[i];
+        for (let j = 0, guard = 0; j < i && guard < 200; j++) {
+          const b = items[j];
+          if (a.x < b.x + b.w + 12 && a.x + a.w + 12 > b.x && a.y < b.y + b.h + 20 && a.y + a.h + 20 > b.y) { a.y = b.y + b.h + 24; j = -1; guard++; moved = true; }
+        }
+      }
+      if (moved) mutate(S2 => { items.forEach(it => { const s = S2.seeds.find(x => x.id === it.id)!; s.y = it.y; }); }, { noDraft: true });
+      requestAnimationFrame(fit);
+    }, 60);
+    return () => clearTimeout(t);
+  }, [S.id, fit]);
   useEffect(() => { const f = (e: Event) => setTool((e as CustomEvent).detail as Tool); window.addEventListener('wc:pop', f); return () => window.removeEventListener('wc:pop', f); }, []);
 
   const zoomAt = (f: number, cx?: number, cy?: number) => {
@@ -99,7 +119,8 @@ export function Board() {
     const card = t.closest<HTMLElement>('.card');
     if (card) {
       const id = card.dataset.card!; const s = S.seeds.find(x => x.id === id); if (!s) return;
-      if (t.closest('[data-act],textarea,button,mark,.pass')) { select(id); return; }
+      // Drag from anywhere on the card except its text and tools (the type tag drags too; a plain click opens its menu).
+      if (t.closest('textarea,.c-tools,.pass,.c-foot,.edit-row,.rec,.menu')) { select(id); return; }
       select(id);
       drag.current = { id, sx: e.clientX, sy: e.clientY, ox: s.x, oy: s.y, moved: false };
       card.setPointerCapture(e.pointerId); e.preventDefault(); return;
@@ -128,7 +149,7 @@ export function Board() {
   };
   const onUp = () => {
     const d = drag.current;
-    if (d) { drag.current = null; setDragId(null); if (d.moved) { const s = useApp.getState().S!.seeds.find(x => x.id === d.id); if (s?.pg) updateSeed(s.id, { pg: false, w: 320 }, { noDraft: true }); pokeDraft([d.id], 'move', true); commit('Moved card'); } return; }
+    if (d) { drag.current = null; setDragId(null); if (d.moved) { dragEndedAt = Date.now(); const s = useApp.getState().S!.seeds.find(x => x.id === d.id); if (s?.pg) updateSeed(s.id, { pg: false, w: 320 }, { noDraft: true }); pokeDraft([d.id], 'move', true); commit('Moved card'); } return; }
     if (pan.current) { pan.current = null; setPanning(false); }
   };
   const pokeAim = (id: string) => { useTrace.setState({ card: id }); };
@@ -160,7 +181,7 @@ export function Board() {
       </div>
       {board && <div className="zoombar">
         <button className="ibtn sm" onClick={() => zoomAt(1 / 1.15)} aria-label="Zoom out"><Icon name="remove" /></button>
-        <span aria-live="off">{Math.round(S.zoom * 100)}%</span>
+        <span className="zl" data-testid="zoom">{Math.round(S.zoom * 100)}%</span>
         <button className="ibtn sm" onClick={() => zoomAt(1.15)} aria-label="Zoom in"><Icon name="add" /></button>
         <button className="ibtn sm" onClick={fit} aria-label="Fit everything in view" title="Fit"><Icon name="fit_screen" /></button>
       </div>}

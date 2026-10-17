@@ -61,7 +61,7 @@ export function DraftPanel() {
           </div>
         )}
         {alts && <Alts onPick={() => setAlts(false)} />}
-        <div className="dscroll" onScroll={() => useTrace.getState().block && traceBlock(null)}>
+        <div className="dscroll" onScroll={() => { const b = useTrace.getState().block; if (b) traceBlock({ ...b }); }}>
           <div ref={container} className={deck ? 'deck' : 'page'} style={themeStyle(deck, theme)} data-format={outline?.format}>
             {blocks.map(b => <DraftBlock key={b.key} b={b} deck={deck} />)}
           </div>

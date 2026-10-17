@@ -5,7 +5,7 @@
  */
 import type { CanvasState, Format, Palette, Seed } from '../state/types';
 import {
-  ACTION_RE, autoSources, fmtFrom, highlightsFor, isSourceLike, lineKind, parseDir, seedText, srcInfo, toneText, topicOf,
+  isAction, autoSources, fmtFrom, highlightsFor, isSourceLike, lineKind, parseDir, seedText, srcInfo, toneText, topicOf,
   type AutoSource, type Dir,
 } from './classify';
 import { cap, endP, hashStr, kwset, listJoin, noP, overlap, sentences, shorten } from './text';
@@ -58,14 +58,13 @@ export function groupsOf(seeds: Seed[]) {
   if (!labels.length) return map;
   for (const s of seeds) {
     if (labels.includes(s) || ['edits', 'reference', 'direction', 'format'].includes(s.type) || s.pg) continue;
-    let best: Seed | null = null;
+    // The label above whose column this card overlaps the most (ties: the nearest one above).
+    let best: Seed | null = null, bestOv = 0;
     for (const L of labels) {
-      if (L.y >= s.y) continue;
-      const lx0 = L.x - 40, lx1 = L.x + seedW(L) + 40;
-      const cx = s.x + Math.min(seedW(s), 300) / 2;
-      if (cx < lx0 || cx > lx1) continue;
-      if (s.y - L.y > 900) continue;
-      if (!best || L.y > best.y) best = L;
+      if (L.y >= s.y || s.y - L.y > 1200) continue;
+      const ov = Math.min(s.x + seedW(s), L.x + seedW(L) + 40) - Math.max(s.x, L.x - 40);
+      if (ov <= 0) continue;
+      if (!best || ov > bestOv + 20 || (Math.abs(ov - bestOv) <= 20 && L.y > best.y)) { best = L; bestOv = ov; }
     }
     if (best) map[s.id] = best.id;
   }
@@ -167,7 +166,7 @@ export function analyze(st: CanvasState, opts: AnalyzeOpts = {}): Outline {
         if (k === 'assumption') { asms.push({ text: cap(noP(t)), seeds: [s.id], must }); continue; }
         t = t.replace(/^([-*•]|\d+[.)])\s+/, '');
         if (/:$/.test(t) && t.length < 50) { head = noP(t.slice(0, -1)); continue; }
-        const isAct = ACTION_RE.test(t) || /^\[ ?\]/.test(t);
+        const isAct = isAction(t) || /^\[ ?\]/.test(t);
         const parts = t.length > 170 ? sentences(t) : [t];
         parts.forEach((p, pi) => points.push({ text: noP(p.replace(/^\[ ?\]\s*/, '')), seeds: [s.id], order: r + li + pi / 10, must, head, group: groups[s.id], kind: isAct ? 'action' : 'point' }));
       }
@@ -180,7 +179,7 @@ export function analyze(st: CanvasState, opts: AnalyzeOpts = {}): Outline {
       h.sents.forEach((t, i) => {
         if (!h.picked.has(i)) return;
         if (lineKind(t) === 'direction') { const d = parseDir(t); for (const k in d) if (!(k in dir)) (dir as Record<string, string>)[k] = (d as Record<string, string>)[k]; dirSeeds.push(s.id); return; }
-        points.push({ text: noP(t), seeds: [s.id], order: r + i, must, cite: n, head: groupLabel(s.id), group: groups[s.id], kind: ACTION_RE.test(t) ? 'action' : 'point' });
+        points.push({ text: noP(t), seeds: [s.id], order: r + i, must, cite: n, head: groupLabel(s.id), group: groups[s.id], kind: isAction(t) ? 'action' : 'point' });
       });
     }
   }
@@ -188,8 +187,10 @@ export function analyze(st: CanvasState, opts: AnalyzeOpts = {}): Outline {
   autos.forEach((a, i) => {
     const key = 'auto:' + a.id;
     if (lineKind(a.best) === 'direction') { const d = parseDir(a.best); for (const k in d) if (!(k in dir)) (dir as Record<string, string>)[k] = (d as Record<string, string>)[k]; cite(key, a, true); dirSeeds.push(key); return; }
+    // Auto-added sources shape the draft lightly: only a clearly relevant sentence, never an action item.
+    if (a.bestScore < 2) return;
     const n = cite(key, a, true);
-    points.push({ text: noP(a.best), seeds: [key], order: 100000 + i, must: false, cite: n, kind: ACTION_RE.test(a.best) ? 'action' : 'point', auto: true });
+    points.push({ text: noP(a.best), seeds: [key], order: 100000 + i, must: false, cite: n, kind: 'point', auto: true });
   });
 
   // Scenarios
@@ -227,7 +228,7 @@ export function analyze(st: CanvasState, opts: AnalyzeOpts = {}): Outline {
   sections.sort((a, b) => (+((b.leadScore || 0) > 0) - +((a.leadScore || 0) > 0)) || (+!!b.must - +!!a.must) || a.first - b.first);
   sections.sort((a, b) => +a.points.every(p => p.auto) - +b.points.every(p => p.auto));
   const short = dir.length === 'short'; const long = dir.length === 'long';
-  const maxPts = short ? 3 : long ? 8 : 5; const maxSecs = short ? 3 : long ? 8 : 6;
+  const maxPts = short ? 4 : long ? 8 : 5; const maxSecs = short ? 3 : long ? 8 : 6;
   sections = sections.slice(0, maxSecs).map(sec => ({ ...sec, points: sec.points.slice(0, sec.must ? Math.max(maxPts, sec.points.filter(p => p.must).length) : maxPts) }));
 
   // Vendor comparison table
@@ -256,7 +257,9 @@ export function analyze(st: CanvasState, opts: AnalyzeOpts = {}): Outline {
   const pro = sections.filter(s => s.polarity === 'pro'), con = sections.filter(s => s.polarity === 'con');
   if (!table && (pro.length || con.length || model)) {
     const conPts = con.flatMap(s => s.points);
-    const blockers = conPts.filter(p => /\bbefore\b|not (yet )?supported|\buntil\b|\brequires?\b|\bhas to\b|\bmust\b|\bwants?\b/i.test(p.text));
+    // Hard conditions from the "against" side: things that have to happen first.
+    const hard = /\bbefore (any |the )?(rollout|launch|go-live|we )|\bnot (yet )?supported\b|\buntil\b|\brequires?\b|\bhas to\b|\bmust\b|\bblock(s|er|ed)?\b/i;
+    const blockers = conPts.filter(p => hard.test(p.text)).sort((a, b) => +/\bbefore\b/i.test(b.text) - +/\bbefore\b/i.test(a.text));
     const seeds = new Set<string>();
     [...blockers, ...pro.flatMap(s => s.points).slice(0, 2)].forEach(p => p.seeds.forEach(x => seeds.add(x)));
     if (model) model.seeds.forEach(x => seeds.add(x));

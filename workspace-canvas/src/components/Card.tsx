@@ -8,6 +8,7 @@ import { placeNote, revertEdit, splitNote } from '../lib/actions';
 import { AppIcon, Icon, TYPE_ICON } from './Icon';
 import { Menu } from './Menu';
 import { traceCard } from '../draft/trace';
+import { dragEndedAt } from './Board';
 
 const TEXT_TYPES = ['note', 'direction', 'assumption', 'format'];
 
@@ -95,7 +96,7 @@ export const Card = memo(function Card({ s, S, sel, traced, group }: { s: Seed; 
       style={{ left: s.x, top: s.y, width: w }}
       onMouseEnter={() => traceCard(s.id)} onMouseLeave={() => traceCard(null)}>
       <div className="c-head">
-        <button ref={tagBtn} className="ttag" data-act onClick={() => isText && setTagMenu(true)} aria-haspopup={isText ? 'menu' : undefined}
+        <button ref={tagBtn} className="ttag" data-act onClick={() => isText && Date.now() - dragEndedAt > 250 && setTagMenu(true)} aria-haspopup={isText ? 'menu' : undefined}
           title={isText ? 'Change the type' : undefined} aria-label={isText ? `Type: ${typeLabel}. Change type` : typeLabel}>
           <Icon name={icon} />{typeLabel}{group && <span className="group">· in {group}</span>}
         </button>

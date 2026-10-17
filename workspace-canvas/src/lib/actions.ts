@@ -47,7 +47,6 @@ export function startBlank(text = '') {
 export function startRecipe(id: string) {
   const r = RECIPES.find(x => x.id === id); if (!r) return;
   openState(blankState(r.seeds.map(s => mkSeed({ ...s }))));
-  requestAnimationFrame(() => setTimeout(() => window.dispatchEvent(new Event('wc:fit')), 60));
 }
 export function startWithFiles(files: File[]) { startBlank(''); setTimeout(() => files.forEach(f => addFile(f)), 50); }
 
@@ -117,7 +116,7 @@ export function splitNote(s: Seed) {
 /* ---------- Draft parts ---------- */
 const frozenFrom = (b: DisplayBlock, html: string, text: string): Frozen => {
   const S = useApp.getState().S!; const out = useDraft.getState().outline!;
-  return { html, text, seeds: b.seeds, seedSig: seedsSig(S, b.seeds), label: b.label, format: out.format, idx: b.idx };
+  return { html, text, seeds: b.seeds, seedSig: seedsSig(S, b.seeds), baseSig: b.sig.startsWith('held:') ? undefined : b.sig, label: b.label, format: out.format, idx: b.idx };
 };
 export function togglePin(b: DisplayBlock, html: string, text: string) {
   const S = useApp.getState().S!;
@@ -144,7 +143,7 @@ function similarity(a: string, b: string) {
 }
 export function resolveConflict(b: DisplayBlock, how: 'update' | 'keep') {
   if (how === 'update') mutate(S => { delete S.edits[b.key]; delete S.pins[b.key]; delete S.acks[b.key]; if (!Object.keys(S.edits).length) S.seeds = S.seeds.filter(s => s.type !== 'edits'); }, { ids: null, cause: 'edit', label: 'Updated ' + b.label + ' from the canvas', immediate: true });
-  else mutate(S => { S.acks[b.key] = seedsSig(S, b.seeds); }, { ids: null, cause: 'edit', label: 'Kept my version of ' + b.label, immediate: true });
+  else mutate(S => { S.acks[b.key] = b.ackSig || ''; }, { ids: null, cause: 'edit', label: 'Kept my version of ' + b.label, immediate: true });
 }
 export function revertEdit(key: string) {
   mutate(S => { delete S.edits[key]; delete S.acks[key]; if (!Object.keys(S.edits).length) S.seeds = S.seeds.filter(s => s.type !== 'edits'); }, { ids: null, cause: 'edit', label: 'Reverted draft edit', immediate: true });

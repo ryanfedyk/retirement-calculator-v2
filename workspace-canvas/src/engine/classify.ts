@@ -53,7 +53,7 @@ export function fmtFrom(t?: string) {
 const TOPICS = [
   { k: 'results', label: 'Results', kw: 'revenue sales arr growth grew number numbers result results closed quarter q3 q2 percent renewal renewals record best headline satisfaction fell faster' },
   { k: 'customers', label: 'Customers', kw: 'customer customers churn retention smb enterprise client clients user users account accounts tier' },
-  { k: 'pricing', label: 'Pricing and cost', kw: 'price pricing cost costs budget spend $ year contract fixed cheap expensive cheapest seat quote billing' },
+  { k: 'pricing', label: 'Pricing and cost', kw: 'price pricing cost costs budget spend $ year contract fixed cheap expensive cheapest seat quote billing discount discounts plan' },
   { k: 'product', label: 'Product and setup', kw: 'onboarding feature features product self-serve sso release launch support setup integration assistant tool suggestion' },
   { k: 'team', label: 'Team', kw: 'hiring hire team people on-call oncall promotion mentor owner own staff headcount engineer engineers rotation load agent agents' },
   { k: 'plan', label: 'Plan and priorities', kw: 'strategy bet bets priority priorities goal goals plan q4 focus efficiency partnership partnerships region regions' },
@@ -65,7 +65,9 @@ export function topicOf(text: string) {
   for (const t of TOPICS) { let s = 0; for (const w of ws) if (t.set.has(w)) s++; if (s > bs) { bs = s; best = t; } }
   return best;
 }
-export const ACTION_RE = /^(follow up|follow-up|todo|to do|ask |send |schedule |book |decide |confirm |share |set up |find |draft |review |check |email |call |need to|we need to|next:|action:|\[ \])|\b(follow up|by (monday|tuesday|wednesday|thursday|friday|eod|end of))\b|^[A-Z][a-z]+ (to|will) [a-z]/;
+const ACT_START = /^(follow up|follow-up|todo|to do|ask |send |schedule |book |decide |confirm |share |set up |find |draft |review |check |email |call |need to|we need to|next:|action:|\[ \])|\b(follow up|by (monday|tuesday|wednesday|thursday|friday|eod|end of))\b/i;
+/** Lines that read as an action item become next steps. */
+export const isAction = (t: string) => ACT_START.test(t) || /^[A-Z][a-z]+ (to|will) [a-z]/.test(t);
 
 /* ---------- Tone ---------- */
 export function toneText(s: string, tone?: string) {
@@ -130,7 +132,7 @@ const signalOf = (c: CorpusItem) => (c.kind === 'mail' ? 'mail' : c.kind === 'ca
 let signalsOff = new Set<string>();
 export const setSignalsOff = (off: string[]) => (signalsOff = new Set(off));
 
-export interface AutoSource extends CorpusItem { score: number; best: string }
+export interface AutoSource extends CorpusItem { score: number; best: string; bestScore: number }
 /** Related Workspace items, re-ranked as the canvas changes. */
 export function autoSources(st: CanvasState): AutoSource[] {
   const onCanvas = new Set(st.seeds.filter(s => s.srcId).map(s => s.srcId));
@@ -138,13 +140,13 @@ export function autoSources(st: CanvasState): AutoSource[] {
   for (const s of st.seeds) if (s.status !== 'muted' && isSourceLike(s) && !s.placeholder) for (const w of contentWords(srcInfo(s).text)) kw.add(w);
   if (kw.size < 2) return [];
   const pr = new Set(st.pruned || []);
-  const th = kw.size > 30 ? 3 : 2;
+  const th = kw.size > 30 ? 4 : 3;
   return CORPUS.filter(c => !onCanvas.has(c.id) && !pr.has(c.id) && !signalsOff.has(signalOf(c)))
     .map(c => ({ c, score: overlap(kw, c.title + ' ' + c.text) }))
     .filter(x => x.score >= th).sort((a, b) => b.score - a.score).slice(0, 4)
     .map(x => {
       const sents = sentences(x.c.text); let bi = 0, bs = -1;
       sents.forEach((t, i) => { const o = overlap(kw, t); if (o > bs) { bs = o; bi = i; } });
-      return { ...x.c, score: x.score, best: sents[bi] };
+      return { ...x.c, score: x.score, best: sents[bi], bestScore: bs };
     });
 }

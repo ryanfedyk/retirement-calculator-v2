@@ -42,6 +42,8 @@ export interface Frozen {
   seeds: string[];
   /** Fingerprint of the seeds behind this part when it was frozen; a change means a possible conflict. */
   seedSig: string;
+  /** Input signature of the generated part when it was frozen; if the canvas would now write it differently, that's a conflict. */
+  baseSig?: string;
   label: string;
   format: Format;
   idx: number;

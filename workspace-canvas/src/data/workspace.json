@@ -1,0 +1,56 @@
+{
+  "_note": "Fictional sample Workspace data for the Workspace Canvas concept prototype. Not real people, companies or numbers.",
+  "corpus": [
+    {"id":"c-q3","kind":"mail","app":"Mail","title":"Q3 numbers from Finance","meta":"Priya Raman · Monday","text":"Q3 revenue closed at $4.2M, up 18% from Q2. Enterprise renewals reached 94%, our best quarter yet. Churn was concentrated in the SMB tier, at 7% for the quarter. Marketing spend came in 6% under budget."},
+    {"id":"c-qbr","kind":"cal","app":"Calendar","title":"Q3 business review","meta":"Thursday 10:00 · 8 guests","text":"Agenda: review Q3 results, agree the Q4 plan, and confirm hiring priorities. Leadership team and regional leads are attending. A pre-read is requested by Wednesday."},
+    {"id":"c-q2deck","kind":"slides","app":"Drive","title":"Q2 business review deck","meta":"Slides · last quarter","text":"Q2 goals were to launch self-serve onboarding and expand into two new regions. Self-serve onboarding launched in May. The pricing update was planned for Q3. Regional expansion reached one of the two regions."},
+    {"id":"c-maya","kind":"chat","app":"Chat","title":"Chat with Maya, your manager","meta":"Chat · yesterday","text":"Keep the QBR deck to ten slides. Lead with the renewal story. Be honest about SMB churn and what we are doing about it."},
+    {"id":"c-lead","kind":"meet","app":"Meetings","title":"Leadership sync notes","meta":"Meeting notes · last Tuesday","text":"The Q4 priority is efficiency. Hiring is frozen except for sales engineering. The pricing change moves to January. Partnerships need a clear owner."},
+    {"id":"c-strat","kind":"doc","app":"Drive","title":"Q2 strategy","meta":"Doc · owned by you","text":"We are making three bets: enterprise, self-serve and partnerships. The partnerships pipeline stands at 12 deals. Enterprise is the growth engine, and self-serve lowers acquisition cost."},
+    {"id":"c-sam","kind":"meet","app":"Meetings","title":"1:1 with Sam","meta":"Meeting notes · yesterday","text":"Sam wants to own the onboarding project. Sam is worried about on-call load after the last two incidents. Follow up on the promotion timeline before the end of the month. Sam asked for a mentor on the data team."},
+    {"id":"c-oncall","kind":"sheet","app":"Drive","title":"On-call rotation","meta":"Sheet · team","text":"Five engineers share the on-call rotation. The last two incidents both landed on Sam’s shifts. A sixth engineer joins the rotation in November."},
+    {"id":"c-north","kind":"mail","app":"Mail","title":"Northwind proposal","meta":"Proposal · Tuesday","text":"Northwind proposal: $48k per year with a 6-week setup. Includes SSO and a dedicated success manager. The contract term is two years."},
+    {"id":"c-lumen","kind":"mail","app":"Mail","title":"Lumen proposal","meta":"Proposal · Wednesday","text":"Lumen proposal: $39k per year with a 10-week setup. No SSO until their spring release. Support is email only."},
+    {"id":"c-bright","kind":"doc","app":"Drive","title":"Brightline proposal","meta":"PDF · Thursday","text":"Brightline proposal: $55k per year with a 4-week setup. Includes SSO and 24/7 phone support. Pricing is fixed for three years."},
+    {"id":"c-sec","kind":"chat","app":"Chat","title":"Security team thread","meta":"Chat · this week","text":"Any new vendor has to support SSO before launch. Security review takes about two weeks."},
+    {"id":"c-pilot","kind":"doc","app":"Drive","title":"Support assistant pilot results","meta":"Doc · Support Ops","text":"The six-week pilot ran with 40 support agents. Agents using the assistant saved 3.5 hours per week each. First-reply time fell 22% during the pilot. Customer satisfaction held steady at 4.6 out of 5."},
+    {"id":"c-relay","kind":"mail","app":"Mail","title":"Assistant pricing from Relay","meta":"Quote · last week","text":"Relay quotes $30 per seat per month for the support assistant. Annual billing includes onboarding at no extra cost. The support team has 600 eligible agents."},
+    {"id":"c-secai","kind":"chat","app":"Chat","title":"Security review of the assistant","meta":"Chat · security team","text":"The security review found that the assistant keeps conversation logs for 30 days. Data residency in the EU is not supported yet. Security wants a signed data processing agreement before any rollout."},
+    {"id":"c-survey","kind":"doc","app":"Drive","title":"Agent survey on AI tools","meta":"Survey results · 212 replies","text":"38% of agents worry the assistant will make replies feel generic. 61% of agents want help drafting replies to routine tickets. Senior agents asked for an easy way to turn suggestions off."},
+    {"id":"c-analyst","kind":"doc","app":"Drive","title":"Analyst note on AI in support","meta":"PDF · shared with you","text":"Teams that adopt reply assistants typically see 15 to 25% faster resolution. The benefit depends on agents using the tool every day. A loaded support agent costs about $45 per hour."}
+  ],
+  "recipes": [
+    {"id":"r-qbr","title":"Prep the deck for Thursday’s QBR","why":"From your QBR invite, Q2 deck and your chat with your boss","apps":["cal","slides","chat"],"format":"deck",
+     "seeds":[
+       {"type":"note","text":"Q3 business review\nRenewals are the headline at 94%\nSMB churn needs a clear plan\nQ4 is about efficiency","x":80,"y":70,"w":300},
+       {"type":"workspace","srcId":"c-qbr","x":420,"y":70},
+       {"type":"source","srcId":"c-q2deck","x":420,"y":300},
+       {"type":"direction","text":"For the leadership team, keep it to ten slides","x":80,"y":290}
+     ]},
+    {"id":"r-1on1","title":"Recap yesterday’s 1:1 with Sam","why":"From yesterday’s meeting notes","apps":["meet","doc"],"format":"doc",
+     "seeds":[
+       {"type":"note","text":"1:1 recap with Sam\nSam to lead the onboarding project\nOn-call load is too high right now\nFind Sam a mentor on the data team","x":80,"y":70,"w":300},
+       {"type":"workspace","srcId":"c-sam","x":420,"y":70},
+       {"type":"direction","text":"For Sam, friendly and short","x":80,"y":300}
+     ]},
+    {"id":"r-vendor","title":"Compare the three vendor proposals","why":"From three proposals in your inbox and the security thread","apps":["mail","doc","chat"],"format":"doc",
+     "seeds":[
+       {"type":"note","text":"Choose a support vendor\nWe need SSO at launch\nSetup has to finish before January","x":80,"y":70,"w":300},
+       {"type":"source","srcId":"c-north","x":420,"y":50},
+       {"type":"source","srcId":"c-lumen","x":420,"y":280},
+       {"type":"source","srcId":"c-bright","x":750,"y":50},
+       {"type":"direction","text":"For the leadership team, keep it short","x":80,"y":290}
+     ]},
+    {"id":"r-assist","title":"Model the support assistant rollout","why":"From the pilot results, a pricing quote and the security review","apps":["doc","mail","chat"],"format":"doc",
+     "seeds":[
+       {"type":"note","text":"Should we roll out the support assistant?\nWe want faster replies without losing quality","x":80,"y":60,"w":300},
+       {"type":"note","text":"Pro","x":420,"y":40,"w":200},
+       {"type":"source","srcId":"c-pilot","x":420,"y":110},
+       {"type":"source","srcId":"c-relay","x":420,"y":350},
+       {"type":"note","text":"Con","x":760,"y":40,"w":200},
+       {"type":"source","srcId":"c-secai","x":760,"y":110},
+       {"type":"assumption","text":"Assume 10% of agents adopt","x":80,"y":250},
+       {"type":"assumption","text":"Assume 30% of agents adopt","x":80,"y":350}
+     ]}
+  ]
+}

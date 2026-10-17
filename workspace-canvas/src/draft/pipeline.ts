@@ -60,12 +60,13 @@ let pendingIds: Set<string> | null = new Set();
 let prevSigs = new Map<string, string>();
 let prevVerdict: string | null = null;
 let prevFormat: string | null = null;
+let prevThemeSig = '';
 let revCounter = 1;
 let aiFailures = 0;
 
 /** Called on every seed change. Shimmer now, structure soon, AI after a short pause. */
 function schedule(ids: string[] | null, cause: string, immediate?: boolean) {
-  if (cause === 'open') resetDraftMemory();
+  if (cause === 'open') { resetDraftMemory(); prevThemeSig = ''; }
   lastCause = cause;
   if (ids === null) pendingIds = null; else if (pendingIds) ids.forEach(i => pendingIds!.add(i));
   // Tier 0: acknowledge within a frame.
@@ -142,6 +143,9 @@ function localPass() {
     if (!same && !initial && b.source !== 'pin' && b.source !== 'edit') changed.push(b.label);
     return { ...b, rev: same && p ? p.rev : revCounter++ };
   });
+  const themeSig = [out.format, theme.slBg, theme.slAccent, theme.docAccent, theme.img ? theme.img.length : 0].join('|');
+  if (!initial && prevThemeSig && themeSig !== prevThemeSig && !fmtChanged) changed.unshift('the look');
+  prevThemeSig = themeSig;
   const sigsChanged = composed.filter(b => prevSigs.get(b.key) !== b.sig).map(b => b.key);
   prevSigs = new Map(composed.map(b => [b.key, b.sig]));
   prevFormat = out.format;

@@ -136,7 +136,9 @@ export interface AutoSource extends CorpusItem { score: number; best: string; be
 /** Related Workspace items, re-ranked as the canvas changes. */
 export function autoSources(st: CanvasState): AutoSource[] {
   const onCanvas = new Set(st.seeds.filter(s => s.srcId).map(s => s.srcId));
-  const kw = canvasKeywords(st, null);
+  // What the user wrote (notes, titles of chosen sources) decides relevance; source text only widens the net.
+  const user = canvasKeywords(st, null);
+  const kw = new Set(user);
   for (const s of st.seeds) if (s.status !== 'muted' && isSourceLike(s) && !s.placeholder) for (const w of contentWords(srcInfo(s).text)) kw.add(w);
   if (kw.size < 2) return [];
   const pr = new Set(st.pruned || []);
@@ -146,7 +148,7 @@ export function autoSources(st: CanvasState): AutoSource[] {
     .filter(x => x.score >= th).sort((a, b) => b.score - a.score).slice(0, 4)
     .map(x => {
       const sents = sentences(x.c.text); let bi = 0, bs = -1;
-      sents.forEach((t, i) => { const o = overlap(kw, t); if (o > bs) { bs = o; bi = i; } });
+      sents.forEach((t, i) => { const o = overlap(user, t); if (o > bs) { bs = o; bi = i; } });
       return { ...x.c, score: x.score, best: sents[bi], bestScore: bs };
     });
 }

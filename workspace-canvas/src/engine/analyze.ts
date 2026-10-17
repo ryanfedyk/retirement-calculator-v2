@@ -342,9 +342,10 @@ export function toBlocks(out: Outline): Block[] {
   }
   if (out.table) {
     const t = out.table;
-    const rows = t.rows.map(r => `| **${r.vendor}**${r.cite ? ` [${r.cite}]` : ''} | ${r.price} | ${r.setup} | ${r.fit} |${deck ? '' : ` ${r.notes} |`}`);
+    const rows = t.rows.map(r => `| **${r.vendor}**${r.cite ? ` [${r.cite}]` : ''} | ${r.price} | ${r.setup} | ${r.fit} |`);
+    const notes = deck ? '' : '\n\n' + t.rows.map(r => `- **${r.vendor}:** ${r.notes}${r.cite ? ` [${r.cite}]` : ''}`).join('\n');
     B.push({ key: 'table', label: 'Comparison', kind: 'table', ai: false, seeds: t.seeds,
-      md: `## ${deck && t.reco ? t.reco.text.split(':')[0] : 'Side by side'}\n| Vendor | Price | Setup | Fit |${deck ? '' : ' Notes |'}\n|---|---|---|---|${deck ? '' : '---|'}\n${rows.join('\n')}${t.reco ? `\n\n**Recommendation:** ${t.reco.text}` : ''}` });
+      md: `## ${deck && t.reco ? t.reco.text.split(':')[0] : 'Side by side'}\n| Vendor | Price | Setup | Fit |\n|---|---|---|---|\n${rows.join('\n')}${notes}${t.reco ? `\n\n**Recommendation:** ${t.reco.text}` : ''}` });
   }
   if (out.model) {
     B.push({ key: 'outcome', label: 'Modeled outcome', kind: 'outcome', ai: false, seeds: out.model.seeds, md: `## Modeled outcome\n${out.model.md}` });

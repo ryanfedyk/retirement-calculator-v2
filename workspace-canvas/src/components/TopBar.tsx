@@ -52,7 +52,7 @@ export function TopBar() {
       </div>
       <span className="proto-tag top">Concept prototype · sample data</span>
       <button className="ibtn" onClick={toggleTheme} aria-label="Switch light or dark theme" title="Light or dark theme"><Icon name="contrast" /></button>
-      <button className="btn filled open-in" onClick={openInApp} data-testid="open-in">{deck ? 'Open in Slides' : 'Open in Docs'}</button>
+      <button className="btn filled open-in" onClick={openInApp} data-testid="open-in" aria-label={deck ? 'Open in Slides' : 'Open in Docs'}><span className="long">{deck ? 'Open in Slides' : 'Open in Docs'}</span><span className="short">Open</span></button>
     </header>
   );
 }

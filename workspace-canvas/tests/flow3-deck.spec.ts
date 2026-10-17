@@ -14,7 +14,7 @@ test('Flow 3: recipe to deck, reference image changes the look, try another, ope
   const slides = draft(p).locator('.deck .slide');
   expect(await slides.count()).toBeGreaterThanOrEqual(4);
   await expect(p.getByTestId('format-chip')).toContainText('Deck');
-  await expect(p.getByTestId('open-in')).toHaveText('Open in Slides');
+  await expect(p.getByTestId('open-in')).toHaveAttribute('aria-label', 'Open in Slides');
   const bgBefore = await draft(p).locator('.deck').getAttribute('style');
 
   // Open the source stack: prune one, pull one onto the canvas.

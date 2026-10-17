@@ -16,7 +16,7 @@ test('Flow 1: quick notes become a titled, sectioned doc that tightens and respe
   await expect(draft(p).locator('h1.d-title')).toHaveText('Q4 pricing proposal');
   expect(await draft(p).locator('.page h2').count()).toBeGreaterThanOrEqual(2);
   await expect(block(p, 'next')).toContainText('Follow up with Finance');
-  await expect(p.getByTestId('open-in')).toHaveText('Open in Docs');
+  await expect(p.getByTestId('open-in')).toHaveAttribute('aria-label', 'Open in Docs');
   const wordsBefore = parseInt((await p.getByTestId('draft-sub').textContent())!.replace(/\D+/g, ''));
 
   // A direction tightens it.

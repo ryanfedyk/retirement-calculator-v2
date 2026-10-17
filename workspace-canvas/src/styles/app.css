@@ -24,6 +24,8 @@ input, textarea { font: inherit; color: inherit; }
 .btn.text { color: var(--md-primary); padding: 0 12px; }
 .btn.sm { height: 32px; padding: 0 14px; font-size: 13px; }
 .btn.text.sm { padding: 0 10px; }
+.btn .short { display: none; }
+@media (max-width: 760px) { .btn .long { display: none; } .btn .short { display: inline; } }
 .btn .ms { font-size: 18px; margin-left: -4px; }
 .ibtn { position: relative; width: 40px; height: 40px; border-radius: var(--radius-full); display: inline-grid; place-items: center; color: var(--md-on-surface-variant); flex: none; }
 .ibtn:hover { background: var(--state-hover); color: var(--md-on-surface); }
@@ -133,7 +135,7 @@ input, textarea { font: inherit; color: inherit; }
 .card.label-note textarea { font-size: 18px !important; font-weight: 500; }
 .card.pg { width: 580px; border-radius: var(--radius-lg); box-shadow: var(--elev-1); }
 .c-head { display: flex; align-items: center; gap: 4px; padding: 8px 8px 0 10px; min-height: 36px; cursor: grab; }
-.ttag { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 500; color: var(--c-note); height: 24px; padding: 0 8px 0 4px; border-radius: var(--radius-sm); }
+.ttag { white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 500; color: var(--c-note); height: 24px; padding: 0 8px 0 4px; border-radius: var(--radius-sm); }
 .ttag:hover { background: var(--state-hover); }
 .ttag .ms { font-size: 16px; }
 .card[data-type=direction] .ttag { color: var(--c-direction); } .card[data-type=source] .ttag { color: var(--c-source); } .card[data-type=reference] .ttag { color: var(--c-reference); }

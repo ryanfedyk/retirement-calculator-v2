@@ -67,8 +67,8 @@ export function aiPlugin(env: Env): Plugin {
     try { await run(fallbackOk); }
     catch (e) {
       if (signal.aborted) { res.end(); return; }
-      if (fallbackOk && e instanceof Anthropic.BadRequestError && /fallback/i.test(e.message)) {
-        fallbackOk = false; // this account or SDK doesn't take server-side fallbacks; carry on without
+      if (fallbackOk && e instanceof Anthropic.BadRequestError) {
+        fallbackOk = false; // this account doesn't take server-side fallbacks (or the beta changed); carry on without
         try { await run(false); } catch (e2) { res.write(`\n=== __error\n${(e2 as Error).message}\n`); }
       } else res.write(`\n=== __error\n${(e as Error).message}\n`);
     }

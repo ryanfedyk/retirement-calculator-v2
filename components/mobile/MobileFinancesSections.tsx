@@ -17,7 +17,9 @@ import { Field, Num, Two, Section, Toggle, TextInput, money, inputStyle, labelSt
 // Portfolio hub uses, so the two can't drift). Touch-friendly twin of LeftPanel's
 // `variant="finances"`.
 export default function MobileFinancesSections({ livePrices = {} }: { livePrices?: LivePrices }) {
-  const { config, baseline, updateBaseline, setEquityComp } = useFinancialStore();
+  // "Your Finances" edits apply to the scenario you're viewing, not just the
+  // baseline (so your rate/number changes actually move the plan) — see the store.
+  const { config, baseline, updateBaselineAndApply: updateBaseline, setEquityComp } = useFinancialStore();
   const ip = baseline.income_profile;
   const sp = baseline.spending;
   const ma = baseline.market_assumptions;

@@ -220,7 +220,9 @@ export default function LeftPanel({ livePrices = {}, variant = "sidebar", onClos
   // same across every scenario — they live in the finances variant only.
   const showFacts  = variant === "finances";
   const showLevers = variant === "sidebar";
-  const { config, snapshot, profile, baseline, updateNestedConfig, updateNestedSnapshot, updateConfig, updateBaseline, setEquityComp, setChildren } = useFinancialStore();
+  // "Your Finances" edits your real numbers, so they apply to the scenario you're
+  // viewing (updateBaselineAndApply), not just the baseline — see the store.
+  const { config, snapshot, profile, baseline, updateNestedConfig, updateNestedSnapshot, updateConfig, updateBaselineAndApply: updateBaseline, setEquityComp, setChildren } = useFinancialStore();
   const kids = profile.children;
   const thisYear = new Date().getFullYear();
   const age = thisYear - (config.birth_year || 1985);

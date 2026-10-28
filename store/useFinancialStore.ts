@@ -107,6 +107,16 @@ interface FinancialStore extends HorizonState {
     section: K,
     updates: Partial<Baseline[K]> | Baseline[K]
   ) => void;
+  /** Like `updateBaseline`, but ALSO force-applies the edited fields to the
+   *  scenario you're currently viewing — re-linking just those paths on the
+   *  active scenario so the edit always moves the on-screen plan, even if that
+   *  scenario had previously forked them. Other scenarios keep their forks.
+   *  This is the write path for the "Your Finances" surface (your real numbers),
+   *  as opposed to Settings' baseline defaults which respect existing overrides. */
+  updateBaselineAndApply: <K extends SharedSection>(
+    section: K,
+    updates: Partial<Baseline[K]> | Baseline[K]
+  ) => void;
   /** Equity-comp setup (whether you hold company equity + the ticker) is a shared
    *  fact, not a per-scenario lever, so it's written uniformly to every scenario. */
   setEquityComp: (updates: { use_equity_comp?: boolean; concentrated_symbol?: string; auto_sell_rsus?: boolean }) => void;
@@ -383,6 +393,41 @@ export const useFinancialStore = create<FinancialStore>()(
               if (!sc.unlinked.includes(`${section}.${k}`)) sectionObj[k] = src[k];
             }
             return { ...sc, config: { ...sc.config, [section]: sectionObj } };
+          });
+          const active = scenarios.find((x) => x.id === s.activeScenarioId) ?? scenarios[0];
+          return { baseline, scenarios, config: active.config };
+        }),
+
+      updateBaselineAndApply: (section, updates) =>
+        set((s) => {
+          const merged = mergeSection(s.baseline[section], updates) as Baseline[typeof section];
+          const baseline: Baseline = { ...s.baseline, [section]: merged };
+          const keys = patchKeys(updates);
+          const scenarios = s.scenarios.map((sc) => {
+            const isActive = sc.id === s.activeScenarioId;
+            if (section === "life_events") {
+              // The scenario you're viewing always adopts the edit (and re-links);
+              // other scenarios keep a forked list untouched.
+              if (!isActive && sc.unlinked.includes("life_events")) return sc;
+              const unlinked = isActive ? sc.unlinked.filter((p) => p !== "life_events") : sc.unlinked;
+              return { ...sc, unlinked, config: { ...sc.config, life_events: structuredClone(merged as SimulationConfiguration["life_events"]) } };
+            }
+            const sectionObj = { ...(sc.config[section as keyof SimulationConfiguration] as object) } as Record<string, unknown>;
+            const src = merged as Record<string, unknown>;
+            let unlinked = sc.unlinked;
+            for (const k of keys) {
+              const path = `${section}.${k}`;
+              if (isActive) {
+                // Force-apply to the scenario on screen and re-link just this path,
+                // so the edit takes effect even if it had been forked here before.
+                sectionObj[k] = src[k];
+                unlinked = unlinked.filter((p) => p !== path);
+              } else if (!sc.unlinked.includes(path)) {
+                // Other scenarios: flow in only where they haven't forked it.
+                sectionObj[k] = src[k];
+              }
+            }
+            return { ...sc, unlinked, config: { ...sc.config, [section]: sectionObj } };
           });
           const active = scenarios.find((x) => x.id === s.activeScenarioId) ?? scenarios[0];
           return { baseline, scenarios, config: active.config };

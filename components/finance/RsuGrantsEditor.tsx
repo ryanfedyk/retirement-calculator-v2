@@ -22,7 +22,8 @@ const inputStyle: React.CSSProperties = {
 const asFullDate = (d: string) => (d && d.length === 7 ? `${d}-01` : d);
 
 export default function RsuGrantsEditor() {
-  const { baseline, updateBaseline } = useFinancialStore();
+  // RSU grants live in "Your Finances", so edits apply to the active scenario too.
+  const { baseline, updateBaselineAndApply: updateBaseline } = useFinancialStore();
   const grants: RsuGrant[] = baseline.income_profile.rsu_grants ?? [];
   const defaultVy = baseline.income_profile.vesting_years || 4;
   const vestDay = baseline.income_profile.rsu_vest_day ?? 25;

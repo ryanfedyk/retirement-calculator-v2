@@ -228,9 +228,12 @@ export function findMonteCarloFiYears(
   // isn't met within this window it's reported as "not within horizon".
   const scanTo = Math.min(maxYear, baseYear + 15);
   for (let yr = Math.max(startYear, baseYear); yr <= scanTo; yr++) {
+    // Keep the configured post-exit plan (sabbatical/jump/bridge) so a planned
+    // bridge job's income counts — consistent with findCashflowFiPoint (the base
+    // year this scan starts from) and the risk-chart success rate.
     const cfg: SimulationConfiguration = {
       ...structuredClone(config),
-      career_path: { ...config.career_path, exit_year: yr, use_sabbatical: false, use_jump: false, use_bridge: false },
+      career_path: { ...config.career_path, exit_year: yr },
     };
     const { successRate } = runMonteCarlo(snapshot, cfg, livePrice, { runs, seed });
     scanned.push({ year: yr, successRate });

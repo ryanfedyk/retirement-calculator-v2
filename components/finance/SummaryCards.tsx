@@ -94,7 +94,7 @@ export default function SummaryCards({ indepDate, fiLoading = false, netWorth, n
 
   const fiExplain = (
     <>
-      <p style={{ margin: 0 }}>The earliest date you could <strong>stop working entirely</strong> and still fund every projected expense — your mortgage until it’s paid off, healthcare (which outpaces inflation), college, taxes — all the way to age 100, offset by Social Security and rental income as they begin.</p>
+      <p style={{ margin: 0 }}>The earliest date you could <strong>leave your main job</strong> — following through on any bridge job, sabbatical, or jump you’ve planned after it — and still fund every projected expense — your mortgage until it’s paid off, healthcare (which outpaces inflation), college, taxes — all the way to age 100, offset by Social Security and rental income (and any bridge pay) as they come in.</p>
       <p style={{ margin: "10px 0 0" }}>Crucially, this is a date you can <strong>actually plan around</strong>: it’s the earliest year that stays funded across <strong>at least 90% of simulated market paths</strong>, including ones where returns arrive in a bad order early on (the biggest risk in early retirement). We don’t show the arithmetic-earliest date that only works if the market cooperates — just the one with a real safety margin.</p>
       <p style={{ margin: "10px 0 0" }}>Push your exit earlier than this and a bad decade could sink the plan, so it reads <strong>“not reached”</strong> until the odds clear the bar. Trim spending, save more, or adjust returns and the date moves in. The <em>Progress to FI</em> card tracks toward the savings this date needs, so its bar fills to 100% right as this date arrives.</p>
       {indepDate

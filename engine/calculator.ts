@@ -1935,8 +1935,11 @@ export function findRetirementWindow(
  * the retirement cash-flow model forward from each candidate month and keep the
  * first that never depletes — the durable, defensible FI date.
  *
- * "Retire now" means a clean full stop: no sabbatical/jump/bridge phases (those
- * are optional career moves, not part of "can I afford to quit?"). Scans years
+ * This respects your CONFIGURED career plan: if you've set up a bridge job (or a
+ * sabbatical/jump) after leaving your main job, those phases — and the bridge's
+ * income — count toward funding the plan, so the FI date reflects the path you
+ * actually intend to take rather than a hypothetical clean stop. (It matches
+ * findRetirementWindow, which has always used the plan as-is.) Scans years
  * coarsely, then refines to the month, so cost stays comparable to
  * findRetirementWindow. Returns the matching point on the passed-in trajectory
  * (so its date/monthIndex line up with the chart), or undefined if the plan never
@@ -1954,21 +1957,18 @@ export function findCashflowFiPoint(
   const main = points ?? runSimulation(snapshot, config, livePrice);
   if (!main.length) return undefined;
 
-  // A "retire fully at (year, month)" config: exit then, with no post-exit career
-  // phases — a pure "stop working and live off assets" test. FI requires a genuine
-  // cushion (assessPlan "on-track"), NOT merely "never hits exactly $0": a plan
-  // that only survives because Social Security rescues a near-zero portfolio late
-  // in retirement is technically solvent but is not what anyone means by "funded
-  // to 100" — its wealth chart nose-dives toward zero. "on-track" means the
-  // leanest retired moment still holds well over a year of expenses in reserve.
+  // A "leave the main job at (year, month)" config, keeping the configured post-exit
+  // plan (sabbatical/jump/bridge) so a planned bridge job's income counts toward
+  // funding. FI requires a genuine cushion (assessPlan "on-track"), NOT merely
+  // "never hits exactly $0": a plan that only survives because Social Security
+  // rescues a near-zero portfolio late in retirement is technically solvent but is
+  // not what anyone means by "funded to 100" — its wealth chart nose-dives toward
+  // zero. "on-track" means the leanest retired moment still holds well over a year
+  // of expenses in reserve.
   const survives = (year: number, month: number): boolean => {
     const cfg: SimulationConfiguration = {
       ...structuredClone(config),
-      career_path: {
-        ...config.career_path,
-        exit_year: year, exit_month: month,
-        use_sabbatical: false, use_jump: false, use_bridge: false,
-      },
+      career_path: { ...config.career_path, exit_year: year, exit_month: month },
     };
     return assessPlan(runSimulation(snapshot, cfg, livePrice)).health === "on-track";
   };

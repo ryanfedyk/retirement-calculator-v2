@@ -354,7 +354,7 @@ export default function MobileFinancial({ livePrices, onOpenConfig }: Props) {
       <PlanHistory hideUntilTrend livePrices={livePrices} />
 
       {/* AI Coach — insight below the chart */}
-      <AiAnalysis config={config} snapshot={snapshot} trajectory={traj} liveGoogPrice={liveGoogPrice} />
+      <AiAnalysis config={config} snapshot={enrichedSnapshot} trajectory={traj} liveGoogPrice={liveGoogPrice} />
     </div>
   );
 }

@@ -1,67 +1,21 @@
 import { NextResponse } from "next/server";
-
-const FALLBACK_PRICES: Record<string, number> = {
-  GOOG:  180.00,
-  GOOGL: 180.00,
-  VTI:   270.00,
-  VFIAX: 520.00,
-  VGHCX:  95.00,
-  VSEQX:  48.00,
-  VTIVX:  42.00,
-  SPY:   530.00,
-  QQQ:   460.00,
-};
-
-async function fetchOne(symbol: string): Promise<{ price: number; source: "yahoo" | "fallback" }> {
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
-  // Hard timeout so a slow or network-policy-blocked Yahoo can't hang the whole
-  // request. Without this the client gets no prices and every holding reads $0,
-  // which collapses net worth and pushes the FI date years out.
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 3500);
-  try {
-    const res = await fetch(url, {
-      headers: { "User-Agent": "Mozilla/5.0" },
-      next: { revalidate: 60 },
-      signal: ctrl.signal,
-    });
-    if (!res.ok) throw new Error(`Yahoo ${res.status}`);
-    const data = await res.json();
-    const price = data?.chart?.result?.[0]?.meta?.regularMarketPrice as number | undefined;
-    if (!price) throw new Error("No price in response");
-    return { price, source: "yahoo" };
-  } finally {
-    clearTimeout(timer);
-  }
-}
+import { fetchQuotes } from "@/lib/quotes";
 
 // GET /api/quotes?symbols=GOOG,VTI,VFIAX,VGHCX,VSEQX
+// Returns { prices: { SYM: { price, source, previousClose, change, changePct } } }.
+// `price`/`source` are unchanged; the day-change fields are additive.
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const raw = searchParams.get("symbols") ?? "";
-  const symbols = raw
-    .split(",")
-    .map(s => s.trim().toUpperCase())
-    .filter(Boolean);
+  const symbols = raw.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean);
 
-  if (!symbols.length) {
-    return NextResponse.json({ prices: {} });
+  if (!symbols.length) return NextResponse.json({ prices: {} });
+
+  const quotes = await fetchQuotes(symbols);
+  const prices: Record<string, { price: number; source: "yahoo" | "fallback"; previousClose: number | null; change: number | null; changePct: number | null }> = {};
+  for (const sym of symbols) {
+    const q = quotes[sym];
+    if (q) prices[sym] = { price: q.price, source: q.source, previousClose: q.previousClose, change: q.change, changePct: q.changePct };
   }
-
-  // Fetch all in parallel; fall back per-symbol on error
-  const settled = await Promise.allSettled(
-    symbols.map(sym => fetchOne(sym).then(r => ({ sym, ...r })))
-  );
-
-  const prices: Record<string, { price: number; source: "yahoo" | "fallback" }> = {};
-  settled.forEach((r, i) => {
-    const sym = symbols[i];
-    if (r.status === "fulfilled") {
-      prices[sym] = { price: r.value.price, source: r.value.source };
-    } else {
-      prices[sym] = { price: FALLBACK_PRICES[sym] ?? 100, source: "fallback" };
-    }
-  });
-
   return NextResponse.json({ prices, fetchedAt: Date.now() });
 }

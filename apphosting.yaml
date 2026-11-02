@@ -18,6 +18,26 @@ env:
     availability:
       - RUNTIME
 
+  # ── Daily brief ("The Morning Glide") — weekday-morning email digest ──────────
+  # Sender address for the Gmail-app-password SMTP send (not secret; just an email).
+  - variable: GMAIL_USER
+    value: "ryanfedyk@gmail.com"
+    availability:
+      - RUNTIME
+  # The 16-char Gmail app password. Create it, then store it:
+  #   firebase apphosting:secrets:set GMAIL_APP_PASSWORD
+  - variable: GMAIL_APP_PASSWORD
+    secret: GMAIL_APP_PASSWORD
+    availability:
+      - RUNTIME
+  # Shared secret the scheduled GitHub Action presents to /api/digest/send. Set the
+  # SAME value here and as a GitHub Actions repo secret named CRON_SECRET:
+  #   firebase apphosting:secrets:set CRON_SECRET   (value: openssl rand -hex 32)
+  - variable: CRON_SECRET
+    secret: CRON_SECRET
+    availability:
+      - RUNTIME
+
   # Firebase web-app config. Public values — inlined into the client bundle at
   # build time, so they must be available at BUILD. Set them with:
   #   firebase apphosting:secrets:set <NAME>  (or plain values in the console)

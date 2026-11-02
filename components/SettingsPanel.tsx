@@ -9,6 +9,7 @@ import { STATE_OPTIONS } from "@/engine/state_tax";
 import { estimateMonthlySocialSecurity, estimatePIA, estimateSpousalBenefit } from "@/engine/social_security";
 import { ageFromISO, isoDate, yearOfISO } from "@/config/sharedConfig";
 import LinkedNumberField from "@/components/finance/LinkedNumberField";
+import { useAuth } from "@/lib/auth/AuthProvider";
 
 // ── Primitives (touch-friendly; fontSize 16 avoids iOS zoom) ──────────────────
 const inputStyle: React.CSSProperties = {
@@ -90,7 +91,18 @@ export default function SettingsPanel() {
   const setOpen = useUIStore(s => s.setSettingsOpen);
   const dollarMode = useUIStore(s => s.dollarMode);
   const setDollarMode = useUIStore(s => s.setDollarMode);
-  const { baseline, profile, updateProfile, updateConfig, updateBaseline, setChildren, resetToDefaults } = useFinancialStore();
+  const { baseline, profile, updateProfile, updateConfig, updateBaseline, setChildren, resetToDefaults, digestPrefs, updateDigestPrefs } = useFinancialStore();
+  const { user, configured: authConfigured } = useAuth();
+  const briefHour = digestPrefs?.hour ?? 7;
+  const hourLabel = `${((briefHour + 11) % 12) + 1}:00 ${briefHour < 12 ? "AM" : "PM"}`;
+  const setBriefOn = (on: boolean) => {
+    if (on) {
+      const tz = (typeof Intl !== "undefined" && Intl.DateTimeFormat().resolvedOptions().timeZone) || "America/New_York";
+      updateDigestPrefs({ optIn: true, tz, email: user?.email ?? digestPrefs?.email ?? "", hour: briefHour });
+    } else {
+      updateDigestPrefs({ optIn: false });
+    }
+  };
   const confirm = useConfirm();
 
   useEffect(() => {
@@ -288,6 +300,32 @@ export default function SettingsPanel() {
                 })}
               </div>
             </Field>
+          </Section>
+
+          {/* ── Daily Brief ── weekday-morning email digest. */}
+          <Section title="Daily Brief" accent="#c4784e">
+            {!authConfigured || !user ? (
+              <div style={{ fontSize: 12, color: C.inkSoft, lineHeight: 1.55, background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 14px" }}>
+                Sign in to turn on your weekday-morning brief — it&apos;s emailed to your account and built from your <strong>primary scenario</strong>.
+              </div>
+            ) : (
+              <>
+                <Toggle label="Email me a weekday-morning brief" on={!!digestPrefs?.optIn} onChange={setBriefOn} />
+                {digestPrefs?.optIn && (
+                  <>
+                    <Field label="Send around" hint="Weekday mornings, in your current timezone. A short editorial note on your portfolio, milestones, and whether your date could move.">
+                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <Stepper value={briefHour} onChange={(v) => updateDigestPrefs({ hour: Math.max(0, Math.min(23, v)) })} min={0} max={23} />
+                        <span style={{ fontSize: 15, fontWeight: 700, color: C.ink, fontVariantNumeric: "tabular-nums" }}>{hourLabel}</span>
+                      </div>
+                    </Field>
+                    <div style={{ fontSize: 11, color: C.inkFaint, lineHeight: 1.5 }}>
+                      Sending to <strong>{user.email}</strong>{digestPrefs?.tz ? ` · ${digestPrefs.tz}` : ""}.
+                    </div>
+                  </>
+                )}
+              </>
+            )}
           </Section>
 
           {/* ── Reset ── */}

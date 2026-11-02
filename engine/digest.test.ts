@@ -83,6 +83,24 @@ describe("buildDigest", () => {
     expect(d.milestones.length).toBeGreaterThan(0);
   });
 
+  it("reports a Monte Carlo number and its day-over-day change", () => {
+    const { snapshot, config } = plan();
+    const first = buildDigest({ config, snapshot, quotes, liveConcentratedPrice: 198 });
+    expect(first.monteCarlo.successRate).toBeGreaterThanOrEqual(0);
+    expect(first.monteCarlo.successRate).toBeLessThanOrEqual(1);
+    expect(first.monteCarlo.deltaPts).toBeNull(); // no prior → first read
+    expect(typeof first.metrics.mcSuccess).toBe("number");
+
+    // Fixed seed → re-running identical inputs gives an identical number, so a
+    // "yesterday" equal to today yields a 0-pt delta (signal, not sampling noise).
+    const again = buildDigest({ config, snapshot, quotes, liveConcentratedPrice: 198, previous: { mcSuccess: first.metrics.mcSuccess } });
+    expect(again.monteCarlo.deltaPts).toBeCloseTo(0, 6);
+
+    // A worse "yesterday" → today reads as an improvement in points.
+    const improved = buildDigest({ config, snapshot, quotes, liveConcentratedPrice: 198, previous: { mcSuccess: first.metrics.mcSuccess - 0.02 } });
+    expect(improved.monteCarlo.deltaPts!).toBeCloseTo(2, 5);
+  });
+
   it("surfaces a seasonal 'Nth-to-last' milestone as exit approaches", () => {
     const { snapshot, config } = plan();
     config.career_path.exit_year = YEAR + 1; // exit next year → the current season is near its last

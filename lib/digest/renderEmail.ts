@@ -88,8 +88,14 @@ export function renderDigestHtml(d: Digest, opts: { appUrl?: string } = {}): str
       <div style="font:600 14px/1.4 ${SANS};color:${mv.color}">${esc(mv.text)}</div>
       <div style="margin-top:5px;font:400 12px/1.5 ${SANS};color:${INK_SOFT}">Net worth ${usd(d.portfolio.netWorth)}${d.portfolio.concentratedSymbol ? ` · ${Math.round(d.portfolio.concentrationPct * 100)}% in ${esc(d.portfolio.concentratedSymbol)}` : ""}</div>`));
 
-  // The plan — reassurance that the money still works, plus the upside
+  // The plan — reassurance that the money still works, plus the Monte Carlo
+  // odds (with day-over-day change) and the upside.
   const healthColor = d.plan.health === "on-track" ? TEAL_DK : WARM;
+  const mcPct = Math.round(d.monteCarlo.successRate * 100);
+  const dpt = d.monteCarlo.deltaPts;
+  const mcDelta = dpt == null ? `<span style="color:${INK_FAINT}">· first read</span>`
+    : Math.abs(dpt) < 0.1 ? `<span style="color:${INK_SOFT}">· flat vs. yesterday</span>`
+    : `<span style="color:${dpt > 0 ? UP : DOWN};font-weight:600">· ${dpt > 0 ? "▲" : "▼"} ${Math.abs(dpt).toFixed(1)} pts vs. yesterday</span>`;
   rows.push(ruleRow);
   rows.push(row(`
       ${kicker("The plan")}
@@ -97,6 +103,9 @@ export function renderDigestHtml(d: Digest, opts: { appUrl?: string } = {}): str
       <div style="font:600 17px/1.3 ${SERIF};color:${healthColor}">${esc(d.plan.headline)}</div>
       <div style="height:7px"></div>
       <div style="font:400 14px/1.6 ${SANS};color:${INK_MID}">${esc(d.plan.reassurance)}</div>
+      <div style="margin-top:12px;font:400 13px/1.5 ${SANS};color:${INK_SOFT}">
+        <span style="font-weight:700;color:${INK}">${mcPct}%</span> Monte Carlo odds of funding the plan to 100 ${mcDelta}
+      </div>
       ${d.upside ? `
       <div style="margin-top:14px;background:${TEAL_WASH};border-radius:12px;padding:14px 16px">
         ${kicker("Upside")}
@@ -169,6 +178,11 @@ export function renderDigestText(d: Digest): string {
   L.push(`Net worth ${usd(d.portfolio.netWorth)}${d.portfolio.concentratedSymbol ? ` · ${Math.round(d.portfolio.concentrationPct * 100)}% in ${d.portfolio.concentratedSymbol}` : ""}`);
   L.push("");
   L.push(`THE PLAN: ${d.plan.headline} ${d.plan.reassurance}`);
+  {
+    const dpt = d.monteCarlo.deltaPts;
+    const delta = dpt == null ? "(first read)" : Math.abs(dpt) < 0.1 ? "(flat vs. yesterday)" : `(${dpt > 0 ? "+" : "−"}${Math.abs(dpt).toFixed(1)} pts vs. yesterday)`;
+    L.push(`Monte Carlo odds of funding to 100: ${Math.round(d.monteCarlo.successRate * 100)}% ${delta}`);
+  }
   if (d.upside) { L.push(""); L.push(`UPSIDE: ${d.upside.note}`); }
   for (const m of d.milestones.slice(1, 3)) { L.push(""); L.push(`• ${m.headline} — ${m.note}`); }
   L.push("");

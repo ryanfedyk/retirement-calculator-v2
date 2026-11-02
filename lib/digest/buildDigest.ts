@@ -10,11 +10,11 @@ import {
   portfolioAllocation,
   findCashflowFiPoint,
   runSimulation,
-  assessPlan,
   type FinancialSnapshot,
   type SimulationConfiguration,
   type PlanHealth,
 } from "@/engine/calculator";
+import { runMonteCarlo } from "@/engine/montecarlo";
 import { buildSeasons, currentSeasonIndex, type Season } from "@/lib/seasons";
 import { detectMilestones, type Milestone } from "@/lib/digest/milestones";
 
@@ -60,8 +60,14 @@ export interface Digest {
   fiDate: string | null;         // deterministic base-case FI date, if reached
   /** Reassurance that the plan still holds — health + a plain-language line. */
   plan: { health: PlanHealth; headline: string; reassurance: string };
+  /** Monte Carlo odds of funding the plan to 100, with the day-over-day change.
+   *  deltaPts is null on the first brief (no prior value to compare against). */
+  monteCarlo: { successRate: number; deltaPts: number | null };
   /** "If your stocks do better, you could move your date up" — null if no gain. */
   upside: { betterFiYear: number; yearsEarlier: number | null; note: string } | null;
+  /** Today's key figures — the send route persists these so tomorrow's brief can
+   *  show the day-over-day deltas (Monte Carlo odds especially). */
+  metrics: { ymd: string; mcSuccess: number; investable: number; fiYear: number | null };
   /** Editorial lede — set deterministically here; the send route may replace it
    *  with an AI-written one when Gemini is available. */
   editorial: string;
@@ -81,6 +87,12 @@ export interface BuildDigestInput {
   /** Live price for the concentrated/employer symbol (0 → fall back to quote/snapshot). */
   liveConcentratedPrice?: number;
   now?: Date;
+  /** Yesterday's brief figures (the send route loads them from the user doc), so
+   *  the brief can report the day-over-day change in the Monte Carlo odds. */
+  previous?: { mcSuccess?: number | null; investable?: number | null; fiYear?: number | null } | null;
+  /** Monte Carlo paths for the odds number. Fixed seed, so the day-over-day delta
+   *  reflects real plan/price moves, not sampling noise. Default 400. */
+  monteCarloRuns?: number;
 }
 
 const MOVER_THRESHOLD = 0.01;     // |1%| counts as a notable daily move
@@ -162,9 +174,8 @@ export function buildDigest(input: BuildDigestInput): Digest {
     }
   }
 
-  // ── Deterministic FI date (base case) + plan health ─────────────────────────
+  // ── Deterministic FI date (base case) ───────────────────────────────────────
   const base = runSimulation(snapshot, config, live);
-  const health = assessPlan(base).health;
   const fiPt = findCashflowFiPoint(snapshot, config, live, base);
   const fiDate = fiPt?.date ?? null;
   const fiYearBase = fiDate ? Number(fiDate.split(" ")[1]) || null : null;
@@ -184,7 +195,9 @@ export function buildDigest(input: BuildDigestInput): Digest {
   const betterFiPt = findCashflowFiPoint(snapshot, better, live);
   const betterFiYear = betterFiPt ? Number(betterFiPt.date.split(" ")[1]) || null : null;
   let upside: Digest["upside"] = null;
-  if (betterFiYear != null && (fiYearBase == null || betterFiYear < fiYearBase)) {
+  // Only a forward move counts: the better year must be this year or later AND
+  // earlier than the base case (you can't pull a date into the past).
+  if (betterFiYear != null && betterFiYear >= now.getFullYear() && (fiYearBase == null || betterFiYear < fiYearBase)) {
     const yearsEarlier = fiYearBase != null ? fiYearBase - betterFiYear : null;
     upside = {
       betterFiYear,
@@ -195,8 +208,18 @@ export function buildDigest(input: BuildDigestInput): Digest {
     };
   }
 
-  // ── Plan-intact reassurance ─────────────────────────────────────────────────
-  const plan = composePlan(health, fiDate);
+  // ── Monte Carlo odds of funding to 100, + the day-over-day change ───────────
+  // Fixed seed (runMonteCarlo's default) → the number only moves when the plan or
+  // prices move, so the delta since yesterday is signal, not sampling jitter.
+  const mcSuccess = runMonteCarlo(snapshot, config, live, { runs: input.monteCarloRuns ?? 400 }).successRate;
+  const prevMc = input.previous?.mcSuccess;
+  const monteCarlo = {
+    successRate: mcSuccess,
+    deltaPts: prevMc != null ? (mcSuccess - prevMc) * 100 : null,
+  };
+
+  // ── Plan reassurance — keyed off the HONEST odds, not just the median path ──
+  const plan = composePlan(mcSuccess, fiDate);
 
   // ── Things to keep in mind ──────────────────────────────────────────────────
   const keepInMind: string[] = [];
@@ -265,7 +288,14 @@ export function buildDigest(input: BuildDigestInput): Digest {
     phaseAlert,
     fiDate,
     plan,
+    monteCarlo,
     upside,
+    metrics: {
+      ymd: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`,
+      mcSuccess,
+      investable: nw.investable,
+      fiYear: fiYearBase,
+    },
     editorial,
     milestones,
     keepInMind,
@@ -289,26 +319,37 @@ function composeEditorial(a: { greetingName: string | null; dayChangePct: number
   return `${mood}. A good ${a.season.toLowerCase()} morning to keep the plan boring and the compounding loud.`;
 }
 
-/** Plain-language reassurance that the plan still holds, keyed off plan health. */
-function composePlan(health: PlanHealth, fiDate: string | null): Digest["plan"] {
-  if (health === "on-track") {
+/** Plain-language reassurance keyed off the Monte Carlo odds — the honest,
+ *  sequence-risk-aware number — so the prose never oversells a shaky plan next to
+ *  a low success rate. `health` is derived here for the UI chip color. */
+function composePlan(mcSuccess: number, fiDate: string | null): Digest["plan"] {
+  const pct = Math.round(mcSuccess * 100);
+  const fi = fiDate ? ` A fully-funded stop pencils out by ${fiDate}.` : "";
+  if (mcSuccess >= 0.88) {
     return {
-      health,
+      health: "on-track",
       headline: "Your plan is intact.",
-      reassurance: `On the base case it still funds every modeled expense — mortgage, healthcare, taxes, the works — all the way to 100, with a real cushion.${fiDate ? ` A full stop pencils out by ${fiDate}.` : ""} Nothing on the tape today changes that.`,
+      reassurance: `The odds back it up — about ${pct}% of simulated market paths fund every expense to 100, mortgage and healthcare included.${fi} Nothing on the tape today changes that.`,
     };
   }
-  if (health === "tight") {
+  if (mcSuccess >= 0.72) {
     return {
-      health,
-      headline: "Your plan holds — with a thin cushion.",
-      reassurance: `It funds to 100 on the base case, but the margin is slim, so a rough early stretch would test it.${fiDate ? ` A funded stop pencils out around ${fiDate}.` : ""} Keeping spending and the exit date a little flexible is the whole game here.`,
+      health: "on-track",
+      headline: "Your plan is in good shape.",
+      reassurance: `Roughly ${pct}% of randomized market paths fund the whole thing to 100 — a solid base with a little room to firm up.${fi}`,
+    };
+  }
+  if (mcSuccess >= 0.55) {
+    return {
+      health: "tight",
+      headline: "Your plan works — with real sequence risk.",
+      reassurance: `The median path funds to 100, but only about ${pct}% of randomized paths do; a rough early decade is the thing to respect.${fi} Keeping spending and the exit date a little flexible is the whole game here.`,
     };
   }
   return {
-    health,
-    headline: "A gap to close — not a crisis.",
-    reassurance: `On the base case the plan doesn't quite fund to 100 yet${fiDate ? "" : " and there's no funded full-stop date in view"}. More runway, slightly lower spending, or stronger returns closes it — and you've got levers for all three.`,
+    health: "shortfall",
+    headline: "The odds need shoring up — not a crisis.",
+    reassurance: `About ${pct}% of market paths fund to 100 right now, so a bad sequence would bite.${fiDate ? "" : " There's no fully-funded stop date in view yet."} More runway, slightly lower spending, or stronger returns moves it — and you've got levers for all three.`,
   };
 }
 

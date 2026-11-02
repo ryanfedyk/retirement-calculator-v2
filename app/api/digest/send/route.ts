@@ -49,7 +49,7 @@ export async function POST(req: Request) {
       if (d.exists) docs.push({ id: d.id, data: () => d.data() as UserDoc });
     } else {
       const snap = await db.collection("users").where("digestPrefs.optIn", "==", true).get();
-      snap.forEach((d) => docs.push({ id: d.id, data: () => d.data() as UserDoc }));
+      for (const d of snap.docs) docs.push({ id: d.id, data: () => d.data() as UserDoc });
     }
   } catch (e) {
     return NextResponse.json({ error: "query failed", detail: e instanceof Error ? e.message : String(e) }, { status: 500 });

@@ -19,6 +19,11 @@ env:
       - RUNTIME
 
   # ── Daily brief ("The Morning Glide") — weekday-morning email digest ──────────
+  # NOTE: a referenced secret must exist in Secret Manager AND the App Hosting
+  # service account must have "Secret Manager Secret Accessor" on it, or the
+  # rollout fails with "error resolving secret version". The CLI grants this for
+  # you (firebase apphosting:secrets:set / :grantaccess); the Secret Manager UI
+  # does not — grant it there manually under the secret's Permissions tab.
   # Sender address for the Gmail-app-password SMTP send (not secret; just an email).
   - variable: GMAIL_USER
     value: "ryanfedyk@gmail.com"

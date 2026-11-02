@@ -129,7 +129,7 @@ export function CloudSyncProvider({ children }: { children: ReactNode }) {
     const unsub = useFinancialStore.subscribe((state) => {
       if (!uidRef.current) return; // not signed in
 
-      const slice = { profile: state.profile, config: state.config, snapshot: state.snapshot, baseline: state.baseline, scenarios: state.scenarios, activeScenarioId: state.activeScenarioId, primaryScenarioId: state.primaryScenarioId, planHistory: state.planHistory };
+      const slice = { profile: state.profile, config: state.config, snapshot: state.snapshot, baseline: state.baseline, scenarios: state.scenarios, activeScenarioId: state.activeScenarioId, primaryScenarioId: state.primaryScenarioId, planHistory: state.planHistory, digestPrefs: state.digestPrefs };
       const serialized = JSON.stringify(slice);
       // Ignore changes that don't touch the persisted slice (e.g. livePrice).
       if (serialized === lastSerialized.current) return;
@@ -155,8 +155,12 @@ export function CloudSyncProvider({ children }: { children: ReactNode }) {
             activeScenarioId: state.activeScenarioId,
             primaryScenarioId: state.primaryScenarioId,
             planHistory: state.planHistory,
+            digestPrefs: state.digestPrefs,
             updatedAt: serverTimestamp(),
-          });
+          // merge so server-managed fields (e.g. digestState written by the brief
+          // send route) survive client saves; the client still overwrites all of
+          // its own fields each time (arrays are replaced, not deep-merged).
+          }, { merge: true });
           setStatus("saved");
         } catch (e) {
           console.error("[cloud] save failed", e);

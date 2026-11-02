@@ -11,6 +11,9 @@ import {
   isoDate,
   type UserProfile,
 } from "@/config/sharedConfig";
+import type { DigestPrefs } from "@/lib/digest/schedule";
+
+const DEFAULT_DIGEST_PREFS: DigestPrefs = { optIn: false, hour: 7, tz: "", email: "" };
 
 /**
  * Sections that live in the shared **baseline** ("the real you") rather than
@@ -79,6 +82,9 @@ export interface HorizonState {
   primaryScenarioId: string;
   /** Monthly snapshots of the primary plan, oldest first. */
   planHistory: PlanHistoryPoint[];
+  /** Weekday-morning email brief preferences (synced to Firestore; the send route
+   *  reads them server-side). */
+  digestPrefs: DigestPrefs;
 }
 
 interface FinancialStore extends HorizonState {
@@ -159,6 +165,8 @@ interface FinancialStore extends HorizonState {
   removeHistoryPoint: (id: string) => void;
   resetToDefaults: () => void;
   hydrate: (state: Partial<HorizonState>) => void;
+  /** Update the weekday-morning brief preferences (opt-in, send hour, timezone, email). */
+  updateDigestPrefs: (updates: Partial<DigestPrefs>) => void;
 }
 
 /** Union two history series by point id (monthly points share one id per month;
@@ -305,6 +313,7 @@ export const useFinancialStore = create<FinancialStore>()(
       activeScenarioId: seed.activeScenarioId,
       primaryScenarioId: seed.activeScenarioId,
       planHistory: [],
+      digestPrefs: { ...DEFAULT_DIGEST_PREFS },
       livePrice: 0,
 
       updateProfile: (updates) =>
@@ -632,6 +641,9 @@ export const useFinancialStore = create<FinancialStore>()(
           return { profile: DEFAULT_PROFILE, snapshot: DEFAULT_SNAPSHOT, baseline: pickShared(DEFAULT_SIM_CONFIG), config: DEFAULT_SIM_CONFIG, ...seeded, primaryScenarioId: seeded.activeScenarioId, planHistory: [] };
         }),
 
+      updateDigestPrefs: (updates) =>
+        set((s) => ({ digestPrefs: { ...DEFAULT_DIGEST_PREFS, ...s.digestPrefs, ...updates } })),
+
       hydrate: (state) =>
         set((s) => {
           const profile = state.profile ?? s.profile;
@@ -659,7 +671,8 @@ export const useFinancialStore = create<FinancialStore>()(
           const primaryScenarioId = scenarios.some((x) => x.id === state.primaryScenarioId)
             ? state.primaryScenarioId! : activeScenarioId;
           const planHistory = mergeHistory(state.planHistory ?? [], s.planHistory ?? []);
-          return { profile, snapshot: state.snapshot ?? s.snapshot, baseline, scenarios, activeScenarioId, primaryScenarioId, planHistory, config };
+          const digestPrefs = { ...DEFAULT_DIGEST_PREFS, ...s.digestPrefs, ...state.digestPrefs };
+          return { profile, snapshot: state.snapshot ?? s.snapshot, baseline, scenarios, activeScenarioId, primaryScenarioId, planHistory, digestPrefs, config };
         }),
       };
     },
@@ -670,7 +683,7 @@ export const useFinancialStore = create<FinancialStore>()(
       partialize: (s) => ({
         profile: s.profile, snapshot: s.snapshot, baseline: s.baseline, config: s.config,
         scenarios: s.scenarios, activeScenarioId: s.activeScenarioId, primaryScenarioId: s.primaryScenarioId,
-        planHistory: s.planHistory,
+        planHistory: s.planHistory, digestPrefs: s.digestPrefs,
       }),
       migrate: (persisted: unknown) => {
         const p = persisted as Partial<HorizonState> & { config?: SimulationConfiguration };

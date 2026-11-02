@@ -8,7 +8,12 @@ name: Daily brief
 on:
   schedule:
     - cron: "0 10-16 * * 1-5" # hourly 10:00–16:00 UTC, Mon–Fri
-  workflow_dispatch: {} # manual "Run workflow" button for testing
+  workflow_dispatch: # manual "Run workflow" button for testing
+    inputs:
+      force:
+        description: "Send now, ignoring the weekday/hour schedule (for testing)"
+        type: boolean
+        default: false
 
 jobs:
   send:
@@ -18,9 +23,13 @@ jobs:
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           APP_URL: https://retirement-calc-v2--retirement-calc-v2.us-east4.hosted.app
+          FORCE: ${{ inputs.force }}
         run: |
           if [ -z "$CRON_SECRET" ]; then echo "CRON_SECRET repo secret is not set — skipping"; exit 0; fi
-          code=$(curl -sS -o /tmp/resp.json -w "%{http_code}" -X POST "$APP_URL/api/digest/send" \
+          URL="$APP_URL/api/digest/send"
+          # `force` only exists on manual runs; when ticked, bypass the schedule.
+          if [ "$FORCE" = "true" ]; then URL="$URL?force=1"; echo "Force send ON"; fi
+          code=$(curl -sS -o /tmp/resp.json -w "%{http_code}" -X POST "$URL" \
             -H "Authorization: Bearer $CRON_SECRET" -H "Content-Type: application/json")
           echo "HTTP $code"; cat /tmp/resp.json || true
           # A non-2xx is a real failure worth surfacing in the Actions log.

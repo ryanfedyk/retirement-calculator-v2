@@ -64,7 +64,48 @@ describe("buildDigest", () => {
     expect(html).toContain("investable");
     expect(html).not.toContain("undefined");
     const text = renderDigestText(d);
-    expect(text).toContain("PORTFOLIO:");
+    expect(text).toContain("THE NUMBER:");
     expect(text).toContain("KEEP IN MIND:");
+  });
+
+  it("produces an editorial lede and at least one milestone", () => {
+    const d = buildDigest({ config: plan().config, snapshot: plan().snapshot, quotes, liveConcentratedPrice: 198 });
+    expect(d.editorial.length).toBeGreaterThan(20);
+    // Plan-intact reassurance is always present.
+    expect(["on-track", "tight", "shortfall"]).toContain(d.plan.health);
+    expect(d.plan.headline.length).toBeGreaterThan(0);
+    expect(d.plan.reassurance.length).toBeGreaterThan(20);
+    // Upside is either absent or a well-formed "you could move your date up" note.
+    if (d.upside) { expect(typeof d.upside.betterFiYear).toBe("number"); expect(d.upside.note).toMatch(/upside/i); }
+    expect(Array.isArray(d.milestones)).toBe(true);
+    // The fixture exits in 3 years with a concentrated position → there's always
+    // something to mark (a season countdown, a review window, concentration, etc.).
+    expect(d.milestones.length).toBeGreaterThan(0);
+  });
+
+  it("reports a Monte Carlo number and its day-over-day change", () => {
+    const { snapshot, config } = plan();
+    const first = buildDigest({ config, snapshot, quotes, liveConcentratedPrice: 198 });
+    expect(first.monteCarlo.successRate).toBeGreaterThanOrEqual(0);
+    expect(first.monteCarlo.successRate).toBeLessThanOrEqual(1);
+    expect(first.monteCarlo.deltaPts).toBeNull(); // no prior → first read
+    expect(typeof first.metrics.mcSuccess).toBe("number");
+
+    // Fixed seed → re-running identical inputs gives an identical number, so a
+    // "yesterday" equal to today yields a 0-pt delta (signal, not sampling noise).
+    const again = buildDigest({ config, snapshot, quotes, liveConcentratedPrice: 198, previous: { mcSuccess: first.metrics.mcSuccess } });
+    expect(again.monteCarlo.deltaPts).toBeCloseTo(0, 6);
+
+    // A worse "yesterday" → today reads as an improvement in points.
+    const improved = buildDigest({ config, snapshot, quotes, liveConcentratedPrice: 198, previous: { mcSuccess: first.metrics.mcSuccess - 0.02 } });
+    expect(improved.monteCarlo.deltaPts!).toBeCloseTo(2, 5);
+  });
+
+  it("surfaces a seasonal 'Nth-to-last' milestone as exit approaches", () => {
+    const { snapshot, config } = plan();
+    config.career_path.exit_year = YEAR + 1; // exit next year → the current season is near its last
+    const d = buildDigest({ config, snapshot, quotes, liveConcentratedPrice: 198, now: new Date(YEAR, 0, 15) }); // January
+    const hasCountdown = d.milestones.some((m) => /last/.test(m.headline.toLowerCase()));
+    expect(hasCountdown).toBe(true);
   });
 });

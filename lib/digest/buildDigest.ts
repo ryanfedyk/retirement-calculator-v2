@@ -9,10 +9,14 @@ import {
   netWorthToday,
   portfolioAllocation,
   findCashflowFiPoint,
+  runSimulation,
   type FinancialSnapshot,
   type SimulationConfiguration,
+  type PlanHealth,
 } from "@/engine/calculator";
+import { runMonteCarlo } from "@/engine/montecarlo";
 import { buildSeasons, currentSeasonIndex, type Season } from "@/lib/seasons";
+import { detectMilestones, type Milestone } from "@/lib/digest/milestones";
 
 export interface QuoteLike { price: number; previousClose: number | null; changePct: number | null }
 
@@ -54,6 +58,21 @@ export interface Digest {
   };
   phaseAlert: DigestPhaseAlert | null;
   fiDate: string | null;         // deterministic base-case FI date, if reached
+  /** Reassurance that the plan still holds — health + a plain-language line. */
+  plan: { health: PlanHealth; headline: string; reassurance: string };
+  /** Monte Carlo odds of funding the plan to 100, with the day-over-day change.
+   *  deltaPts is null on the first brief (no prior value to compare against). */
+  monteCarlo: { successRate: number; deltaPts: number | null };
+  /** "If your stocks do better, you could move your date up" — null if no gain. */
+  upside: { betterFiYear: number; yearsEarlier: number | null; note: string } | null;
+  /** Today's key figures — the send route persists these so tomorrow's brief can
+   *  show the day-over-day deltas (Monte Carlo odds especially). */
+  metrics: { ymd: string; mcSuccess: number; investable: number; fiYear: number | null };
+  /** Editorial lede — set deterministically here; the send route may replace it
+   *  with an AI-written one when Gemini is available. */
+  editorial: string;
+  /** Human + financial milestones, most resonant first ([0] is featured). */
+  milestones: Milestone[];
   keepInMind: string[];
   holdingsNotes: string[];
   seasonalNote: string;
@@ -68,6 +87,12 @@ export interface BuildDigestInput {
   /** Live price for the concentrated/employer symbol (0 → fall back to quote/snapshot). */
   liveConcentratedPrice?: number;
   now?: Date;
+  /** Yesterday's brief figures (the send route loads them from the user doc), so
+   *  the brief can report the day-over-day change in the Monte Carlo odds. */
+  previous?: { mcSuccess?: number | null; investable?: number | null; fiYear?: number | null } | null;
+  /** Monte Carlo paths for the odds number. Fixed seed, so the day-over-day delta
+   *  reflects real plan/price moves, not sampling noise. Default 400. */
+  monteCarloRuns?: number;
 }
 
 const MOVER_THRESHOLD = 0.01;     // |1%| counts as a notable daily move
@@ -150,20 +175,62 @@ export function buildDigest(input: BuildDigestInput): Digest {
   }
 
   // ── Deterministic FI date (base case) ───────────────────────────────────────
-  const fiPt = findCashflowFiPoint(snapshot, config, live);
+  const base = runSimulation(snapshot, config, live);
+  const fiPt = findCashflowFiPoint(snapshot, config, live, base);
   const fiDate = fiPt?.date ?? null;
+  const fiYearBase = fiDate ? Number(fiDate.split(" ")[1]) || null : null;
+
+  // ── "If your stocks do better" — recompute the FI year under hotter returns ──
+  // Nudge the concentrated position's growth (and the diversified rate a touch)
+  // up by a few points and see whether a funded exit pulls forward. This is the
+  // reassuring, actionable bit: good markets could move the date up.
+  const better: SimulationConfiguration = {
+    ...structuredClone(config),
+    market_assumptions: {
+      ...config.market_assumptions,
+      goog_growth_rate: (config.market_assumptions.goog_growth_rate ?? 0) + (config.use_equity_comp ? 3 : 0),
+      market_return_rate: (config.market_assumptions.market_return_rate ?? 0) + 1.5,
+    },
+  };
+  const betterFiPt = findCashflowFiPoint(snapshot, better, live);
+  const betterFiYear = betterFiPt ? Number(betterFiPt.date.split(" ")[1]) || null : null;
+  let upside: Digest["upside"] = null;
+  // Only a forward move counts: the better year must be this year or later AND
+  // earlier than the base case (you can't pull a date into the past).
+  if (betterFiYear != null && betterFiYear >= now.getFullYear() && (fiYearBase == null || betterFiYear < fiYearBase)) {
+    const yearsEarlier = fiYearBase != null ? fiYearBase - betterFiYear : null;
+    upside = {
+      betterFiYear,
+      yearsEarlier,
+      note: fiYearBase == null
+        ? `Here's the upside: if markets run a few points hotter than planned, a fully-funded exit shows up around ${betterFiYear} — where the base case doesn't reach one yet. Worth watching the tape with that in mind.`
+        : `Here's the upside: if your stocks compound a few points faster than planned, a funded exit moves up to ~${betterFiYear}${yearsEarlier && yearsEarlier >= 1 ? ` — about ${yearsEarlier} year${yearsEarlier === 1 ? "" : "s"} sooner` : ""}. If the market keeps cooperating, it's worth revisiting whether you could pull the date forward.`,
+    };
+  }
+
+  // ── Monte Carlo odds of funding to 100, + the day-over-day change ───────────
+  // Fixed seed (runMonteCarlo's default) → the number only moves when the plan or
+  // prices move, so the delta since yesterday is signal, not sampling jitter.
+  const mcSuccess = runMonteCarlo(snapshot, config, live, { runs: input.monteCarloRuns ?? 400 }).successRate;
+  const prevMc = input.previous?.mcSuccess;
+  const monteCarlo = {
+    successRate: mcSuccess,
+    deltaPts: prevMc != null ? (mcSuccess - prevMc) * 100 : null,
+  };
+
+  // ── Plan reassurance — keyed off the HONEST odds, not just the median path ──
+  const plan = composePlan(mcSuccess, fiDate);
 
   // ── Things to keep in mind ──────────────────────────────────────────────────
   const keepInMind: string[] = [];
   if (alloc.concentration >= 0.4 && concSym) {
     keepInMind.push(`${Math.round(alloc.concentration * 100)}% of your investable assets sit in ${concSym} — a concentrated bet. Your divestment plan trims this over time; a daily swing here moves your whole number.`);
   }
-  // (The phase transition gets its own "Where you are" block, so it isn't repeated here.)
-  if (fiDate) keepInMind.push(`Base case: your plan funds a full stop by ${fiDate}. Open the Risk view for the odds-adjusted date.`);
-  else keepInMind.push(`The base case doesn't yet reach a fully-funded stop in the horizon — more runway or lower spending moves it in.`);
+  // (The phase transition and the FI date get their own blocks, so they aren't repeated here.)
   if (dayChangePct != null && Math.abs(dayChangePct) >= 0.02) {
     keepInMind.push(`Today's ${dayChangePct >= 0 ? "gain" : "drop"} of ${(Math.abs(dayChangePct) * 100).toFixed(1)}% is noise at your horizon — the plan is built to ride sequences like this. Zoom out.`);
   }
+  if (!keepInMind.length) keepInMind.push("Nothing urgent on the board. Most days the best move is no move — keep the plan boring and let it compound.");
 
   // ── Holdings notes (v1: notable moves; real headlines are a later add-on) ────
   const holdingsNotes: string[] = [];
@@ -174,6 +241,25 @@ export function buildDigest(input: BuildDigestInput): Digest {
 
   // ── Seasonal note ───────────────────────────────────────────────────────────
   const seasonalNote = `${calendarSeason(now.getMonth())} — ${current?.focus ?? "stay the course and keep compounding."}`;
+
+  // ── Milestones — the human-and-financial moments worth marking ──────────────
+  const fiYear = fiDate ? Number(fiDate.split(" ")[1]) || null : null;
+  const milestones = detectMilestones({
+    now, config, seasons, currentIndex: idx,
+    investable: nw.investable,
+    concentration: alloc.concentration,
+    concentratedSymbol: concSym,
+    equityOn: config.use_equity_comp === true,
+    fiYear,
+  });
+
+  // ── Editorial lede (deterministic default; the route may swap in an AI one) ──
+  const editorial = composeEditorial({
+    greetingName: input.profile?.displayName?.split(" ")[0] ?? null,
+    dayChangePct,
+    featured: milestones[0] ?? null,
+    season: calendarSeason(now.getMonth()),
+  });
 
   const dateLabel = now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
 
@@ -201,9 +287,69 @@ export function buildDigest(input: BuildDigestInput): Digest {
     },
     phaseAlert,
     fiDate,
+    plan,
+    monteCarlo,
+    upside,
+    metrics: {
+      ymd: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`,
+      mcSuccess,
+      investable: nw.investable,
+      fiYear: fiYearBase,
+    },
+    editorial,
+    milestones,
     keepInMind,
     holdingsNotes,
     seasonalNote,
+  };
+}
+
+/** A short editorial lede with a little personality. Deterministic but varied by
+ *  the day's mood + the featured milestone, so it never reads like a form letter. */
+function composeEditorial(a: { greetingName: string | null; dayChangePct: number | null; featured: Milestone | null; season: string }): string {
+  const mood = a.dayChangePct == null ? "The market's quiet this morning"
+    : a.dayChangePct >= 0.005 ? "Green on the screen this morning"
+    : a.dayChangePct <= -0.005 ? "A little red on the tape — which, at your horizon, means almost nothing"
+    : "The tape's flat this morning";
+  // The featured milestone gets its own block below, so the lede only sets the
+  // mood and points at it — it never repeats the milestone's words.
+  if (a.featured) {
+    return `${mood} — but the number isn't the headline today. There's a marker on the calendar worth more than any single session.`;
+  }
+  return `${mood}. A good ${a.season.toLowerCase()} morning to keep the plan boring and the compounding loud.`;
+}
+
+/** Plain-language reassurance keyed off the Monte Carlo odds — the honest,
+ *  sequence-risk-aware number — so the prose never oversells a shaky plan next to
+ *  a low success rate. `health` is derived here for the UI chip color. */
+function composePlan(mcSuccess: number, fiDate: string | null): Digest["plan"] {
+  const pct = Math.round(mcSuccess * 100);
+  const fi = fiDate ? ` A fully-funded stop pencils out by ${fiDate}.` : "";
+  if (mcSuccess >= 0.88) {
+    return {
+      health: "on-track",
+      headline: "Your plan is intact.",
+      reassurance: `The odds back it up — about ${pct}% of simulated market paths fund every expense to 100, mortgage and healthcare included.${fi} Nothing on the tape today changes that.`,
+    };
+  }
+  if (mcSuccess >= 0.72) {
+    return {
+      health: "on-track",
+      headline: "Your plan is in good shape.",
+      reassurance: `Roughly ${pct}% of randomized market paths fund the whole thing to 100 — a solid base with a little room to firm up.${fi}`,
+    };
+  }
+  if (mcSuccess >= 0.55) {
+    return {
+      health: "tight",
+      headline: "Your plan works — with real sequence risk.",
+      reassurance: `The median path funds to 100, but only about ${pct}% of randomized paths do; a rough early decade is the thing to respect.${fi} Keeping spending and the exit date a little flexible is the whole game here.`,
+    };
+  }
+  return {
+    health: "shortfall",
+    headline: "The odds need shoring up — not a crisis.",
+    reassurance: `About ${pct}% of market paths fund to 100 right now, so a bad sequence would bite.${fiDate ? "" : " There's no fully-funded stop date in view yet."} More runway, slightly lower spending, or stronger returns moves it — and you've got levers for all three.`,
   };
 }
 

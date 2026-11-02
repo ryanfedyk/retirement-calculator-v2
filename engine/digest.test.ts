@@ -64,7 +64,24 @@ describe("buildDigest", () => {
     expect(html).toContain("investable");
     expect(html).not.toContain("undefined");
     const text = renderDigestText(d);
-    expect(text).toContain("PORTFOLIO:");
+    expect(text).toContain("THE NUMBER:");
     expect(text).toContain("KEEP IN MIND:");
+  });
+
+  it("produces an editorial lede and at least one milestone", () => {
+    const d = buildDigest({ config: plan().config, snapshot: plan().snapshot, quotes, liveConcentratedPrice: 198 });
+    expect(d.editorial.length).toBeGreaterThan(20);
+    expect(Array.isArray(d.milestones)).toBe(true);
+    // The fixture exits in 3 years with a concentrated position → there's always
+    // something to mark (a season countdown, a review window, concentration, etc.).
+    expect(d.milestones.length).toBeGreaterThan(0);
+  });
+
+  it("surfaces a seasonal 'Nth-to-last' milestone as exit approaches", () => {
+    const { snapshot, config } = plan();
+    config.career_path.exit_year = YEAR + 1; // exit next year → the current season is near its last
+    const d = buildDigest({ config, snapshot, quotes, liveConcentratedPrice: 198, now: new Date(YEAR, 0, 15) }); // January
+    const hasCountdown = d.milestones.some((m) => /last/.test(m.headline.toLowerCase()));
+    expect(hasCountdown).toBe(true);
   });
 });

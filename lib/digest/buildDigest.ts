@@ -13,6 +13,7 @@ import {
   type SimulationConfiguration,
 } from "@/engine/calculator";
 import { buildSeasons, currentSeasonIndex, type Season } from "@/lib/seasons";
+import { detectMilestones, type Milestone } from "@/lib/digest/milestones";
 
 export interface QuoteLike { price: number; previousClose: number | null; changePct: number | null }
 
@@ -54,6 +55,11 @@ export interface Digest {
   };
   phaseAlert: DigestPhaseAlert | null;
   fiDate: string | null;         // deterministic base-case FI date, if reached
+  /** Editorial lede — set deterministically here; the send route may replace it
+   *  with an AI-written one when Gemini is available. */
+  editorial: string;
+  /** Human + financial milestones, most resonant first ([0] is featured). */
+  milestones: Milestone[];
   keepInMind: string[];
   holdingsNotes: string[];
   seasonalNote: string;
@@ -175,6 +181,25 @@ export function buildDigest(input: BuildDigestInput): Digest {
   // ── Seasonal note ───────────────────────────────────────────────────────────
   const seasonalNote = `${calendarSeason(now.getMonth())} — ${current?.focus ?? "stay the course and keep compounding."}`;
 
+  // ── Milestones — the human-and-financial moments worth marking ──────────────
+  const fiYear = fiDate ? Number(fiDate.split(" ")[1]) || null : null;
+  const milestones = detectMilestones({
+    now, config, seasons, currentIndex: idx,
+    investable: nw.investable,
+    concentration: alloc.concentration,
+    concentratedSymbol: concSym,
+    equityOn: config.use_equity_comp === true,
+    fiYear,
+  });
+
+  // ── Editorial lede (deterministic default; the route may swap in an AI one) ──
+  const editorial = composeEditorial({
+    greetingName: input.profile?.displayName?.split(" ")[0] ?? null,
+    dayChangePct,
+    featured: milestones[0] ?? null,
+    season: calendarSeason(now.getMonth()),
+  });
+
   const dateLabel = now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
 
   return {
@@ -201,10 +226,27 @@ export function buildDigest(input: BuildDigestInput): Digest {
     },
     phaseAlert,
     fiDate,
+    editorial,
+    milestones,
     keepInMind,
     holdingsNotes,
     seasonalNote,
   };
+}
+
+/** A short editorial lede with a little personality. Deterministic but varied by
+ *  the day's mood + the featured milestone, so it never reads like a form letter. */
+function composeEditorial(a: { greetingName: string | null; dayChangePct: number | null; featured: Milestone | null; season: string }): string {
+  const mood = a.dayChangePct == null ? "The market's quiet this morning"
+    : a.dayChangePct >= 0.005 ? "Green on the screen this morning"
+    : a.dayChangePct <= -0.005 ? "A little red on the tape — which, at your horizon, means almost nothing"
+    : "The tape's flat this morning";
+  // The featured milestone gets its own block below, so the lede only sets the
+  // mood and points at it — it never repeats the milestone's words.
+  if (a.featured) {
+    return `${mood} — but the number isn't the headline today. There's a marker on the calendar worth more than any single session.`;
+  }
+  return `${mood}. A good ${a.season.toLowerCase()} morning to keep the plan boring and the compounding loud.`;
 }
 
 export function usd(n: number): string {

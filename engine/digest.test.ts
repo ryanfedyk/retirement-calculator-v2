@@ -71,6 +71,12 @@ describe("buildDigest", () => {
   it("produces an editorial lede and at least one milestone", () => {
     const d = buildDigest({ config: plan().config, snapshot: plan().snapshot, quotes, liveConcentratedPrice: 198 });
     expect(d.editorial.length).toBeGreaterThan(20);
+    // Plan-intact reassurance is always present.
+    expect(["on-track", "tight", "shortfall"]).toContain(d.plan.health);
+    expect(d.plan.headline.length).toBeGreaterThan(0);
+    expect(d.plan.reassurance.length).toBeGreaterThan(20);
+    // Upside is either absent or a well-formed "you could move your date up" note.
+    if (d.upside) { expect(typeof d.upside.betterFiYear).toBe("number"); expect(d.upside.note).toMatch(/upside/i); }
     expect(Array.isArray(d.milestones)).toBe(true);
     // The fixture exits in 3 years with a concentrated position → there's always
     // something to mark (a season countdown, a review window, concentration, etc.).

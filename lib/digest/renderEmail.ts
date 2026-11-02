@@ -88,6 +88,22 @@ export function renderDigestHtml(d: Digest, opts: { appUrl?: string } = {}): str
       <div style="font:600 14px/1.4 ${SANS};color:${mv.color}">${esc(mv.text)}</div>
       <div style="margin-top:5px;font:400 12px/1.5 ${SANS};color:${INK_SOFT}">Net worth ${usd(d.portfolio.netWorth)}${d.portfolio.concentratedSymbol ? ` · ${Math.round(d.portfolio.concentrationPct * 100)}% in ${esc(d.portfolio.concentratedSymbol)}` : ""}</div>`));
 
+  // The plan — reassurance that the money still works, plus the upside
+  const healthColor = d.plan.health === "on-track" ? TEAL_DK : WARM;
+  rows.push(ruleRow);
+  rows.push(row(`
+      ${kicker("The plan")}
+      <div style="height:10px"></div>
+      <div style="font:600 17px/1.3 ${SERIF};color:${healthColor}">${esc(d.plan.headline)}</div>
+      <div style="height:7px"></div>
+      <div style="font:400 14px/1.6 ${SANS};color:${INK_MID}">${esc(d.plan.reassurance)}</div>
+      ${d.upside ? `
+      <div style="margin-top:14px;background:${TEAL_WASH};border-radius:12px;padding:14px 16px">
+        ${kicker("Upside")}
+        <div style="height:6px"></div>
+        <div style="font:400 14px/1.6 ${SANS};color:${INK}">${esc(d.upside.note)}</div>
+      </div>` : ""}`));
+
   // Also worth marking
   if (more.length) {
     rows.push(ruleRow);
@@ -151,6 +167,9 @@ export function renderDigestText(d: Digest): string {
   L.push("");
   L.push(`THE NUMBER: ${usd(d.portfolio.investable)} investable · ${mv.text}`);
   L.push(`Net worth ${usd(d.portfolio.netWorth)}${d.portfolio.concentratedSymbol ? ` · ${Math.round(d.portfolio.concentrationPct * 100)}% in ${d.portfolio.concentratedSymbol}` : ""}`);
+  L.push("");
+  L.push(`THE PLAN: ${d.plan.headline} ${d.plan.reassurance}`);
+  if (d.upside) { L.push(""); L.push(`UPSIDE: ${d.upside.note}`); }
   for (const m of d.milestones.slice(1, 3)) { L.push(""); L.push(`• ${m.headline} — ${m.note}`); }
   L.push("");
   L.push(`FRAMING: ${d.framing.seasonName}${d.framing.seasonLabel ? ` (${d.framing.seasonLabel})` : ""}`);

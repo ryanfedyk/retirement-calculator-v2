@@ -9,8 +9,11 @@ import {
   netWorthToday,
   portfolioAllocation,
   findCashflowFiPoint,
+  runSimulation,
+  assessPlan,
   type FinancialSnapshot,
   type SimulationConfiguration,
+  type PlanHealth,
 } from "@/engine/calculator";
 import { buildSeasons, currentSeasonIndex, type Season } from "@/lib/seasons";
 import { detectMilestones, type Milestone } from "@/lib/digest/milestones";
@@ -55,6 +58,10 @@ export interface Digest {
   };
   phaseAlert: DigestPhaseAlert | null;
   fiDate: string | null;         // deterministic base-case FI date, if reached
+  /** Reassurance that the plan still holds — health + a plain-language line. */
+  plan: { health: PlanHealth; headline: string; reassurance: string };
+  /** "If your stocks do better, you could move your date up" — null if no gain. */
+  upside: { betterFiYear: number; yearsEarlier: number | null; note: string } | null;
   /** Editorial lede — set deterministically here; the send route may replace it
    *  with an AI-written one when Gemini is available. */
   editorial: string;
@@ -155,21 +162,52 @@ export function buildDigest(input: BuildDigestInput): Digest {
     }
   }
 
-  // ── Deterministic FI date (base case) ───────────────────────────────────────
-  const fiPt = findCashflowFiPoint(snapshot, config, live);
+  // ── Deterministic FI date (base case) + plan health ─────────────────────────
+  const base = runSimulation(snapshot, config, live);
+  const health = assessPlan(base).health;
+  const fiPt = findCashflowFiPoint(snapshot, config, live, base);
   const fiDate = fiPt?.date ?? null;
+  const fiYearBase = fiDate ? Number(fiDate.split(" ")[1]) || null : null;
+
+  // ── "If your stocks do better" — recompute the FI year under hotter returns ──
+  // Nudge the concentrated position's growth (and the diversified rate a touch)
+  // up by a few points and see whether a funded exit pulls forward. This is the
+  // reassuring, actionable bit: good markets could move the date up.
+  const better: SimulationConfiguration = {
+    ...structuredClone(config),
+    market_assumptions: {
+      ...config.market_assumptions,
+      goog_growth_rate: (config.market_assumptions.goog_growth_rate ?? 0) + (config.use_equity_comp ? 3 : 0),
+      market_return_rate: (config.market_assumptions.market_return_rate ?? 0) + 1.5,
+    },
+  };
+  const betterFiPt = findCashflowFiPoint(snapshot, better, live);
+  const betterFiYear = betterFiPt ? Number(betterFiPt.date.split(" ")[1]) || null : null;
+  let upside: Digest["upside"] = null;
+  if (betterFiYear != null && (fiYearBase == null || betterFiYear < fiYearBase)) {
+    const yearsEarlier = fiYearBase != null ? fiYearBase - betterFiYear : null;
+    upside = {
+      betterFiYear,
+      yearsEarlier,
+      note: fiYearBase == null
+        ? `Here's the upside: if markets run a few points hotter than planned, a fully-funded exit shows up around ${betterFiYear} — where the base case doesn't reach one yet. Worth watching the tape with that in mind.`
+        : `Here's the upside: if your stocks compound a few points faster than planned, a funded exit moves up to ~${betterFiYear}${yearsEarlier && yearsEarlier >= 1 ? ` — about ${yearsEarlier} year${yearsEarlier === 1 ? "" : "s"} sooner` : ""}. If the market keeps cooperating, it's worth revisiting whether you could pull the date forward.`,
+    };
+  }
+
+  // ── Plan-intact reassurance ─────────────────────────────────────────────────
+  const plan = composePlan(health, fiDate);
 
   // ── Things to keep in mind ──────────────────────────────────────────────────
   const keepInMind: string[] = [];
   if (alloc.concentration >= 0.4 && concSym) {
     keepInMind.push(`${Math.round(alloc.concentration * 100)}% of your investable assets sit in ${concSym} — a concentrated bet. Your divestment plan trims this over time; a daily swing here moves your whole number.`);
   }
-  // (The phase transition gets its own "Where you are" block, so it isn't repeated here.)
-  if (fiDate) keepInMind.push(`Base case: your plan funds a full stop by ${fiDate}. Open the Risk view for the odds-adjusted date.`);
-  else keepInMind.push(`The base case doesn't yet reach a fully-funded stop in the horizon — more runway or lower spending moves it in.`);
+  // (The phase transition and the FI date get their own blocks, so they aren't repeated here.)
   if (dayChangePct != null && Math.abs(dayChangePct) >= 0.02) {
     keepInMind.push(`Today's ${dayChangePct >= 0 ? "gain" : "drop"} of ${(Math.abs(dayChangePct) * 100).toFixed(1)}% is noise at your horizon — the plan is built to ride sequences like this. Zoom out.`);
   }
+  if (!keepInMind.length) keepInMind.push("Nothing urgent on the board. Most days the best move is no move — keep the plan boring and let it compound.");
 
   // ── Holdings notes (v1: notable moves; real headlines are a later add-on) ────
   const holdingsNotes: string[] = [];
@@ -226,6 +264,8 @@ export function buildDigest(input: BuildDigestInput): Digest {
     },
     phaseAlert,
     fiDate,
+    plan,
+    upside,
     editorial,
     milestones,
     keepInMind,
@@ -247,6 +287,29 @@ function composeEditorial(a: { greetingName: string | null; dayChangePct: number
     return `${mood} — but the number isn't the headline today. There's a marker on the calendar worth more than any single session.`;
   }
   return `${mood}. A good ${a.season.toLowerCase()} morning to keep the plan boring and the compounding loud.`;
+}
+
+/** Plain-language reassurance that the plan still holds, keyed off plan health. */
+function composePlan(health: PlanHealth, fiDate: string | null): Digest["plan"] {
+  if (health === "on-track") {
+    return {
+      health,
+      headline: "Your plan is intact.",
+      reassurance: `On the base case it still funds every modeled expense — mortgage, healthcare, taxes, the works — all the way to 100, with a real cushion.${fiDate ? ` A full stop pencils out by ${fiDate}.` : ""} Nothing on the tape today changes that.`,
+    };
+  }
+  if (health === "tight") {
+    return {
+      health,
+      headline: "Your plan holds — with a thin cushion.",
+      reassurance: `It funds to 100 on the base case, but the margin is slim, so a rough early stretch would test it.${fiDate ? ` A funded stop pencils out around ${fiDate}.` : ""} Keeping spending and the exit date a little flexible is the whole game here.`,
+    };
+  }
+  return {
+    health,
+    headline: "A gap to close — not a crisis.",
+    reassurance: `On the base case the plan doesn't quite fund to 100 yet${fiDate ? "" : " and there's no funded full-stop date in view"}. More runway, slightly lower spending, or stronger returns closes it — and you've got levers for all three.`,
+  };
 }
 
 export function usd(n: number): string {

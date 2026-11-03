@@ -111,6 +111,18 @@ describe("buildDigest", () => {
     expect(improved.monteCarlo.deltaPts!).toBeCloseTo(2, 5);
   });
 
+  it("counts the current in-progress season (no off-by-one)", () => {
+    // In autumn 2026, leaving in March 2029 → autumns remaining are 2026, 2027,
+    // 2028 = THIRD-to-last (the current autumn must count, even though mid-Oct is
+    // behind us).
+    const { snapshot, config } = plan();
+    config.career_path.exit_year = 2029;
+    config.career_path.exit_month = 2; // March (0-indexed)
+    const d = buildDigest({ config, snapshot, quotes, liveConcentratedPrice: 198, now: new Date(2026, 10, 3) }); // Nov 3, 2026
+    expect(d.milestones.some((m) => /third-to-last autumn/i.test(m.headline))).toBe(true);
+    expect(d.milestones.some((m) => /second-to-last autumn/i.test(m.headline))).toBe(false);
+  });
+
   it("surfaces a seasonal 'Nth-to-last' milestone as exit approaches", () => {
     const { snapshot, config } = plan();
     config.career_path.exit_year = YEAR + 1; // exit next year → the current season is near its last

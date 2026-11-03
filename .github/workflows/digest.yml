@@ -7,7 +7,12 @@ name: Daily brief
 # which is exactly why the route is the source of truth, not the clock here.
 on:
   schedule:
-    - cron: "0 10-16 * * 1-5" # hourly 10:00–16:00 UTC, Mon–Fri
+    # Every hour, Mon–Fri (UTC). A send goes out only once per user per day, at or
+    # after THEIR chosen local hour — so running hourly all day means that first
+    # eligible run lands near their morning in ANY timezone (a narrow US-only
+    # window would fire late for anyone east of the US). GitHub cron timing is
+    # best-effort; the route, not the clock here, is the source of truth.
+    - cron: "0 * * * 1-5"
   workflow_dispatch: # manual "Run workflow" button for testing
     inputs:
       force:

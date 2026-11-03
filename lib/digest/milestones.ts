@@ -55,14 +55,19 @@ function ordinalToLast(n: number): string | null {
   return map[n] ?? null;
 }
 
-// Count remaining occurrences of a calendar season's anchor between now and exit,
-// inclusive of the one we're in/entering.
+// Count remaining occurrences of a calendar season between now and exit,
+// INCLUDING the one we're currently in (even though its mid-season anchor date
+// may already be behind us — you're still living that season).
 function occurrencesUntilExit(season: string, now: Date, exit: Date): number {
+  if (exit <= now) return 0;
   const anchorMonth = SEASON_ANCHOR[season];
+  const inSeasonNow = calendarSeason(now.getMonth()) === season;
   let count = 0;
-  for (let y = now.getFullYear(); y <= exit.getFullYear() + 1; y++) {
+  for (let y = now.getFullYear(); y <= exit.getFullYear(); y++) {
     const anchor = new Date(y, anchorMonth, 15);
-    if (anchor >= now && anchor <= exit) count++;
+    // Count a future instance, or the current in-progress one (anchor may be past).
+    const currentInProgress = y === now.getFullYear() && inSeasonNow;
+    if ((anchor >= now || currentInProgress) && anchor <= exit) count++;
   }
   return count;
 }

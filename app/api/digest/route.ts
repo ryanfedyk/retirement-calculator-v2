@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { fetchQuotes } from "@/lib/quotes";
-import { buildDigest } from "@/lib/digest/buildDigest";
+import { buildDigest, MARKET_INDICES } from "@/lib/digest/buildDigest";
 import { renderDigestHtml, renderDigestText } from "@/lib/digest/renderEmail";
 
 export const runtime = "nodejs";

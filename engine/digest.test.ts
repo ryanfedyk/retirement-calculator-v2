@@ -64,8 +64,18 @@ describe("buildDigest", () => {
     expect(html).toContain("investable");
     expect(html).not.toContain("undefined");
     const text = renderDigestText(d);
-    expect(text).toContain("THE NUMBER:");
-    expect(text).toContain("KEEP IN MIND:");
+    expect(text).toContain("THE ROUNDUP:");
+    expect(text).toContain("THE MONEY:");
+    expect(text).toContain("THE MARKET & THE MONTHS AHEAD:");
+    expect(text).toContain("THOUGHT FOR THE DAY:");
+  });
+
+  it("produces a roundup, a market outlook, and a daily thought", () => {
+    const d = buildDigest({ config: plan().config, snapshot: plan().snapshot, quotes, liveConcentratedPrice: 198 });
+    expect(d.roundup.length).toBeGreaterThan(0);
+    expect(d.marketOutlook.length).toBeGreaterThan(20);
+    expect(d.motivation.quote.length).toBeGreaterThan(5);
+    expect(d.motivation.attribution).toBeTruthy(); // deterministic default has an attribution
   });
 
   it("produces an editorial lede and at least one milestone", () => {

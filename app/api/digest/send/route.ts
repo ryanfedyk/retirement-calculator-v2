@@ -3,11 +3,11 @@ import { timingSafeEqual } from "node:crypto";
 import { adminDb, adminAuth } from "@/lib/server/firebaseAdmin";
 import { emailConfigured, sendDigestEmail } from "@/lib/server/email";
 import { fetchQuotes } from "@/lib/quotes";
-import { buildDigest } from "@/lib/digest/buildDigest";
+import { buildDigest, MARKET_INDICES } from "@/lib/digest/buildDigest";
 import { renderDigestHtml, renderDigestText } from "@/lib/digest/renderEmail";
 import { selectPrimaryPlan, type StoredPlanDoc } from "@/lib/digest/selectPrimaryPlan";
 import { isDue, localParts, type DigestPrefs, type DigestState } from "@/lib/digest/schedule";
-import { writeEditorial } from "@/lib/digest/editorial";
+import { writeBriefProse } from "@/lib/digest/editorial";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -72,7 +72,7 @@ export async function POST(req: Request) {
       const { config, snapshot } = plan;
 
       const concSym = config.use_equity_comp ? (config.concentrated_symbol ?? "").toUpperCase() : "";
-      const symbols = [concSym, ...(snapshot.other_investments ?? []).map((i) => (i.symbol ?? "").toUpperCase())].filter(Boolean);
+      const symbols = [concSym, ...(snapshot.other_investments ?? []).map((i) => (i.symbol ?? "").toUpperCase()), ...MARKET_INDICES.map((ix) => ix.symbol)].filter(Boolean);
       const quotes = await fetchQuotes(symbols);
       const live = concSym ? quotes[concSym]?.price ?? 0 : 0;
 
@@ -86,9 +86,12 @@ export async function POST(req: Request) {
         profile: { displayName }, config, snapshot, quotes,
         liveConcentratedPrice: live, now, previous: sendState?.lastMetrics,
       });
-      // Gemini writes the lede; keep the deterministic one if it's unavailable.
-      const ai = await writeEditorial(digest);
-      if (ai) digest.editorial = ai;
+      // Gemini writes the lede + the market outlook; keep the deterministic ones
+      // if it's unavailable.
+      const prose = await writeBriefProse(digest);
+      if (prose.lede) digest.editorial = prose.lede;
+      if (prose.marketOutlook) digest.marketOutlook = prose.marketOutlook;
+      if (prose.motivation) digest.motivation = { quote: prose.motivation, attribution: null };
 
       const html = renderDigestHtml(digest, { appUrl: APP_URL });
       const text = renderDigestText(digest);

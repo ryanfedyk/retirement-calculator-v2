@@ -20,6 +20,13 @@ import { detectMilestones, type Milestone } from "@/lib/digest/milestones";
 
 export interface QuoteLike { price: number; previousClose: number | null; changePct: number | null }
 
+/** Broad-market indices fetched alongside holdings to give the "market & months
+ *  ahead" synthesis some real conditions to read. Yahoo symbols. */
+export const MARKET_INDICES: { symbol: string; label: string }[] = [
+  { symbol: "^GSPC", label: "S&P 500" },
+  { symbol: "^IXIC", label: "Nasdaq" },
+];
+
 export interface DigestMover {
   symbol: string;
   changePct: number;   // fraction (0.012 = +1.2%)
@@ -71,6 +78,16 @@ export interface Digest {
   /** Editorial lede — set deterministically here; the send route may replace it
    *  with an AI-written one when Gemini is available. */
   editorial: string;
+  /** The scannable "what's new today" summary at the top, most important first. */
+  roundup: string[];
+  /** A synthesis of market conditions + a measured outlook for the months ahead.
+   *  Deterministic default; the send route swaps in an AI-written one. */
+  marketOutlook: string;
+  /** Broad-market read used by the outlook (and shown as a compact line). */
+  marketContext: { indices: { symbol: string; label: string; changePct: number | null }[] };
+  /** The day's motivational "thought" — a rotating public-domain quote by default;
+   *  the send route may swap in an AI-written original line (attribution null). */
+  motivation: { quote: string; attribution: string | null };
   /** Human + financial milestones, most resonant first ([0] is featured). */
   milestones: Milestone[];
   keepInMind: string[];
@@ -97,6 +114,29 @@ export interface BuildDigestInput {
 
 const MOVER_THRESHOLD = 0.01;     // |1%| counts as a notable daily move
 const PHASE_ALERT_MONTHS = 12;    // alert when the next season starts within a year
+
+// Public-domain quotes (ancient/old authors) — safe to reproduce with attribution.
+// Rotated by day-of-year so each day differs and it's stable within a day.
+const DAILY_QUOTES: { quote: string; attribution: string }[] = [
+  { quote: "We suffer more often in imagination than in reality.", attribution: "Seneca" },
+  { quote: "The impediment to action advances action. What stands in the way becomes the way.", attribution: "Marcus Aurelius" },
+  { quote: "Wealth consists not in having great possessions, but in having few wants.", attribution: "Epictetus" },
+  { quote: "It is not that we have a short time to live, but that we waste a lot of it.", attribution: "Seneca" },
+  { quote: "Go confidently in the direction of your dreams. Live the life you have imagined.", attribution: "Henry David Thoreau" },
+  { quote: "The best time to plant a tree was twenty years ago. The second best time is now.", attribution: "Proverb" },
+  { quote: "Do not spoil what you have by desiring what you have not.", attribution: "Epicurus" },
+  { quote: "A journey of a thousand miles begins with a single step.", attribution: "Lao Tzu" },
+  { quote: "Nature does not hurry, yet everything is accomplished.", attribution: "Lao Tzu" },
+  { quote: "Begin at once to live, and count each separate day as a separate life.", attribution: "Seneca" },
+  { quote: "Patience is bitter, but its fruit is sweet.", attribution: "Aristotle" },
+  { quote: "First say to yourself what you would be; and then do what you have to do.", attribution: "Epictetus" },
+  { quote: "He who is not contented with what he has would not be contented with what he would like to have.", attribution: "Socrates" },
+  { quote: "The whole future lies in uncertainty: live immediately.", attribution: "Seneca" },
+  { quote: "Well-being is realized by small steps, but is truly no small thing.", attribution: "Zeno of Citium" },
+  { quote: "Luck is what happens when preparation meets opportunity.", attribution: "Seneca" },
+  { quote: "Waste no more time arguing what a good person should be. Be one.", attribution: "Marcus Aurelius" },
+  { quote: "That which is not good for the hive is not good for the bee.", attribution: "Marcus Aurelius" },
+];
 
 function calendarSeason(month: number): string {
   // Northern-hemisphere meteorological seasons.
@@ -261,6 +301,31 @@ export function buildDigest(input: BuildDigestInput): Digest {
     season: calendarSeason(now.getMonth()),
   });
 
+  // ── Market context (broad indices) + a measured outlook ─────────────────────
+  const indices = MARKET_INDICES.map((ix) => ({ symbol: ix.symbol, label: ix.label, changePct: quotes[ix.symbol]?.changePct ?? null }));
+  const marketContext = { indices };
+  const marketOutlook = composeMarketOutlook(indices, alloc.concentration, concSym, dayChangePct);
+
+  // ── The roundup — the scannable "what's new" at the very top ─────────────────
+  const roundup: string[] = [];
+  if (dayChange != null && dayChangePct != null) {
+    const mcBit = monteCarlo.deltaPts != null && Math.abs(monteCarlo.deltaPts) >= 0.1
+      ? `, funding odds ${Math.round(mcSuccess * 100)}% (${monteCarlo.deltaPts > 0 ? "▲" : "▼"}${Math.abs(monteCarlo.deltaPts).toFixed(1)} pts)`
+      : ` (${Math.round(mcSuccess * 100)}% funding odds)`;
+    roundup.push(`Portfolio ${dayChange >= 0 ? "▲" : "▼"} ${usd(dayChange)} (${dayChangePct >= 0 ? "+" : "−"}${(Math.abs(dayChangePct) * 100).toFixed(1)}%) today${mcBit}.`);
+  } else {
+    roundup.push(`Funding odds ${Math.round(mcSuccess * 100)}% — ${plan.headline.replace(/\.$/, "").toLowerCase()}.`);
+  }
+  if (milestones[0]) roundup.push(`Milestone: ${milestones[0].headline}.`);
+  if (movers[0] && Math.abs(movers[0].changePct) >= 0.02) {
+    roundup.push(`${movers[0].symbol} ${movers[0].changePct >= 0 ? "led" : "lagged"} your holdings (${movers[0].changePct >= 0 ? "+" : ""}${(movers[0].changePct * 100).toFixed(1)}%).`);
+  }
+  if (upside) roundup.push(`Hotter markets could pull a funded exit to ~${upside.betterFiYear}.`);
+
+  // ── Thought for the day — a rotating public-domain quote (stable within a day) ─
+  const dayOfYear = Math.floor((Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) - Date.UTC(now.getFullYear(), 0, 0)) / 86400000);
+  const motivation = { ...DAILY_QUOTES[dayOfYear % DAILY_QUOTES.length] };
+
   const dateLabel = now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
 
   return {
@@ -297,11 +362,33 @@ export function buildDigest(input: BuildDigestInput): Digest {
       fiYear: fiYearBase,
     },
     editorial,
+    roundup,
+    marketOutlook,
+    marketContext,
+    motivation,
     milestones,
     keepInMind,
     holdingsNotes,
     seasonalNote,
   };
+}
+
+/** A measured, non-advice read of conditions + the months ahead. Deterministic
+ *  fallback; the send route swaps in an AI-written version when Gemini is up. */
+function composeMarketOutlook(
+  indices: { label: string; changePct: number | null }[],
+  concentration: number,
+  concSym: string,
+  dayChangePct: number | null,
+): string {
+  const named = indices.filter((i) => i.changePct != null);
+  const tape = named.length
+    ? named.map((i) => `${i.label} ${i.changePct! >= 0 ? "+" : "−"}${(Math.abs(i.changePct!) * 100).toFixed(1)}%`).join(", ")
+    : "a quiet tape";
+  const concLine = concSym && concentration >= 0.3
+    ? ` With ~${Math.round(concentration * 100)}% in ${concSym}, your ride stays bumpier than the index until the diversification plan trims it.`
+    : "";
+  return `Today: ${tape}.${concLine} The months ahead will bring their share of green and red — that's the normal weather of markets, not a signal. Your plan is built to fund a long retirement across a wide range of outcomes, so the useful posture is boring: keep contributing, let the divestment schedule do its quiet work, and judge progress by the funding odds over quarters, not by any single week's tape.`;
 }
 
 /** A short editorial lede with a little personality. Deterministic but varied by

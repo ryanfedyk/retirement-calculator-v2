@@ -7,12 +7,16 @@ name: Daily brief
 # which is exactly why the route is the source of truth, not the clock here.
 on:
   schedule:
-    # Every hour, Mon–Fri (UTC). A send goes out only once per user per day, at or
-    # after THEIR chosen local hour — so running hourly all day means that first
-    # eligible run lands near their morning in ANY timezone (a narrow US-only
-    # window would fire late for anyone east of the US). GitHub cron timing is
-    # best-effort; the route, not the clock here, is the source of truth.
-    - cron: "0 * * * 1-5"
+    # Twice an hour, Mon–Fri (UTC), at :23 and :53. A send goes out only once per
+    # user per day, at or after THEIR chosen local hour, so firing all day means
+    # the first eligible run lands near their morning in ANY timezone. GitHub cron
+    # is BEST-EFFORT — it silently drops scheduled runs under load, most often at
+    # the top of the hour (minute 0). So we (a) fire twice an hour to survive a
+    # dropped run, and (b) avoid minute 0, the most-throttled slot. The route, not
+    # the clock here, is the source of truth and dedupes to one send per day — so
+    # an extra/duplicate run is harmless. For a GUARANTEED send, back this with
+    # Google Cloud Scheduler hitting /api/digest/send (GitHub cron can't promise it).
+    - cron: "23,53 * * * 1-5"
   workflow_dispatch: # manual "Run workflow" button for testing
     inputs:
       force:

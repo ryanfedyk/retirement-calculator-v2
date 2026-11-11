@@ -10,9 +10,14 @@ runConfig:
   memoryMiB: 512
 
 env:
-  # Gemini API key for the AI Plan Analysis route (/api/analyze).
-  # Stored in Cloud Secret Manager — see deploy steps to create it:
+  # Gemini API key — powers ALL AI copy: AI Plan Analysis (/api/analyze),
+  # seasons, perfect-day, AND the daily brief's editorial (lede + market outlook).
+  # Stored in Cloud Secret Manager:
   #   firebase apphosting:secrets:set GEMINI_API_KEY
+  # NOTE: rotating the key (a new secret VERSION) does NOT take effect until the
+  # backend rolls out a new revision — secrets resolve at deploy time, so push to
+  # main / create a rollout after changing it. A rejected key fails SILENTLY in the
+  # digest (it falls back to deterministic copy); /api/analyze surfaces the error.
   - variable: GEMINI_API_KEY
     secret: GEMINI_API_KEY
     availability:

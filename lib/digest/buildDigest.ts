@@ -16,9 +16,20 @@ import {
 } from "@/engine/calculator";
 import { runMonteCarlo } from "@/engine/montecarlo";
 import { buildSeasons, currentSeasonIndex, type Season } from "@/lib/seasons";
-import { detectMilestones, type Milestone } from "@/lib/digest/milestones";
+import { detectMilestones, orderMilestones, type Milestone, type MilestoneKind } from "@/lib/digest/milestones";
 
 export interface QuoteLike { price: number; previousClose: number | null; changePct: number | null }
+
+/** The broad market's recent regime, read from the trailing ~1-month return, so
+ *  the copy reflects what's actually happening instead of assuming good weather. */
+export type MarketRegime = "drawdown" | "risk-on" | "range-bound" | "unknown";
+
+function regimeOf(oneMonthPct: number | null): MarketRegime {
+  if (oneMonthPct == null) return "unknown";
+  if (oneMonthPct <= -0.03) return "drawdown";
+  if (oneMonthPct >= 0.03) return "risk-on";
+  return "range-bound";
+}
 
 /** Broad-market indices fetched alongside holdings to give the "market & months
  *  ahead" synthesis some real conditions to read. Yahoo symbols. */
@@ -83,8 +94,14 @@ export interface Digest {
   /** A synthesis of market conditions + a measured outlook for the months ahead.
    *  Deterministic default; the send route swaps in an AI-written one. */
   marketOutlook: string;
-  /** Broad-market read used by the outlook (and shown as a compact line). */
-  marketContext: { indices: { symbol: string; label: string; changePct: number | null }[] };
+  /** Broad-market read used by the outlook (and shown as a compact line). Includes
+   *  the trailing ~1-month move and the regime derived from it, so copy can reflect
+   *  an actual up/down/flat stretch rather than assuming the market is cooperating. */
+  marketContext: {
+    indices: { symbol: string; label: string; changePct: number | null }[];
+    oneMonthPct: number | null;
+    regime: MarketRegime;
+  };
   /** The day's motivational "thought" — a rotating public-domain quote by default;
    *  the send route may swap in an AI-written original line (attribution null). */
   motivation: { quote: string; attribution: string | null };
@@ -107,6 +124,10 @@ export interface BuildDigestInput {
   /** Yesterday's brief figures (the send route loads them from the user doc), so
    *  the brief can report the day-over-day change in the Monte Carlo odds. */
   previous?: { mcSuccess?: number | null; investable?: number | null; fiYear?: number | null } | null;
+  /** The broad market's trailing ~1-month return (the route fetches it), so the
+   *  brief can read the current regime and stop assuming markets are "cooperating."
+   *  Absent → regime "unknown" and the outlook falls back to a direction-neutral read. */
+  marketTrend?: { oneMonthPct: number | null } | null;
   /** Monte Carlo paths for the odds number. Fixed seed, so the day-over-day delta
    *  reflects real plan/price moves, not sampling noise. Default 400. */
   monteCarloRuns?: number;
@@ -160,6 +181,11 @@ export function buildDigest(input: BuildDigestInput): Digest {
   const { config, snapshot, quotes } = input;
   const now = input.now ?? new Date();
   const live = input.liveConcentratedPrice ?? 0;
+  // Day-of-year drives the daily rotation of the featured milestone, the lede, and
+  // the thought — stable within a day, different the next, so nothing repeats.
+  const dayOfYear = Math.floor((Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) - Date.UTC(now.getFullYear(), 0, 0)) / 86400000);
+  const oneMonthPct = input.marketTrend?.oneMonthPct ?? null;
+  const regime = regimeOf(oneMonthPct);
 
   // ── Portfolio: today's value + the day's move ──────────────────────────────
   const nw = netWorthToday(snapshot, config, live);
@@ -239,12 +265,18 @@ export function buildDigest(input: BuildDigestInput): Digest {
   // earlier than the base case (you can't pull a date into the past).
   if (betterFiYear != null && betterFiYear >= now.getFullYear() && (fiYearBase == null || betterFiYear < fiYearBase)) {
     const yearsEarlier = fiYearBase != null ? fiYearBase - betterFiYear : null;
+    // Keep this about the LONG-RUN assumption beating plan — not "if the market
+    // keeps cooperating," which reads tone-deaf in a down stretch. Acknowledge a
+    // soft tape when that's the reality.
+    const softNote = regime === "drawdown"
+      ? " Markets have been soft lately, so hold this as a long-run possibility, not a read on the current tape."
+      : "";
     upside = {
       betterFiYear,
       yearsEarlier,
       note: fiYearBase == null
-        ? `Here's the upside: if markets run a few points hotter than planned, a fully-funded exit shows up around ${betterFiYear} — where the base case doesn't reach one yet. Worth watching the tape with that in mind.`
-        : `Here's the upside: if your stocks compound a few points faster than planned, a funded exit moves up to ~${betterFiYear}${yearsEarlier && yearsEarlier >= 1 ? ` — about ${yearsEarlier} year${yearsEarlier === 1 ? "" : "s"} sooner` : ""}. If the market keeps cooperating, it's worth revisiting whether you could pull the date forward.`,
+        ? `Here's the upside: if your long-run returns land a few points above the plan's assumptions, a fully-funded exit could show up around ${betterFiYear} — where the base case doesn't reach one yet.${softNote}`
+        : `Here's the upside: if your investments compound a few points faster than the plan assumes, a funded exit moves up to ~${betterFiYear}${yearsEarlier && yearsEarlier >= 1 ? ` — about ${yearsEarlier} year${yearsEarlier === 1 ? "" : "s"} sooner` : ""}. Worth revisiting the date against the long-run trend, not any single week.${softNote}`,
     };
   }
 
@@ -284,7 +316,7 @@ export function buildDigest(input: BuildDigestInput): Digest {
 
   // ── Milestones — the human-and-financial moments worth marking ──────────────
   const fiYear = fiDate ? Number(fiDate.split(" ")[1]) || null : null;
-  const milestones = detectMilestones({
+  const detected = detectMilestones({
     now, config, seasons, currentIndex: idx,
     investable: nw.investable,
     concentration: alloc.concentration,
@@ -292,19 +324,23 @@ export function buildDigest(input: BuildDigestInput): Digest {
     equityOn: config.use_equity_comp === true,
     fiYear,
   });
+  // Rotate the featured milestone by day so the brief doesn't headline the same
+  // "Nth-to-last autumn" every single morning for a whole season.
+  const milestones = orderMilestones(detected, dayOfYear);
 
   // ── Editorial lede (deterministic default; the route may swap in an AI one) ──
   const editorial = composeEditorial({
-    greetingName: input.profile?.displayName?.split(" ")[0] ?? null,
     dayChangePct,
     featured: milestones[0] ?? null,
     season: calendarSeason(now.getMonth()),
+    dayOfYear,
+    regime,
   });
 
   // ── Market context (broad indices) + a measured outlook ─────────────────────
   const indices = MARKET_INDICES.map((ix) => ({ symbol: ix.symbol, label: ix.label, changePct: quotes[ix.symbol]?.changePct ?? null }));
-  const marketContext = { indices };
-  const marketOutlook = composeMarketOutlook(indices, alloc.concentration, concSym, dayChangePct);
+  const marketContext = { indices, oneMonthPct, regime };
+  const marketOutlook = composeMarketOutlook(indices, alloc.concentration, concSym, oneMonthPct, regime);
 
   // ── The roundup — the scannable "what's new" at the very top ─────────────────
   const roundup: string[] = [];
@@ -323,7 +359,6 @@ export function buildDigest(input: BuildDigestInput): Digest {
   if (upside) roundup.push(`Hotter markets could pull a funded exit to ~${upside.betterFiYear}.`);
 
   // ── Thought for the day — a rotating public-domain quote (stable within a day) ─
-  const dayOfYear = Math.floor((Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) - Date.UTC(now.getFullYear(), 0, 0)) / 86400000);
   const motivation = { ...DAILY_QUOTES[dayOfYear % DAILY_QUOTES.length] };
 
   const dateLabel = now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
@@ -374,12 +409,14 @@ export function buildDigest(input: BuildDigestInput): Digest {
 }
 
 /** A measured, non-advice read of conditions + the months ahead. Deterministic
- *  fallback; the send route swaps in an AI-written version when Gemini is up. */
+ *  fallback; the send route swaps in an AI-written version when Gemini is up. Reads
+ *  the actual regime (trailing month) so it never pretends to good weather. */
 function composeMarketOutlook(
   indices: { label: string; changePct: number | null }[],
   concentration: number,
   concSym: string,
-  dayChangePct: number | null,
+  oneMonthPct: number | null,
+  regime: MarketRegime,
 ): string {
   const named = indices.filter((i) => i.changePct != null);
   const tape = named.length
@@ -388,22 +425,76 @@ function composeMarketOutlook(
   const concLine = concSym && concentration >= 0.3
     ? ` With ~${Math.round(concentration * 100)}% in ${concSym}, your ride stays bumpier than the index until the diversification plan trims it.`
     : "";
-  return `Today: ${tape}.${concLine} The months ahead will bring their share of green and red — that's the normal weather of markets, not a signal. Your plan is built to fund a long retirement across a wide range of outcomes, so the useful posture is boring: keep contributing, let the divestment schedule do its quiet work, and judge progress by the funding odds over quarters, not by any single week's tape.`;
+  const mo = oneMonthPct != null ? Math.abs(Math.round(oneMonthPct * 100)) : null;
+  const regimeLine =
+    regime === "drawdown"
+      ? `Stepping back: the broad market is down about ${mo}% over the past month — a real pullback, and an ordinary (if uncomfortable) part of the cycle. Drawdowns like this are the toll equities charge for their long-run returns, not a sign the plan is broken.`
+      : regime === "risk-on"
+      ? `Stepping back: the broad market is up about ${mo}% over the past month. Pleasant — but a strong month isn't a trend, and the plan doesn't need heroics, just time.`
+      : regime === "range-bound"
+      ? `Stepping back: the broad market has been roughly flat over the past month — the quiet kind of stretch where compounding does its work without drama.`
+      : `The months ahead will bring their share of green and red — that's the normal weather of markets, not a signal.`;
+  return `Today: ${tape}.${concLine} ${regimeLine} Your plan is built to fund a long retirement across a wide range of outcomes, so the useful posture is boring: keep contributing, let the divestment schedule do its quiet work, and judge progress by the funding odds over quarters, not by any single week's tape.`;
 }
 
-/** A short editorial lede with a little personality. Deterministic but varied by
- *  the day's mood + the featured milestone, so it never reads like a form letter. */
-function composeEditorial(a: { greetingName: string | null; dayChangePct: number | null; featured: Milestone | null; season: string }): string {
-  const mood = a.dayChangePct == null ? "The market's quiet this morning"
-    : a.dayChangePct >= 0.005 ? "Green on the screen this morning"
-    : a.dayChangePct <= -0.005 ? "A little red on the tape — which, at your horizon, means almost nothing"
-    : "The tape's flat this morning";
-  // The featured milestone gets its own block below, so the lede only sets the
-  // mood and points at it — it never repeats the milestone's words.
-  if (a.featured) {
-    return `${mood} — but the number isn't the headline today. There's a marker on the calendar worth more than any single session.`;
+/** A one-line tease of what the featured milestone is about — WITHOUT repeating its
+ *  headline (which has its own block). Lets the lede point at the day's milestone in
+ *  fresh words, and it changes as the featured milestone rotates day to day. */
+function milestoneTease(kind: MilestoneKind, season: string): string {
+  switch (kind) {
+    case "season":        return `you're another ${season} deeper into the back nine of working life`;
+    case "review":        return `review season is a lever this year, not just a ritual`;
+    case "concentration": return `the concentration keeps quietly easing in the background`;
+    case "fi":            return `a funded finish line keeps inching closer`;
+    case "phase":         return `a new chapter of the wind-down is basically here`;
+    case "newyear":       return `a clean page — a good moment to reconnect with the why`;
+    case "yearend":       return `the year's into its home stretch`;
+    case "networth":      return `the number just cleared a round mark worth a nod`;
+    default:              return `there's a thread worth more than any single session`;
   }
-  return `${mood}. A good ${a.season.toLowerCase()} morning to keep the plan boring and the compounding loud.`;
+}
+
+/** A short editorial lede with personality. Deterministic but genuinely varied:
+ *  it builds a pool of mood-, milestone-, regime-, and season-aware openers and
+ *  rotates by day-of-year, so consecutive mornings never read the same. */
+function composeEditorial(a: {
+  dayChangePct: number | null;
+  featured: Milestone | null;
+  season: string;
+  dayOfYear: number;
+  regime: MarketRegime;
+}): string {
+  const season = a.season.toLowerCase();
+  const pool: string[] = [];
+
+  // Regime-aware openers — honest about a soft (or hot) tape.
+  if (a.regime === "drawdown") {
+    pool.push(`Markets have been heavy lately — less a warning than a weather report. Your plan was built to walk through exactly this.`);
+    pool.push(`It's been a red stretch out there, and that's alright: the plan is measured in decades, and decades include months like this one.`);
+  } else if (a.regime === "risk-on") {
+    pool.push(`The tape's been generous lately — enjoy it, but the plan doesn't need the good months, only time.`);
+  }
+
+  // Milestone-aware openers — point at today's featured marker in fresh words.
+  if (a.featured) {
+    const tease = milestoneTease(a.featured.kind, season);
+    pool.push(`Look up from the ticker for a second — ${tease}.`);
+    pool.push(`The numbers will take care of themselves today; the part worth a beat is further down — ${tease}.`);
+    pool.push(`One to actually notice this morning: ${tease}.`);
+  }
+
+  // Mood-of-the-day openers — today's tape, lightly held.
+  if (a.dayChangePct != null) {
+    if (a.dayChangePct >= 0.005) pool.push(`Green on the screen this morning — pleasant, and nearly beside the point at your horizon.`);
+    else if (a.dayChangePct <= -0.005) pool.push(`A little red on the tape, which at your horizon rounds to noise. Onward.`);
+    else pool.push(`A flat open — the quiet kind of morning where compounding does the real work.`);
+  }
+
+  // Evergreen seasonal openers — always available so the pool is never empty.
+  pool.push(`A good ${season} morning to keep the plan boring and the compounding loud.`);
+  pool.push(`Another ${season} morning on the glide path — steady hands, long view.`);
+
+  return pool[a.dayOfYear % pool.length];
 }
 
 /** Plain-language reassurance keyed off the Monte Carlo odds — the honest,

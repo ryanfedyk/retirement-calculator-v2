@@ -179,6 +179,19 @@ export function detectMilestones(input: MilestoneInput): Milestone[] {
   return out.sort((a, b) => b.weight - a.weight);
 }
 
+/** Order milestones for display so [0] is the day's featured pick. Most milestones
+ *  are "evergreen" — true for weeks or months (the season countdown, concentration
+ *  easing, a funded-stop in sight) — so featuring the single highest-weight one
+ *  EVERY morning makes the brief read like a form letter. Instead, keep the
+ *  weight order but ROTATE the leader by day-of-year, so the headline cycles
+ *  through everything worth marking rather than repeating one fact daily. */
+export function orderMilestones(ms: Milestone[], dayOfYear: number): Milestone[] {
+  if (ms.length <= 1) return ms;
+  const sorted = [...ms].sort((a, b) => b.weight - a.weight);
+  const k = ((dayOfYear % sorted.length) + sorted.length) % sorted.length;
+  return [...sorted.slice(k), ...sorted.slice(0, k)];
+}
+
 function money(n: number): string {
   return n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}M` : `$${Math.round(n / 1000)}k`;
 }

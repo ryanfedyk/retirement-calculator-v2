@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { fetchQuotes } from "@/lib/quotes";
+import { fetchQuotes, fetchMarketTrend } from "@/lib/quotes";
 import { buildDigest, MARKET_INDICES } from "@/lib/digest/buildDigest";
 import { renderDigestHtml, renderDigestText } from "@/lib/digest/renderEmail";
 
@@ -25,12 +25,12 @@ export async function POST(req: Request) {
       ...((snapshot.other_investments ?? []).map((i: { symbol?: string }) => (i.symbol ?? "").toUpperCase())),
     ].filter(Boolean);
 
-    const quotes = await fetchQuotes(symbols);
+    const [quotes, marketTrend] = await Promise.all([fetchQuotes(symbols), fetchMarketTrend()]);
     const live = typeof liveGoogPrice === "number" && liveGoogPrice > 0
       ? liveGoogPrice
       : (concSym ? quotes[concSym]?.price ?? 0 : 0);
 
-    const digest = buildDigest({ profile, config, snapshot, quotes, liveConcentratedPrice: live });
+    const digest = buildDigest({ profile, config, snapshot, quotes, liveConcentratedPrice: live, marketTrend });
     const html = renderDigestHtml(digest);
 
     if (searchParams.get("format") === "html") {

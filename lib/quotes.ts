@@ -42,6 +42,37 @@ async function fetchOne(symbol: string): Promise<Quote> {
   }
 }
 
+/** Trailing return for a symbol over a range (first→last daily close). Used by the
+ *  daily brief to read the current market regime (drawdown vs. flat vs. strong), so
+ *  the copy reflects reality instead of assuming the market is cooperating. Returns
+ *  null on any error so the brief degrades to a direction-neutral read. */
+export async function fetchTrailingReturn(symbol: string, range = "1mo"): Promise<number | null> {
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=${range}`;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 3500);
+  try {
+    const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" }, next: { revalidate: 3600 }, signal: ctrl.signal });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const result = data?.chart?.result?.[0];
+    const closes: unknown[] = result?.indicators?.quote?.[0]?.close ?? [];
+    const valid = closes.filter((c): c is number => typeof c === "number" && c > 0);
+    const first = valid[0];
+    const last = (result?.meta?.regularMarketPrice as number | undefined) ?? valid[valid.length - 1];
+    if (!first || !last) return null;
+    return (last - first) / first;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** The broad market's recent trend (S&P 500, ~1 month), for the brief's regime read. */
+export async function fetchMarketTrend(): Promise<{ oneMonthPct: number | null }> {
+  return { oneMonthPct: await fetchTrailingReturn("^GSPC", "1mo") };
+}
+
 /** Fetch quotes for the given symbols in parallel, falling back per-symbol on
  *  error. Symbols are upper-cased and de-duplicated. */
 export async function fetchQuotes(symbols: string[]): Promise<Record<string, Quote>> {

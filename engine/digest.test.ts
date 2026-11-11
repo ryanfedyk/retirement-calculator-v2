@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { buildDigest, type QuoteLike } from "@/lib/digest/buildDigest";
+import { orderMilestones, type Milestone } from "@/lib/digest/milestones";
 import { renderDigestHtml, renderDigestText } from "@/lib/digest/renderEmail";
 import type { FinancialSnapshot, SimulationConfiguration } from "@/engine/calculator";
 import { DEFAULT_SIM_CONFIG, DEFAULT_SNAPSHOT } from "@/config/sharedConfig";
@@ -121,6 +122,47 @@ describe("buildDigest", () => {
     const d = buildDigest({ config, snapshot, quotes, liveConcentratedPrice: 198, now: new Date(2026, 10, 3) }); // Nov 3, 2026
     expect(d.milestones.some((m) => /third-to-last autumn/i.test(m.headline))).toBe(true);
     expect(d.milestones.some((m) => /second-to-last autumn/i.test(m.headline))).toBe(false);
+  });
+
+  it("rotates the featured milestone by day instead of repeating one (orderMilestones)", () => {
+    const mk = (kind: string, headline: string, weight: number): Milestone =>
+      ({ kind, headline, note: "", weight } as Milestone);
+    const ms = [mk("season", "A", 80), mk("review", "B", 74), mk("concentration", "C", 62)];
+    // Same set, different days → the leader cycles through all of them.
+    const leaders = new Set([0, 1, 2].map((day) => orderMilestones(ms, day)[0].headline));
+    expect(leaders.size).toBe(3);
+    // Stable within a day; rotates to a different one the next day.
+    expect(orderMilestones(ms, 10)[0].headline).toBe(orderMilestones(ms, 10)[0].headline);
+    expect(orderMilestones(ms, 10)[0].headline).not.toBe(orderMilestones(ms, 11)[0].headline);
+  });
+
+  it("varies the lede day to day (no more identical morning copy)", () => {
+    const { snapshot, config } = plan();
+    const ledes = new Set<string>();
+    for (let day = 1; day <= 6; day++) {
+      ledes.add(buildDigest({ config, snapshot, quotes, liveConcentratedPrice: 198, now: new Date(2026, 9, day) }).editorial);
+    }
+    expect(ledes.size).toBeGreaterThanOrEqual(3);
+    // The stale templated line must be gone for good.
+    for (const l of ledes) expect(l).not.toMatch(/marker on the calendar|number isn't the headline/i);
+  });
+
+  it("reads the market regime and doesn't fake good weather", () => {
+    const { snapshot, config } = plan();
+    const down = buildDigest({ config, snapshot, quotes, liveConcentratedPrice: 198, marketTrend: { oneMonthPct: -0.08 } });
+    expect(down.marketContext.regime).toBe("drawdown");
+    expect(down.marketOutlook).toMatch(/down about|pullback|drawdown/i);
+    // Reassuring copy must not claim the market is cooperating/rising in a drawdown.
+    if (down.upside) expect(down.upside.note).not.toMatch(/cooperat/i);
+
+    const up = buildDigest({ config, snapshot, quotes, liveConcentratedPrice: 198, marketTrend: { oneMonthPct: 0.08 } });
+    expect(up.marketContext.regime).toBe("risk-on");
+    expect(up.marketOutlook).toMatch(/up about/i);
+
+    // No trend data → direction-neutral, never a false "cooperating."
+    const unknown = buildDigest({ config, snapshot, quotes, liveConcentratedPrice: 198 });
+    expect(unknown.marketContext.regime).toBe("unknown");
+    if (unknown.upside) expect(unknown.upside.note).not.toMatch(/cooperat/i);
   });
 
   it("surfaces a seasonal 'Nth-to-last' milestone as exit approaches", () => {

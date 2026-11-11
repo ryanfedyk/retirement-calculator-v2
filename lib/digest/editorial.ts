@@ -28,10 +28,12 @@ export async function writeBriefProse(d: Digest): Promise<BriefProse> {
     .filter((i) => i.changePct != null)
     .map((i) => `${i.label} ${(i.changePct! * 100).toFixed(1)}%`)
     .join(", ") || "(no index data)";
+  const oneMo = d.marketContext.oneMonthPct;
   const facts = [
     `Reader first name: ${d.greetingName ?? "(none)"}`,
     `Today's market mood: ${mood}${mv != null ? ` (${(mv * 100).toFixed(1)}%)` : ""}`,
     `Broad market today: ${indices}`,
+    `Broad market, past ~month: ${oneMo == null ? "unknown" : `${oneMo >= 0 ? "+" : ""}${(oneMo * 100).toFixed(1)}%`} (regime: ${d.marketContext.regime})`,
     `Investable: $${Math.round(d.portfolio.investable).toLocaleString()}`,
     `Concentration: ${Math.round(d.portfolio.concentrationPct * 100)}% in the employer/concentrated position`,
     `Plan standing: ${d.plan.headline} (${Math.round(d.monteCarlo.successRate * 100)}% Monte Carlo odds of funding to 100${d.monteCarlo.deltaPts != null ? `, ${d.monteCarlo.deltaPts >= 0 ? "+" : ""}${d.monteCarlo.deltaPts.toFixed(1)} pts since yesterday` : ""})`,
@@ -44,15 +46,16 @@ export async function writeBriefProse(d: Digest): Promise<BriefProse> {
 
 Write THREE things and return them as raw JSON (no markdown fences): {"lede": "...", "marketOutlook": "...", "motivation": "..."}
 
-1. "lede": 1-2 sentences, warm and a little witty, in second person. Set the mood and point at the day's most meaningful thread (usually the milestone or the plan, not the daily tape). No "Good morning", do NOT include the reader's name (the template adds it).
+1. "lede": 1-2 sentences, warm and a little witty, in second person. Set the mood and point at the day's most meaningful thread (today's featured milestone, or the plan — not the daily tape). No "Good morning", do NOT include the reader's name (the template adds it). VARY the opening every day — this runs daily, so it must not read like a template. NEVER use the phrases "the number isn't the headline" or "a marker on the calendar" or close variants.
 
-2. "marketOutlook": 2-4 sentences synthesizing today's conditions into a calm read of the MONTHS AHEAD for a long-horizon, diversifying investor. Weave the broad-market data into a coherent narrative (not a list). Be measured and humble about uncertainty; frame it as "what to expect / what to watch", emphasizing that volatility is normal and the plan is built for a range of outcomes and that steady diversification reduces single-stock risk regardless of the tape.
+2. "marketOutlook": 2-4 sentences synthesizing conditions into a calm read of the MONTHS AHEAD for a long-horizon, diversifying investor. Weave the data into a narrative (not a list). CRUCIAL: reflect the ACTUAL recent direction using the past-month figure and regime — if it's a drawdown, name the pullback plainly and frame the reassurance around it; if it's been strong, caution against extrapolating. Do NOT claim or imply markets are "cooperating," rising, or calm unless the data says so. Be measured and humble; emphasize that volatility is normal and the plan is built for a range of outcomes.
 
 3. "motivation": ONE original, uplifting sentence — a "thought for the day" that fits someone patiently building toward the freedom to retire on their terms. It must be YOUR OWN words, not a quote; do NOT attribute it to anyone or invent a source. Specific and warm, not a platitude.
 
 Hard rules for ALL THREE:
 - Do NOT name or imply any specific employer, company, or ticker.
 - This is NOT financial advice. Never say to buy, sell, or time anything. No price targets or predictions stated as fact.
+- Never assume good market weather: if the past-month regime is a drawdown or negative, do not write as if things are going up.
 - No markdown, no headings, no surrounding quotes. Just the JSON object.
 
 Today's facts:

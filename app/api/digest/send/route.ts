@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { adminDb, adminAuth } from "@/lib/server/firebaseAdmin";
 import { emailConfigured, sendDigestEmail } from "@/lib/server/email";
-import { fetchQuotes } from "@/lib/quotes";
+import { fetchQuotes, fetchMarketTrend } from "@/lib/quotes";
 import { buildDigest, MARKET_INDICES } from "@/lib/digest/buildDigest";
 import { renderDigestHtml, renderDigestText } from "@/lib/digest/renderEmail";
 import { selectPrimaryPlan, type StoredPlanDoc } from "@/lib/digest/selectPrimaryPlan";
@@ -55,7 +55,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "query failed", detail: e instanceof Error ? e.message : String(e) }, { status: 500 });
   }
 
-  const results: { uid: string; status: string; detail?: string }[] = [];
+  const results: { uid: string; status: string; detail?: string; aiProse?: boolean }[] = [];
+  // Fetched once per run (not per user): the broad market's trailing-month trend, so
+  // the brief reads the real regime instead of assuming the market is cooperating.
+  const marketTrend = await fetchMarketTrend();
 
   for (const doc of docs) {
     const data = doc.data();
@@ -84,7 +87,7 @@ export async function POST(req: Request) {
 
       const digest = buildDigest({
         profile: { displayName }, config, snapshot, quotes,
-        liveConcentratedPrice: live, now, previous: sendState?.lastMetrics,
+        liveConcentratedPrice: live, now, previous: sendState?.lastMetrics, marketTrend,
       });
       // Gemini writes the lede + the market outlook; keep the deterministic ones
       // if it's unavailable.
@@ -95,6 +98,9 @@ export async function POST(req: Request) {
 
       const html = renderDigestHtml(digest, { appUrl: APP_URL });
       const text = renderDigestText(digest);
+      // aiProse flags whether Gemini actually wrote the copy (vs. the deterministic
+      // fallback) — surfaced in the response so a run's logs confirm the key works.
+      const aiProse = !!prose.lede;
       await sendDigestEmail({ to: email, subject: `The Morning Glide — ${digest.dateLabel}`, html, text });
 
       // Write ONLY the server-managed send state (a separate field from the
@@ -103,7 +109,7 @@ export async function POST(req: Request) {
         { digestState: { lastSentYmd: ymd, lastMetrics: digest.metrics } },
         { merge: true },
       );
-      results.push({ uid: doc.id, status: "sent" });
+      results.push({ uid: doc.id, status: "sent", aiProse });
     } catch (e) {
       results.push({ uid: doc.id, status: "error", detail: e instanceof Error ? e.message : String(e) });
     }

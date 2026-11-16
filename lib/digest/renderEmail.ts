@@ -100,7 +100,10 @@ function moversChart(movers: { symbol: string; changePct: number }[]): string {
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0">${rows.join("")}</table>`;
 }
 
-export function renderDigestHtml(d: Digest, opts: { appUrl?: string } = {}): string {
+export function renderDigestHtml(
+  d: Digest,
+  opts: { appUrl?: string; mcFan?: { src: string; startYear: number; endYear: number } } = {},
+): string {
   const mv = moveLine(d);
   const feat = d.milestones[0] ?? null;
   const footerLink = opts.appUrl ? `<a href="${esc(opts.appUrl)}" style="color:${TEAL_DK};text-decoration:none;font-weight:600">Open your plan →</a> · ` : "";
@@ -154,6 +157,16 @@ export function renderDigestHtml(d: Digest, opts: { appUrl?: string } = {}): str
       ${meterBar(mcPct, healthColor)}
       <div style="margin-top:7px;font:400 11px/1.4 ${SANS};color:${INK_FAINT}">Scale: 72% = good shape · 88%+ = plan intact</div>`;
 
+  // The Monte Carlo fan chart (inline PNG) — the cone of possible futures. Shown
+  // only when the route rasterized one; alt text covers images-off clients.
+  const fanBlock = opts.mcFan ? `
+      <div style="height:18px"></div>
+      ${kicker("The range of outcomes")}
+      <div style="height:9px"></div>
+      <img src="${esc(opts.mcFan.src)}" width="536" alt="Monte Carlo projection of your net worth over time: a shaded band from the 10th to the 90th percentile with the median path as a line." style="display:block;width:100%;max-width:536px;height:auto;border:1px solid ${BORDER};border-radius:10px"/>
+      <div style="margin-top:7px;font:400 11px/1.5 ${SANS};color:${INK_FAINT}"><span style="color:${TEAL_DK};font-weight:700">—</span> median path &nbsp;·&nbsp; <span style="color:${TEAL_DK}">▧</span> 10th–90th percentile range &nbsp;·&nbsp; ${opts.mcFan.startYear}–${opts.mcFan.endYear}</div>
+      <div style="margin-top:4px;font:400 11px/1.5 ${SANS};color:${INK_FAINT}">Each path is a different market sequence. The wide end is the spread of where you could land — the plan is built to fund the lower edge, not just the middle.</div>` : "";
+
   rows.push(ruleRow);
   rows.push(row(`
       ${kicker("The money")}
@@ -169,6 +182,7 @@ export function renderDigestHtml(d: Digest, opts: { appUrl?: string } = {}): str
       <div style="height:6px"></div>
       <div style="font:400 14px/1.6 ${SANS};color:${INK_MID}">${esc(d.plan.reassurance)}</div>
       ${gaugeBlock}
+      ${fanBlock}
       ${d.upside ? `
       <div style="margin-top:14px;background:${TEAL_WASH};border-radius:12px;padding:14px 16px">
         ${kicker("Upside")}<div style="height:6px"></div>

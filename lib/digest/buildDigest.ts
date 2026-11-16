@@ -14,7 +14,7 @@ import {
   type SimulationConfiguration,
   type PlanHealth,
 } from "@/engine/calculator";
-import { runMonteCarlo } from "@/engine/montecarlo";
+import { runMonteCarlo, type MonteCarloBand } from "@/engine/montecarlo";
 import { buildSeasons, currentSeasonIndex, type Season } from "@/lib/seasons";
 import { detectMilestones, orderMilestones, type Milestone, type MilestoneKind } from "@/lib/digest/milestones";
 
@@ -79,8 +79,10 @@ export interface Digest {
   /** Reassurance that the plan still holds — health + a plain-language line. */
   plan: { health: PlanHealth; headline: string; reassurance: string };
   /** Monte Carlo odds of funding the plan to 100, with the day-over-day change.
-   *  deltaPts is null on the first brief (no prior value to compare against). */
-  monteCarlo: { successRate: number; deltaPts: number | null };
+   *  deltaPts is null on the first brief (no prior value to compare against).
+   *  bands = P10/P50/P90 net-worth percentile paths over time (trimmed to a
+   *  readable horizon) — the data behind the "range of outcomes" fan chart. */
+  monteCarlo: { successRate: number; deltaPts: number | null; bands: MonteCarloBand[] };
   /** "If your stocks do better, you could move your date up" — null if no gain. */
   upside: { betterFiYear: number; yearsEarlier: number | null; note: string } | null;
   /** Today's key figures — the send route persists these so tomorrow's brief can
@@ -283,11 +285,23 @@ export function buildDigest(input: BuildDigestInput): Digest {
   // ── Monte Carlo odds of funding to 100, + the day-over-day change ───────────
   // Fixed seed (runMonteCarlo's default) → the number only moves when the plan or
   // prices move, so the delta since yesterday is signal, not sampling jitter.
-  const mcSuccess = runMonteCarlo(snapshot, config, live, { runs: input.monteCarloRuns ?? 400 }).successRate;
+  const mcResult = runMonteCarlo(snapshot, config, live, { runs: input.monteCarloRuns ?? 400 });
+  const mcSuccess = mcResult.successRate;
   const prevMc = input.previous?.mcSuccess;
+  // Trim the percentile bands to a readable, decision-relevant window for the fan
+  // chart. The full path runs ~80+ years; over that long a horizon the lucky (P90)
+  // paths compound so high that a LINEAR y-scale crushes the median to the baseline.
+  // A ~22-year window covers the sequence-risk-critical early retirement decades —
+  // the whole point of Monte Carlo — and keeps the median legibly rising. Capped so
+  // it never runs past age 100.
+  const ageNow = config.birth_year ? now.getFullYear() - config.birth_year : 50;
+  const horizonYears = Math.min(22, Math.max(12, 100 - ageNow));
+  const endYearCap = now.getFullYear() + horizonYears;
+  const fanBands = mcResult.bands.filter((b) => (Number(b.date.split(" ").pop()) || 0) <= endYearCap);
   const monteCarlo = {
     successRate: mcSuccess,
     deltaPts: prevMc != null ? (mcSuccess - prevMc) * 100 : null,
+    bands: fanBands.length >= 2 ? fanBands : mcResult.bands,
   };
 
   // ── Plan reassurance — keyed off the HONEST odds, not just the median path ──

@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
+    "@resvg/resvg-js": "^2.6.2",
     "firebase": "^12.14.0",
     "firebase-admin": "^14.5.0",
     "lucide-react": "^1.17.0",

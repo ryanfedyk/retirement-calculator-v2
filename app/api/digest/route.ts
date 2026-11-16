@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { fetchQuotes, fetchMarketTrend } from "@/lib/quotes";
 import { buildDigest, MARKET_INDICES } from "@/lib/digest/buildDigest";
 import { renderDigestHtml, renderDigestText } from "@/lib/digest/renderEmail";
+import { buildMcFanSvg } from "@/lib/digest/charts";
+import { svgToPng } from "@/lib/server/raster";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -31,7 +33,17 @@ export async function POST(req: Request) {
       : (concSym ? quotes[concSym]?.price ?? 0 : 0);
 
     const digest = buildDigest({ profile, config, snapshot, quotes, liveConcentratedPrice: live, marketTrend });
-    const html = renderDigestHtml(digest);
+    // Preview embeds the fan chart as a data: URI (fine in a browser; the real email
+    // send uses a CID attachment instead, which Gmail/Outlook require).
+    let mcFan: { src: string; startYear: number; endYear: number } | undefined;
+    try {
+      const chart = buildMcFanSvg(digest.monteCarlo.bands);
+      if (chart) {
+        const png = await svgToPng(chart.svg, 1120);
+        if (png) mcFan = { src: `data:image/png;base64,${png.toString("base64")}`, startYear: chart.meta.startYear, endYear: chart.meta.endYear };
+      }
+    } catch { /* no chart */ }
+    const html = renderDigestHtml(digest, { mcFan });
 
     if (searchParams.get("format") === "html") {
       return new NextResponse(html, { headers: { "Content-Type": "text/html; charset=utf-8" } });

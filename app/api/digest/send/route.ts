@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { adminDb, adminAuth } from "@/lib/server/firebaseAdmin";
-import { emailConfigured, sendDigestEmail } from "@/lib/server/email";
+import { emailConfigured, sendDigestEmail, type EmailAttachment } from "@/lib/server/email";
 import { fetchQuotes, fetchMarketTrend } from "@/lib/quotes";
 import { buildDigest, MARKET_INDICES } from "@/lib/digest/buildDigest";
 import { renderDigestHtml, renderDigestText } from "@/lib/digest/renderEmail";
+import { buildMcFanSvg } from "@/lib/digest/charts";
+import { svgToPng } from "@/lib/server/raster";
 import { selectPrimaryPlan, type StoredPlanDoc } from "@/lib/digest/selectPrimaryPlan";
 import { isDue, localParts, type DigestPrefs, type DigestState } from "@/lib/digest/schedule";
 import { writeBriefProse } from "@/lib/digest/editorial";
@@ -55,7 +57,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "query failed", detail: e instanceof Error ? e.message : String(e) }, { status: 500 });
   }
 
-  const results: { uid: string; status: string; detail?: string; aiProse?: boolean }[] = [];
+  const results: { uid: string; status: string; detail?: string; aiProse?: boolean; mcChart?: boolean }[] = [];
   // Fetched once per run (not per user): the broad market's trailing-month trend, so
   // the brief reads the real regime instead of assuming the market is cooperating.
   const marketTrend = await fetchMarketTrend();
@@ -96,12 +98,30 @@ export async function POST(req: Request) {
       if (prose.marketOutlook) digest.marketOutlook = prose.marketOutlook;
       if (prose.motivation) digest.motivation = { quote: prose.motivation, attribution: null };
 
-      const html = renderDigestHtml(digest, { appUrl: APP_URL });
+      // Monte Carlo fan chart → inline PNG (CID). Fully fail-safe: if the SVG can't
+      // be built or rasterized (e.g. the native renderer isn't available on this
+      // runtime), the image is simply dropped and the brief still sends.
+      let attachments: EmailAttachment[] | undefined;
+      let mcFan: { src: string; startYear: number; endYear: number } | undefined;
+      let mcChart = false;
+      try {
+        const chart = buildMcFanSvg(digest.monteCarlo.bands);
+        if (chart) {
+          const png = await svgToPng(chart.svg, 1120);
+          if (png) {
+            attachments = [{ filename: "monte-carlo.png", content: png, cid: "mcfan" }];
+            mcFan = { src: "cid:mcfan", startYear: chart.meta.startYear, endYear: chart.meta.endYear };
+            mcChart = true;
+          }
+        }
+      } catch { /* no chart — brief still sends */ }
+
+      const html = renderDigestHtml(digest, { appUrl: APP_URL, mcFan });
       const text = renderDigestText(digest);
       // aiProse flags whether Gemini actually wrote the copy (vs. the deterministic
       // fallback) — surfaced in the response so a run's logs confirm the key works.
       const aiProse = !!prose.lede;
-      await sendDigestEmail({ to: email, subject: `The Morning Glide — ${digest.dateLabel}`, html, text });
+      await sendDigestEmail({ to: email, subject: `The Morning Glide — ${digest.dateLabel}`, html, text, attachments });
 
       // Write ONLY the server-managed send state (a separate field from the
       // user-edited digestPrefs, so a client save never clobbers it).
@@ -109,7 +129,7 @@ export async function POST(req: Request) {
         { digestState: { lastSentYmd: ymd, lastMetrics: digest.metrics } },
         { merge: true },
       );
-      results.push({ uid: doc.id, status: "sent", aiProse });
+      results.push({ uid: doc.id, status: "sent", aiProse, mcChart });
     } catch (e) {
       results.push({ uid: doc.id, status: "error", detail: e instanceof Error ? e.message : String(e) });
     }

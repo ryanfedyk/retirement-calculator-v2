@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { buildDigest, type QuoteLike } from "@/lib/digest/buildDigest";
 import { orderMilestones, type Milestone } from "@/lib/digest/milestones";
+import { buildMcFanSvg } from "@/lib/digest/charts";
 import { renderDigestHtml, renderDigestText } from "@/lib/digest/renderEmail";
 import type { FinancialSnapshot, SimulationConfiguration } from "@/engine/calculator";
 import { DEFAULT_SIM_CONFIG, DEFAULT_SNAPSHOT } from "@/config/sharedConfig";
@@ -83,6 +84,36 @@ describe("buildDigest", () => {
     expect(html).not.toMatch(/<svg|<canvas|src=["']data:/i);
     // Bars use bgcolor cells.
     expect(html).toMatch(/bgcolor=/i);
+  });
+
+  it("exposes Monte Carlo percentile bands and builds a text-free fan-chart SVG", () => {
+    const d = buildDigest({ config: plan().config, snapshot: plan().snapshot, quotes, liveConcentratedPrice: 198 });
+    expect(d.monteCarlo.bands.length).toBeGreaterThanOrEqual(2);
+    // Bands are ordered p10 <= p50 <= p90 and dated.
+    for (const b of d.monteCarlo.bands) {
+      expect(b.p10).toBeLessThanOrEqual(b.p90);
+      expect(b.date.length).toBeGreaterThan(0);
+    }
+    const chart = buildMcFanSvg(d.monteCarlo.bands);
+    expect(chart).not.toBeNull();
+    expect(chart!.svg).toContain("<svg");
+    expect(chart!.svg).toContain("<polyline"); // median line
+    expect(chart!.svg).toContain("<path");     // p10–p90 band
+    // No text in the SVG → the rasterizer never needs a font installed.
+    expect(chart!.svg).not.toContain("<text");
+    expect(chart!.meta.endYear).toBeGreaterThanOrEqual(chart!.meta.startYear);
+    // Too few bands → null (never throws).
+    expect(buildMcFanSvg([])).toBeNull();
+    expect(buildMcFanSvg([d.monteCarlo.bands[0]])).toBeNull();
+  });
+
+  it("renders the fan-chart image block only when a source is provided", () => {
+    const d = buildDigest({ config: plan().config, snapshot: plan().snapshot, quotes, liveConcentratedPrice: 198 });
+    const without = renderDigestHtml(d, { appUrl: "https://example.app" });
+    expect(without).not.toContain("The range of outcomes");
+    const withFan = renderDigestHtml(d, { appUrl: "https://example.app", mcFan: { src: "cid:mcfan", startYear: 2026, endYear: 2060 } });
+    expect(withFan).toContain("The range of outcomes");
+    expect(withFan).toContain('src="cid:mcfan"');
   });
 
   it("produces a roundup, a market outlook, and a daily thought", () => {

@@ -47,6 +47,59 @@ const sectionPad = "padding:0 32px";
 const row = (inner: string, pad = sectionPad) => `<tr><td style="${pad}">${inner}</td></tr>`;
 const ruleRow = `<tr><td style="${sectionPad}"><div style="height:1px;background:${BORDER};margin:24px 0"></div></td></tr>`;
 
+// ── Email-safe mini-charts ───────────────────────────────────────────────────
+// Built from <table> cells with bgcolor — NO SVG, canvas, JS, or data: URIs (all
+// stripped/blocked by Gmail and/or Outlook). These render natively in every client
+// and degrade to plain colored bars where border-radius isn't supported.
+
+/** A horizontal meter filled to pct% of a track (a magnitude toward a target). */
+function meterBar(pctFilled: number, fill: string, track = BORDER): string {
+  const p = Math.max(0, Math.min(100, Math.round(pctFilled)));
+  const cell = (w: number, bg: string) =>
+    w <= 0 ? "" : `<td width="${w}%" bgcolor="${bg}" style="width:${w}%;background:${bg};height:12px;line-height:12px;font-size:0;mso-line-height-rule:exactly">&nbsp;</td>`;
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-radius:6px;overflow:hidden;border-collapse:separate"><tr>${cell(p, fill)}${cell(100 - p, track)}</tr></table>`;
+}
+
+/** A two-segment "parts of a whole" bar with a 2px surface gap between fills. */
+function splitBar(leftPct: number, leftColor: string, rightColor: string, gap = CARD): string {
+  const l = Math.max(0, Math.min(100, Math.round(leftPct)));
+  const r = 100 - l;
+  const seg = (w: number, bg: string) =>
+    w <= 0 ? "" : `<td width="${w}%" bgcolor="${bg}" style="width:${w}%;background:${bg};height:10px;line-height:10px;font-size:0;mso-line-height-rule:exactly">&nbsp;</td>`;
+  const sep = `<td width="2" bgcolor="${gap}" style="width:2px;background:${gap};font-size:0;line-height:0">&nbsp;</td>`;
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-radius:5px;overflow:hidden"><tr>${seg(l, leftColor)}${l > 0 && r > 0 ? sep : ""}${seg(r, rightColor)}</tr></table>`;
+}
+
+/** A small inline legend swatch + label (secondary encoding so bars are never color-alone). */
+const swatch = (c: string, label: string) =>
+  `<span style="white-space:nowrap"><span style="display:inline-block;width:9px;height:9px;background:${c};border-radius:2px;vertical-align:middle">&nbsp;</span> <span style="font:400 12px/1.4 ${SANS};color:${INK_MID};vertical-align:middle">${esc(label)}</span></span>`;
+
+/** Diverging per-holding day-move bars: a center axis, warm left for down, teal
+ *  right for up — today's change made visual, each row signed and labeled. */
+function moversChart(movers: { symbol: string; changePct: number }[]): string {
+  const top = movers.slice(0, 4);
+  if (!top.length) return "";
+  const maxAbs = Math.max(0.005, ...top.map((m) => Math.abs(m.changePct)));
+  const halfBar = (w: number, bg: string, align: "left" | "right") => {
+    const ww = Math.max(3, Math.min(100, Math.round(w)));
+    const fill = `<td width="${ww}%" bgcolor="${bg}" style="width:${ww}%;background:${bg};height:9px;line-height:9px;font-size:0;mso-line-height-rule:exactly">&nbsp;</td>`;
+    const pad = `<td style="font-size:0;line-height:0">&nbsp;</td>`;
+    return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>${align === "right" ? pad + fill : fill + pad}</tr></table>`;
+  };
+  const rows = top.map((m) => {
+    const up = m.changePct >= 0;
+    const w = (Math.abs(m.changePct) / maxAbs) * 100;
+    const label = `${up ? "+" : "−"}${(Math.abs(m.changePct) * 100).toFixed(1)}%`;
+    return `<tr>
+      <td width="60" style="font:600 12px/1.3 ${SANS};color:${INK_MID};padding:4px 10px 4px 0;white-space:nowrap">${esc(m.symbol)}</td>
+      <td width="50%" style="padding:4px 0;border-right:1px solid ${INK_FAINT}">${up ? "" : halfBar(w, DOWN, "right")}</td>
+      <td width="50%" style="padding:4px 0">${up ? halfBar(w, UP, "left") : ""}</td>
+      <td width="52" align="right" style="font:600 12px/1.3 ${SANS};color:${up ? UP : DOWN};padding:4px 0 4px 10px;white-space:nowrap">${esc(label)}</td>
+    </tr>`;
+  });
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0">${rows.join("")}</table>`;
+}
+
 export function renderDigestHtml(d: Digest, opts: { appUrl?: string } = {}): string {
   const mv = moveLine(d);
   const feat = d.milestones[0] ?? null;
@@ -58,10 +111,6 @@ export function renderDigestHtml(d: Digest, opts: { appUrl?: string } = {}): str
     : Math.abs(dpt) < 0.1 ? `<span style="color:${INK_SOFT}">· flat vs. yesterday</span>`
     : `<span style="color:${dpt > 0 ? UP : DOWN};font-weight:600">· ${dpt > 0 ? "▲" : "▼"} ${Math.abs(dpt).toFixed(1)} pts vs. yesterday</span>`;
   const healthColor = d.plan.health === "on-track" ? TEAL_DK : WARM;
-
-  const moversLine = d.portfolio.movers.length
-    ? `<div style="margin-top:8px;font:400 12px/1.5 ${SANS};color:${INK_SOFT}">Movers: ${d.portfolio.movers.slice(0, 3).map((m) => `${esc(m.symbol)} ${m.changePct >= 0 ? "+" : ""}${(m.changePct * 100).toFixed(1)}%`).join(" · ")}</div>`
-    : "";
 
   const idxLine = d.marketContext.indices.filter((i) => i.symbol !== "^TNX" && i.changePct != null)
     .map((i) => `${esc(i.label)} <span style="color:${i.changePct! >= 0 ? UP : DOWN}">${pct(i.changePct!)}</span>`).join(" &nbsp;·&nbsp; ");
@@ -82,6 +131,29 @@ export function renderDigestHtml(d: Digest, opts: { appUrl?: string } = {}): str
   rows.push(row(`<div style="height:18px"></div>${kicker("The roundup")}<div style="height:12px"></div>${bullets(d.roundup.map(esc))}`));
 
   // ── The money — value, day move, plan odds, upside (one section) ─────────────
+  const concPct = Math.round(d.portfolio.concentrationPct * 100);
+  const concBlock = d.portfolio.concentratedSymbol && concPct > 0 && concPct < 100 ? `
+      <div style="height:12px"></div>
+      ${splitBar(concPct, WARM, TEAL)}
+      <div style="margin-top:7px">${swatch(WARM, `${d.portfolio.concentratedSymbol} ${concPct}%`)} &nbsp;&nbsp; ${swatch(TEAL, `Diversified ${100 - concPct}%`)}</div>` : "";
+
+  const moversBlock = d.portfolio.movers.length ? `
+      <div style="height:16px"></div>
+      <div style="font:700 10px/1 ${SANS};letter-spacing:.12em;text-transform:uppercase;color:${INK_SOFT}">Today's holding moves</div>
+      <div style="height:8px"></div>
+      ${moversChart(d.portfolio.movers)}` : "";
+
+  // Funding-odds gauge: the Monte Carlo success rate as a meter, colored by health,
+  // with the day-over-day delta and a scale caption so the fill level reads in context.
+  const gaugeBlock = `
+      <div style="height:18px"></div>
+      ${kicker("Funding odds")}
+      <div style="height:9px"></div>
+      <div style="font:400 13px/1.4 ${SANS};color:${INK_SOFT}"><span style="font:700 24px/1 ${SERIF};color:${INK}">${mcPct}%</span> &nbsp;Monte Carlo odds of funding the plan to 100 ${mcDelta}</div>
+      <div style="height:9px"></div>
+      ${meterBar(mcPct, healthColor)}
+      <div style="margin-top:7px;font:400 11px/1.4 ${SANS};color:${INK_FAINT}">Scale: 72% = good shape · 88%+ = plan intact</div>`;
+
   rows.push(ruleRow);
   rows.push(row(`
       ${kicker("The money")}
@@ -89,13 +161,14 @@ export function renderDigestHtml(d: Digest, opts: { appUrl?: string } = {}): str
       <div style="font:600 30px/1 ${SERIF};color:${INK}">${usd(d.portfolio.investable)}<span style="font:400 13px/1 ${SANS};color:${INK_SOFT}"> investable</span></div>
       <div style="height:7px"></div>
       <div style="font:600 14px/1.4 ${SANS};color:${mv.color}">${esc(mv.text)}</div>
-      <div style="margin-top:5px;font:400 12px/1.5 ${SANS};color:${INK_SOFT}">Net worth ${usd(d.portfolio.netWorth)}${d.portfolio.concentratedSymbol ? ` · ${Math.round(d.portfolio.concentrationPct * 100)}% in ${esc(d.portfolio.concentratedSymbol)}` : ""}</div>
-      ${moversLine}
-      <div style="height:16px"></div>
+      <div style="margin-top:5px;font:400 12px/1.5 ${SANS};color:${INK_SOFT}">Net worth ${usd(d.portfolio.netWorth)}${d.portfolio.concentratedSymbol ? ` · ${concPct}% in ${esc(d.portfolio.concentratedSymbol)}` : ""}</div>
+      ${concBlock}
+      ${moversBlock}
+      <div style="height:18px"></div>
       <div style="font:600 16px/1.3 ${SERIF};color:${healthColor}">${esc(d.plan.headline)}</div>
       <div style="height:6px"></div>
       <div style="font:400 14px/1.6 ${SANS};color:${INK_MID}">${esc(d.plan.reassurance)}</div>
-      <div style="margin-top:10px;font:400 13px/1.5 ${SANS};color:${INK_SOFT}"><span style="font-weight:700;color:${INK}">${mcPct}%</span> Monte Carlo odds of funding the plan to 100 ${mcDelta}</div>
+      ${gaugeBlock}
       ${d.upside ? `
       <div style="margin-top:14px;background:${TEAL_WASH};border-radius:12px;padding:14px 16px">
         ${kicker("Upside")}<div style="height:6px"></div>

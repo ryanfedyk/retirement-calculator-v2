@@ -71,6 +71,20 @@ describe("buildDigest", () => {
     expect(text).toContain("THOUGHT FOR THE DAY:");
   });
 
+  it("renders email-safe meter visuals (gauge, concentration split, movers) with no SVG/data-URIs", () => {
+    const d = buildDigest({ config: plan().config, snapshot: plan().snapshot, quotes, liveConcentratedPrice: 198, previous: { mcSuccess: 0.9 } });
+    const html = renderDigestHtml(d, { appUrl: "https://example.app" });
+    // Funding-odds gauge + concentration split bar are present and labeled.
+    expect(html).toContain("Funding odds");
+    expect(html).toContain("Diversified");
+    expect(html).toContain("Today's holding moves");
+    // Email-safe: charts are table/bgcolor only — never SVG, canvas, or data: image URIs
+    // (Gmail/Outlook strip those).
+    expect(html).not.toMatch(/<svg|<canvas|src=["']data:/i);
+    // Bars use bgcolor cells.
+    expect(html).toMatch(/bgcolor=/i);
+  });
+
   it("produces a roundup, a market outlook, and a daily thought", () => {
     const d = buildDigest({ config: plan().config, snapshot: plan().snapshot, quotes, liveConcentratedPrice: 198 });
     expect(d.roundup.length).toBeGreaterThan(0);

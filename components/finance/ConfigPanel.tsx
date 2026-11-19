@@ -78,6 +78,16 @@ export default function ConfigPanel() {
   const ma = config.market_assumptions;
   const sp = config.spending;
 
+  // Effective growth the chosen assumptions actually produce — so a 7% "Market
+  // Return" doesn't look mysteriously like ~2% on the (today's-dollar) charts.
+  // The engine compounds the portfolio at (return − volatility drag), then the
+  // charts show it in today's dollars (inflation removed). Taxable/cash balances —
+  // which is where home-sale proceeds and other windfalls land — lose a further
+  // ~0.4%/yr to dividend tax.
+  const nominalCompound = ma.market_return_rate - (ma.volatility_drag ?? 0);
+  const realCompound = ((1 + nominalCompound / 100) / (1 + (ma.inflation_rate ?? 0) / 100) - 1) * 100;
+  const taxableReal = realCompound - (ma.taxable_dividend_drag ?? 0.4);
+
   return (
     <div style={{ fontSize: 12, color: C.ink }}>
       {/* Career Path */}
@@ -134,6 +144,10 @@ export default function ConfigPanel() {
           onChange={v => updateMarketAssumptions({ volatility_drag: v })} />
         <NumField label="Healthcare Inflation (over CPI)" value={ma.healthcare_inflation_premium ?? 2} step={0.25} suffix="%"
           onChange={v => updateMarketAssumptions({ healthcare_inflation_premium: v })} />
+        <div style={{ gridColumn: "1 / -1", background: C.bg, border: `1px solid ${C.borderSoft}`, borderLeft: `3px solid ${C.teal}`, borderRadius: 6, padding: "8px 10px", fontSize: 10.5, lineHeight: 1.55, color: C.inkMid }}>
+          <strong style={{ color: C.ink }}>Effective growth:</strong> your {ma.market_return_rate}% return compounds at <strong>{nominalCompound.toFixed(1)}%/yr nominal</strong> (after the {ma.volatility_drag ?? 0}% volatility drag) — about <strong>{realCompound.toFixed(1)}%/yr in today&apos;s dollars</strong> once {ma.inflation_rate ?? 0}% inflation is removed. Investments grow at this rate; cash &amp; taxable balances (where <em>home-sale proceeds</em> and windfalls land) grow at ~{taxableReal.toFixed(1)}% real after dividend tax.
+          <div style={{ marginTop: 5, color: C.inkFaint }}>Charts show today&apos;s dollars by default — switch to <strong>Future $</strong> in Settings to see the larger nominal figures (~{nominalCompound.toFixed(1)}%/yr).</div>
+        </div>
       </Section>
 
       {/* Spending */}

@@ -39,6 +39,7 @@ export async function writeBriefProse(d: Digest): Promise<BriefProse> {
     `Plan standing: ${d.plan.headline} (${Math.round(d.monteCarlo.successRate * 100)}% Monte Carlo odds of funding to 100${d.monteCarlo.deltaPts != null ? `, ${d.monteCarlo.deltaPts >= 0 ? "+" : ""}${d.monteCarlo.deltaPts.toFixed(1)} pts since yesterday` : ""})`,
     `Today's featured life/career milestone: ${d.milestones[0] ? d.milestones[0].headline : "(none)"}`,
     `Current life/career season: ${d.framing.seasonName}`,
+    `Calendar: ${d.dateLabel} — ${d.calendarSeason.phase} ${d.calendarSeason.name.toLowerCase()} (~${d.calendarSeason.daysToNext} days until ${d.calendarSeason.next.toLowerCase()} begins)`,
     `Years to planned exit: based on the plan (do not invent specifics)`,
   ].join("\n");
 
@@ -46,7 +47,7 @@ export async function writeBriefProse(d: Digest): Promise<BriefProse> {
 
 Write THREE things and return them as raw JSON (no markdown fences): {"lede": "...", "marketOutlook": "...", "motivation": "..."}
 
-1. "lede": 1-2 sentences, warm and a little witty, in second person. Set the mood and point at the day's most meaningful thread (today's featured milestone, or the plan — not the daily tape). No "Good morning", do NOT include the reader's name (the template adds it). VARY the opening every day — this runs daily, so it must not read like a template. NEVER use the phrases "the number isn't the headline" or "a marker on the calendar" or close variants.
+1. "lede": 1-2 sentences, warm and a little witty, in second person. Set the mood and point at the day's most meaningful thread (today's featured milestone, or the plan — not the daily tape). No "Good morning", do NOT include the reader's name (the template adds it). VARY the opening every day — this runs daily, so it must not read like a template. NEVER use the phrases "the number isn't the headline" or "a marker on the calendar" or close variants. SEASON ACCURACY: use the Calendar fact — if you reference the season, match its phase. Only "early" means the season is beginning, so in mid/late season NEVER say "stepping into", "beginning of", "start of", "leaves just starting to turn", or anything implying it just started; in a LATE season treat it as winding down with the next season approaching (e.g. late autumn = nearly winter). The "Nth-to-last autumn" milestone counts autumns remaining; it does NOT mean this autumn is new.
 
 2. "marketOutlook": 2-4 sentences synthesizing conditions into a calm read of the MONTHS AHEAD for a long-horizon, diversifying investor. Weave the data into a narrative (not a list). CRUCIAL: reflect the ACTUAL recent direction using the past-month figure and regime — if it's a drawdown, name the pullback plainly and frame the reassurance around it; if it's been strong, caution against extrapolating. Do NOT claim or imply markets are "cooperating," rising, or calm unless the data says so. Be measured and humble; emphasize that volatility is normal and the plan is built for a range of outcomes.
 

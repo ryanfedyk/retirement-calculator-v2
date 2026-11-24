@@ -181,6 +181,22 @@ describe("buildDigest", () => {
     expect(orderMilestones(ms, 10)[0].headline).not.toBe(orderMilestones(ms, 11)[0].headline);
   });
 
+  it("knows where in the calendar season today falls (late autumn ≠ start of autumn)", () => {
+    const { snapshot, config } = plan();
+    // Nov 24 → late autumn, ~6 days to winter.
+    const lateFall = buildDigest({ config, snapshot, quotes, liveConcentratedPrice: 198, now: new Date(2026, 10, 24) });
+    expect(lateFall.calendarSeason.name).toBe("Autumn");
+    expect(lateFall.calendarSeason.phase).toBe("late");
+    expect(lateFall.calendarSeason.next).toBe("Winter");
+    expect(lateFall.calendarSeason.daysToNext).toBeLessThanOrEqual(10);
+    // The deterministic lede must not imply the season is just beginning in late fall.
+    const lede = lateFall.editorial.toLowerCase();
+    expect(lede).not.toMatch(/stepping into (the )?autumn|beginning of autumn|start of autumn|leaves (just |are )?(begin|start)/);
+    // Early autumn (Sep 5) reads as early.
+    const earlyFall = buildDigest({ config, snapshot, quotes, liveConcentratedPrice: 198, now: new Date(2026, 8, 5) });
+    expect(earlyFall.calendarSeason.phase).toBe("early");
+  });
+
   it("varies the lede day to day (no more identical morning copy)", () => {
     const { snapshot, config } = plan();
     const ledes = new Set<string>();

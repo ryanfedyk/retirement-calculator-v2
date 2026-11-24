@@ -91,6 +91,9 @@ export interface Digest {
   /** Editorial lede — set deterministically here; the send route may replace it
    *  with an AI-written one when Gemini is available. */
   editorial: string;
+  /** Where today falls in the calendar season (name + early/mid/late + days to the
+   *  next season), so copy reflects late autumn vs. the start of autumn. */
+  calendarSeason: { name: string; phase: "early" | "mid" | "late"; daysToNext: number; next: string };
   /** The scannable "what's new today" summary at the top, most important first. */
   roundup: string[];
   /** A synthesis of market conditions + a measured outlook for the months ahead.
@@ -167,6 +170,27 @@ function calendarSeason(month: number): string {
   if (month <= 4) return "Spring";
   if (month <= 7) return "Summer";
   return "Autumn";
+}
+
+/** Where in the (meteorological) season today falls — so copy never says "stepping
+ *  into autumn" in late November. Boundaries: Mar/Jun/Sep/Dec 1. phase is early /
+ *  mid / late by how many days remain before the next season begins. */
+function seasonPhaseInfo(now: Date): { name: string; phase: "early" | "mid" | "late"; daysToNext: number; next: string } {
+  const name = calendarSeason(now.getMonth());
+  const y = now.getFullYear();
+  const boundaries = [
+    { m: 2, season: "Spring" }, { m: 5, season: "Summer" },
+    { m: 8, season: "Autumn" }, { m: 11, season: "Winter" },
+  ];
+  let next: { date: Date; season: string } | null = null;
+  for (const b of boundaries) {
+    const dt = new Date(y, b.m, 1);
+    if (dt.getTime() > now.getTime()) { next = { date: dt, season: b.season }; break; }
+  }
+  if (!next) next = { date: new Date(y + 1, 2, 1), season: "Spring" }; // past Dec 1 → next is Mar 1
+  const daysToNext = Math.max(0, Math.round((next.date.getTime() - now.getTime()) / 86400000));
+  const phase = daysToNext <= 30 ? "late" : daysToNext >= 61 ? "early" : "mid";
+  return { name, phase, daysToNext, next: next.season };
 }
 
 function whatChangesEntering(next: Season): string {
@@ -343,10 +367,13 @@ export function buildDigest(input: BuildDigestInput): Digest {
   const milestones = orderMilestones(detected, dayOfYear);
 
   // ── Editorial lede (deterministic default; the route may swap in an AI one) ──
+  const calendarSeasonInfo = seasonPhaseInfo(now);
   const editorial = composeEditorial({
     dayChangePct,
     featured: milestones[0] ?? null,
     season: calendarSeason(now.getMonth()),
+    seasonPhase: calendarSeasonInfo.phase,
+    nextSeason: calendarSeasonInfo.next,
     dayOfYear,
     regime,
   });
@@ -411,6 +438,7 @@ export function buildDigest(input: BuildDigestInput): Digest {
       fiYear: fiYearBase,
     },
     editorial,
+    calendarSeason: calendarSeasonInfo,
     roundup,
     marketOutlook,
     marketContext,
@@ -454,9 +482,14 @@ function composeMarketOutlook(
 /** A one-line tease of what the featured milestone is about — WITHOUT repeating its
  *  headline (which has its own block). Lets the lede point at the day's milestone in
  *  fresh words, and it changes as the featured milestone rotates day to day. */
-function milestoneTease(kind: MilestoneKind, season: string): string {
+function milestoneTease(kind: MilestoneKind, season: string, phase: "early" | "mid" | "late" = "mid", next = ""): string {
   switch (kind) {
-    case "season":        return `you're another ${season} deeper into the back nine of working life`;
+    case "season": {
+      const n = next.toLowerCase();
+      return phase === "early" ? `you're stepping into another ${season} in the back nine of working life`
+        : phase === "late" ? `you're closing out another ${season} of the back nine${n ? ` — ${n} next` : ""}`
+        : `you're deep into another ${season} of the back nine of working life`;
+    }
     case "review":        return `review season is a lever this year, not just a ritual`;
     case "concentration": return `the concentration keeps quietly easing in the background`;
     case "fi":            return `a funded finish line keeps inching closer`;
@@ -475,6 +508,8 @@ function composeEditorial(a: {
   dayChangePct: number | null;
   featured: Milestone | null;
   season: string;
+  seasonPhase: "early" | "mid" | "late";
+  nextSeason: string;
   dayOfYear: number;
   regime: MarketRegime;
 }): string {
@@ -491,7 +526,7 @@ function composeEditorial(a: {
 
   // Milestone-aware openers — point at today's featured marker in fresh words.
   if (a.featured) {
-    const tease = milestoneTease(a.featured.kind, season);
+    const tease = milestoneTease(a.featured.kind, season, a.seasonPhase, a.nextSeason);
     pool.push(`Look up from the ticker for a second — ${tease}.`);
     pool.push(`The numbers will take care of themselves today; the part worth a beat is further down — ${tease}.`);
     pool.push(`One to actually notice this morning: ${tease}.`);

@@ -226,6 +226,20 @@ describe("buildDigest", () => {
     if (unknown.upside) expect(unknown.upside.note).not.toMatch(/cooperat/i);
   });
 
+  it("counts review seasons remaining (no off-by-one), including the current one", () => {
+    const { snapshot, config } = plan();
+    config.career_path.exit_year = 2029;
+    config.career_path.exit_month = 2; // March
+    // Late Nov 2026, in the review window → this one, 2027, 2028 = THIRD-to-last.
+    const d = buildDigest({ config, snapshot, quotes, liveConcentratedPrice: 198, now: new Date(2026, 10, 25) });
+    expect(d.milestones.some((m) => /third-to-last review season/i.test(m.headline))).toBe(true);
+    expect(d.milestones.some((m) => /fourth-to-last review season/i.test(m.headline))).toBe(false);
+    // January 2029, in the early-year window, exiting that March → the LAST one.
+    const d2 = buildDigest({ config, snapshot, quotes, liveConcentratedPrice: 198, now: new Date(2029, 0, 15) });
+    expect(d2.milestones.some((m) => /your last review season/i.test(m.headline))).toBe(true);
+    expect(d2.milestones.some((m) => /-to-last review season/i.test(m.headline))).toBe(false);
+  });
+
   it("surfaces a seasonal 'Nth-to-last' milestone as exit approaches", () => {
     const { snapshot, config } = plan();
     config.career_path.exit_year = YEAR + 1; // exit next year → the current season is near its last

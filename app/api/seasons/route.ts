@@ -4,9 +4,10 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
 const MODEL_CANDIDATES = [
-  "gemini-2.0-flash",
+  "gemini-4-hydrogen", // Gemini 4 Hydrogen (fast, low-cost) — preferred; rest are fallbacks
   "gemini-2.5-flash",
   "gemini-flash-latest",
+  "gemini-2.0-flash",
   "gemini-1.5-flash",
 ];
 

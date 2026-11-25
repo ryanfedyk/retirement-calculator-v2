@@ -2,7 +2,10 @@ import "server-only";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { Digest } from "@/lib/digest/buildDigest";
 
-const MODEL_CANDIDATES = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-flash-latest", "gemini-1.5-flash"];
+// gemini-4-hydrogen (Gemini 4 Hydrogen — fast, low-cost) is preferred; the rest
+// are fallbacks tried in order if the key/project can't reach the newer model, so
+// AI copy still works rather than dropping to the deterministic text.
+const MODEL_CANDIDATES = ["gemini-4-hydrogen", "gemini-2.5-flash", "gemini-flash-latest", "gemini-2.0-flash", "gemini-1.5-flash"];
 
 export interface BriefProse {
   /** 1–2 sentence opening lede. */

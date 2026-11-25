@@ -62,12 +62,20 @@ function occurrencesUntilExit(season: string, now: Date, exit: Date): number {
   if (exit <= now) return 0;
   const anchorMonth = SEASON_ANCHOR[season];
   const inSeasonNow = calendarSeason(now.getMonth()) === season;
+  // Anchor YEAR of the occurrence we're currently in. Winter spans a year boundary
+  // (Dec–Feb) with a January anchor, so December belongs to NEXT year's anchor —
+  // without this, a winter viewed in December is counted one too many (it would
+  // also count the previous, already-finished winter's January anchor).
+  const currentAnchorYear = (season === "Winter" && now.getMonth() === 11)
+    ? now.getFullYear() + 1
+    : now.getFullYear();
   let count = 0;
-  for (let y = now.getFullYear(); y <= exit.getFullYear(); y++) {
+  for (let y = currentAnchorYear; y <= exit.getFullYear() + 1; y++) {
     const anchor = new Date(y, anchorMonth, 15);
-    // Count a future instance, or the current in-progress one (anchor may be past).
-    const currentInProgress = y === now.getFullYear() && inSeasonNow;
-    if ((anchor >= now || currentInProgress) && anchor <= exit) count++;
+    if (anchor > exit) break;
+    // Count the current in-progress occurrence (its anchor may be behind now), or
+    // any later occurrence whose anchor is still ahead.
+    if ((inSeasonNow && y === currentAnchorYear) || anchor >= now) count++;
   }
   return count;
 }

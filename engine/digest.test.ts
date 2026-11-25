@@ -226,6 +226,20 @@ describe("buildDigest", () => {
     if (unknown.upside) expect(unknown.upside.note).not.toMatch(/cooperat/i);
   });
 
+  it("counts winter consistently across its Dec–Feb span (no December off-by-one)", () => {
+    const { snapshot, config } = plan();
+    config.career_path.exit_year = 2029;
+    config.career_path.exit_month = 2; // March 2029
+    // The 2026–27 winter (Dec 2026 → Feb 2027) is the same winter in all three
+    // months; with winters 2026-27, 2027-28, 2028-29 remaining it's THIRD-to-last
+    // in each — December must not read "fourth-to-last".
+    for (const now of [new Date(2026, 11, 10), new Date(2027, 0, 10), new Date(2027, 1, 10)]) {
+      const d = buildDigest({ config, snapshot, quotes, liveConcentratedPrice: 198, now });
+      expect(d.milestones.some((m) => /third-to-last winter/i.test(m.headline))).toBe(true);
+      expect(d.milestones.some((m) => /fourth-to-last winter/i.test(m.headline))).toBe(false);
+    }
+  });
+
   it("counts review seasons remaining (no off-by-one), including the current one", () => {
     const { snapshot, config } = plan();
     config.career_path.exit_year = 2029;

@@ -12,9 +12,10 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 // Current Gemini models, in order of preference. 1.5-flash is being retired,
 // so prefer 2.x and fall back gracefully on per-model errors (404/429/etc).
 const MODEL_CANDIDATES = [
-  "gemini-2.0-flash",
+  "gemini-4-hydrogen", // Gemini 4 Hydrogen (fast, low-cost) — preferred; rest are fallbacks
   "gemini-2.5-flash",
   "gemini-flash-latest",
+  "gemini-2.0-flash",
   "gemini-1.5-flash",
 ];
 

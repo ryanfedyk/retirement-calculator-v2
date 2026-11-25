@@ -72,6 +72,26 @@ function occurrencesUntilExit(season: string, now: Date, exit: Date): number {
   return count;
 }
 
+// Count the annual year-end review seasons remaining between now and exit,
+// INCLUDING the one currently underway. A review cycle for year C runs ~Sep C–Feb
+// C+1, anchored at Dec 1 C; a cycle counts if the user still attends it (its anchor
+// is at/after now, or it's the current in-progress cycle) and begins on/before the
+// exit date. Only meaningful inside the review window; returns 0 otherwise.
+function reviewSeasonsUntilExit(now: Date, exit: Date): number {
+  if (exit <= now) return 0;
+  const month = now.getMonth();
+  if (!(month >= 9 || month <= 1)) return 0;
+  const currentCycle = month >= 9 ? now.getFullYear() : now.getFullYear() - 1;
+  const ANCHOR_MONTH = 11; // December — the year-end review season
+  let count = 0;
+  for (let c = currentCycle; c <= exit.getFullYear() + 1; c++) {
+    const anchor = new Date(c, ANCHOR_MONTH, 1);
+    if (anchor > exit) break;
+    if (c === currentCycle || anchor >= now) count++;
+  }
+  return count;
+}
+
 export function detectMilestones(input: MilestoneInput): Milestone[] {
   const { now, config, seasons, currentIndex, investable, concentration, concentratedSymbol, equityOn, fiYear } = input;
   const out: Milestone[] = [];
@@ -133,7 +153,7 @@ export function detectMilestones(input: MilestoneInput): Milestone[] {
 
   // ── A final review season (year-end / early-year review window) ──────────────
   if (working && (month >= 9 || month <= 1)) {
-    const reviews = Math.max(1, exitYear - year + (month >= 9 ? 1 : 0));
+    const reviews = reviewSeasonsUntilExit(now, exitDate);
     const ord = ordinalToLast(reviews);
     if (ord) {
       out.push({
